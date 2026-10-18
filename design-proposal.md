@@ -45,6 +45,7 @@ C/C++/Python have useable components but structuring is nicer in Java/C#. This w
 Originally, there was an intention to use LLVM as a backend. A VM complicates things in my mind but the design fits better with what we imagine the language to look like.
 C# handles CIL (Common Intermediate Language) to perform a lot of its tasks, same with Java bytecode, but I am aware it could have impacts on other areas of design.
 A technical challenge we'd prefer to try out at least, depending on benefits and risks.
+An AOT option and JIT compiler would also be preferred for performance.
 
 5. Static Virtual Dispatch
 The original concept was for accessing static members of inherited classes and taking the inherited static value.
