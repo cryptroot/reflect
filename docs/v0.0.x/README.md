@@ -465,10 +465,10 @@ module.
   overflow the JVM stack first.
 - Stub modules (Q49): `reflect.core` with `Object`, `String` and `Runtime`, and `reflect.io` with
   `Console`, written in `.rfla` with the native names of ex §2.11 (`Console.write(int, String)`).
-- Instructions: constants, `dup` and `pop`; arguments and locals; arithmetic, bitwise operations,
-  shifts and comparisons over `i32`, `i64`, `f32` and `f64`; conversions among the primitive
-  types of R0 (`byte`, `short`, `char`, `int`, `long`, `float`, `double`); branches; `switch`;
-  static `call`; `ret`.
+- Instructions: `nop`, `ldc.*`, `ldstr`, `dup` and `pop`; arguments and locals; arithmetic,
+  bitwise operations, shifts and comparisons over `i32`, `i64`, `f32` and `f64`; conversions
+  among the primitive types of R0 (`byte`, `short`, `char`, `int`, `long`, `float`, `double`);
+  branches; `switch`; static `call`; `ret`.
 - Until v0.0.8, a fault that later throws an exception, such as an integer division by zero,
   stops VM0 with the exception's type name and exit code 1. Tests written with `expect-throws`
   then stay valid when v0.0.8 makes the exceptions real.
@@ -659,6 +659,6 @@ The roadmap's exit test is the case `run/core/hello.rfla` of item 2.3.
 
 When the exit test passes:
 
-1. The tag of the last stage marks the commit: `v0.0.9`, unless a stage was dropped.
+1. The tag of the last remaining stage marks the commit (`v0.0.9` if that stage remains).
 2. `v0.0.x` merges into the integration branch with a merge commit (§4).
 3. `v0.1.x` starts from that merge commit.
