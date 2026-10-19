@@ -251,6 +251,7 @@ refresh), scaffold checked code." [Decided]
 | [testing.md](testing.md) | test kinds, conformance format, feature and proof status, differential and bootstrap tests, fuzzing, examples as tests |
 | [formal-model.md](formal-model.md) and `formal/` | Featherweight Reflect layers, the v1.0 gate, the checked FR-core scaffold |
 | [roadmap.md](roadmap.md) | milestones v0.0.1 to v1.0.0 and the proof track |
+| [headroom.md](headroom.md) | features and optimizations that early decisions could rule out, with judgements and steps |
 
 examples.md stays the home of examples; the sketchpad keeps the housekeeping lists and the
 question log.

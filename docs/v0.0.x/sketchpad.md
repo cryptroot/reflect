@@ -7,13 +7,13 @@ log is [../sketchpad.md](../sketchpad.md).
 - Branch `v0.0.x` was created from `research` at `6408e3d` on 2026-10-19.
 - Inputs: [roadmap.md](../roadmap.md) (row v0.0.x), [bootstrapping.md](../bootstrapping.md),
   [bytecode.md](../bytecode.md), [vm.md](../vm.md), [testing.md](../testing.md),
-  [formal-model.md](../formal-model.md).
+  [formal-model.md](../formal-model.md), [headroom.md](../headroom.md).
 
 ## Progress log
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | not started |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
@@ -49,6 +49,7 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes | v0.0.1, v0.0.3 |
 | [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | v0.0.3 |
 | [examples.md](../examples.md) §11.1 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3) | with [../sketchpad.md](../sketchpad.md) A.6 |
+| [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | as Q57 to Q62 are answered |
 
 ### A.2 Inconsistencies found while planning
 
@@ -135,6 +136,66 @@ links, and that each cited rule ID has exactly one definition. Add it after the 
 [../sketchpad.md](../sketchpad.md) A.1 are fixed and LIB-03 and OPR-08 have one definition each
 (each has two today, A.2 item 8). **Answer:** 2026-10-19: Accepted as recommended; the `docs` job is added after those fixes.
 
+### B.2 Batch 6: headroom (asked 2026-10-19)
+
+These come from [../headroom.md](../headroom.md) and bind in the stage named. An accepted answer
+changes the owning rules, and the HR entry records where it went.
+
+**Q57 (BC-02, BC-10; HR-01). Unknown content.** No rule says what a reader does with a section
+or flag it doesn't know, so a minor version after v1.0 can't add a section that older readers
+skip safely, nor a flag they are sure to reject. *Recommendation:* bit 31 of a section ID marks
+the section ancillary. Readers reject a newer formatMinor, an unknown critical section and an
+unknown flag bit, and skip an unknown ancillary section; the model keeps it as opaque bytes, so
+the v0.0.2 rewrite check still holds. The writer stamps the lowest formatMinor its content
+needs. DEBUG becomes ancillary, and an ancillary section that describes critical content starts
+with that content's hash. Binding in v0.0.1 (commits 4 and 5). **Answer:**
+
+**Q58 (BC-02, REFL-07, CMP-04; HR-02). What the content hash covers.** BC-02 hashes all
+sections, so stripping DEBUG or moving a line changes the module's identity: a delta no longer
+finds its base (REFL-07), and the build key of every module that reads it changes (CMP-04).
+*Recommendation:* with Q57, the hash covers formatMajor, formatMinor, flags, and each critical
+section as (ID, length, bytes) in directory order. A stripped module keeps its identity, and a
+signature section can sign the hash. Binding in v0.0.2 (the writer). **Answer:**
+
+**Q59 (BC-02, BC-10, BC-11, VM-13; HR-03, HR-04). Fixed-width rows and stated limits.** BC-10
+doesn't say whether table columns are fixed-width or LEB128. LEB128 rows lose random access
+(VM-13 decodes on demand) and leave no way to append a column; and no rule states a limit beyond
+the 24-bit rows of a token. *Recommendation:* columns have fixed widths, and heap offsets,
+tokens and row numbers are u32. TABLES gives each table's row count and row size; the size
+follows from the table and the formatMinor, so the canonical form stays unique. In a module of
+an earlier minor, a reader treats columns appended since as zero. LEB128 stays in blobs and
+code. bytecode.md lists every limit (rows, heap and section sizes, code length, locals, stack
+depth, parameters, exception regions), and the writer and `rfla` report a diagnostic instead of
+writing a truncated module. Binding in v0.0.1 (commits 3 and 4). **Answer:**
+
+**Q60 (VM-13, BC-07, REFL-03, REFL-07; HR-09). Final fields stay final.** No rule says which
+code may store to a final field, and reflection reaches the private members of an opened
+namespace (REFL-03). If a final can change, the JIT and AOT can't fold it; HotSpot still doesn't
+trust instance finals by default, because reflection and deserialization may change them.
+*Recommendation:* `stfld` on a final field only in a constructor of the declaring type, `stsfld`
+on a static final only in its static initializer. VM0 checks this at load (v0.0.6 commit 7), the
+verifier later (BC-07). `Field.set` on a final throws `IllegalAccessException` even with
+`opens`, and hot reload never changes a final (REFL-07). v1 has no `with` expressions and no
+`init` accessors; either would need its own rule. Binding in v0.0.6. **Answer:**
+
+**Q61 (OPR-04, BC-04, VM-02, DAT-01, DAT-02; HR-10). Boxes without identity.** `ceq.ref` and
+Object-typed `==` compare identity (OPR-04), so a program can tell two boxes of one value apart,
+and the VM can't cache, share or remove a box that a comparison might see. *Recommendation:*
+`ceq.ref` on two boxes compares class and contents (primitives as `equals` does, struct fields
+recursively); a box has no identity hash; constructing a `WeakReference` to a box throws. Boxes
+stay immutable: `unbox` copies, and reflection can't set a box's fields; how `mutating` methods
+meet interfaces (DAT-02) is settled by v0.4. The cost is a slow path when two references differ
+and their static types admit boxes; the comment "identity, always" in ex §8.5 changes. Binding
+in v0.0.6 (commit 5, `ceq.ref`) and v0.0.7 (commit 4, `box`). **Answer:**
+
+**Q62 (NUL-07, NUL-05, BC-14, EXC-05; HR-11). Invariant reference arrays.** This reopens a
+decided rule. Java made arrays covariant because it had no generics; Reflect has generics but
+copies the covariance and its cost, a check of element type and nullability on every reference
+store. *Recommendation:* reference arrays are invariant; covariant use goes through generic
+methods, the `Array` base class and, later, a read-only covariant view. ex §2.10 and §7.8,
+NUL-05, NUL-07, BC-14 and EXC-05 change. Adding covariance later is compatible; removing it is
+not. Alternative: keep NUL-07 as decided. Binding in v0.0.7 (commit 2). **Answer:**
+
 <!-- questions:end -->
 
 ## C. Traceability
@@ -150,6 +211,7 @@ links, and that each cited rule ID has exactly one definition. Add it after the 
 | Docker on Windows and Linux, Lean in Docker (instruction, 2026-10-19) | v0.0.0 | BLD-05, BLD-06, TST-05, LEAN-04 |
 | a branch per version and frequent small commits (instruction, 2026-10-19) | every stage | RM-04 |
 | README for the plan, sketchpad for notes (instruction, 2026-10-19) | every stage | RM-05 |
+| features and optimizations to keep possible (instruction, 2026-10-19) | v0.0.1, v0.0.2, v0.0.6, v0.0.7 | HR-01, HR-02, HR-03, HR-04, HR-09, HR-10, HR-11 |
 
 ## D. Engineering log
 

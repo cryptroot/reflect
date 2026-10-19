@@ -32,6 +32,7 @@ the decision log in sketchpad.md.
 | `TST` | testing | [testing.md](testing.md) |
 | `LEAN` | formal model | [formal-model.md](formal-model.md) |
 | `RM` | milestones | [roadmap.md](roadmap.md) |
+| `HR` | features and optimizations to keep possible | [headroom.md](headroom.md) |
 
 ## 1. Components
 
