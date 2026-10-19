@@ -137,7 +137,7 @@ a download.
 |---|---|---|
 | `stage0` | `stage0/build.sh`: `javac` and `jar` into `out/stage0/` (BOOT-10) | v0.0.0 |
 | `unit` | the Java unit tests of stage0 | v0.0.0 |
-| `bytecode` | the `.rfla` suite: round trips, rejected files, programs on VM0 | v0.0.4 |
+| `bytecode` | the `.rfla` suite: rejected files (v0.0.3), round trips (v0.0.4), programs on VM0 (v0.0.5) | v0.0.3 |
 | `lean` | `lake build` in `formal/`, after a check that `formal/lean-toolchain` names the version in the image | v0.0.0 |
 | `all` | `stage0`, `unit`, `bytecode` and `lean`, in this order; it stops at the first failure | v0.0.0 |
 | `shell` | an interactive shell in the container | v0.0.0 |
@@ -180,6 +180,7 @@ stage0/src/reflect/stage0/bytecode/   model, reader, writer, assembler, disassem
 stage0/src/reflect/stage0/vm/         VM0 (BOOT-04)
 stage0/src/reflect/stage0/tools/      command lines: rfla, rfld, vm0, test
 stage0/test/                          unit tests and their harness (Q48)
+tests/bytecode/format/                modules that are assembled and round-tripped, not run
 tests/bytecode/lib/                   stub modules reflect.core and reflect.io (Q49)
 tests/bytecode/run/<area>/            programs with expectations, run on VM0
 tests/bytecode/invalid/               files that rfla must reject
@@ -257,7 +258,7 @@ run by `all`.
 | v0.0.0 | Docker environment and skeleton | `all` passes on both hosts |
 | v0.0.1 | exact encoding | the document test passes |
 | v0.0.2 | model, writer and reader | write, read and write give identical bytes; defects are rejected |
-| v0.0.3 | assembler | test files assemble; invalid files are rejected |
+| v0.0.3 | assembler | files in `format/` assemble; files in `invalid/` are rejected |
 | v0.0.4 | disassembler and round trip | the round trip holds for every test file |
 | v0.0.5 | VM0 loader and core interpreter | `run/core/` passes; the roadmap's exit test passes |
 | v0.0.6 | VM0 objects and dispatch | `run/objects/` passes |
@@ -386,3 +387,107 @@ checks.
 **Exit check.** For every module that the unit tests build, write, read and write again gives
 identical bytes, and every defect is rejected with a message that names its offset. Tag
 `v0.0.2`.
+
+### 7.4 v0.0.3: Assembler
+
+**Goal.** `rfla` turns `.rfla` text into a module.
+
+**Design.**
+
+- A lexer and a recursive-descent parser for the grammar of §7.2. Diagnostics carry a code
+  (`RFA0001` and up), a line and a column (§6.3).
+- Names resolve to definitions in the module, or to `TypeRef` and `MemberRef` rows that are
+  created at first use. Labels become offsets in the writer.
+- `.maxstack` is used when present. Otherwise the assembler computes the depth from the stack
+  effect of each instruction, call signatures included.
+- `.stackmap` directives are stored as written (Q50).
+- Names are spelled as GEN-12 states; primitive keywords and type-parameter names are accepted
+  only if Q52 allows them.
+
+**Commits.**
+
+1. The lexer.
+2. Module directives: `.module`, `.main`, `.requires`, `.exports`, `.opens`.
+3. `.class` with its kind, modifiers, `extends` and `implements`; `.field`.
+4. `.method` with its signature, and `.locals`.
+5. Instructions: without operands, with immediates, with references, with labels, and `switch`.
+6. `.try`, `.catch`, `.finally`, `.maxstack`, `.line` and `.stackmap`.
+7. The command `rfla`.
+8. The command `test`, first part: it finds the test files, and checks that each file in
+   `invalid/` fails with its `expect-error`. The job `bytecode` runs it.
+
+**Exit check.** Every file in `format/` assembles, and every file in `invalid/` fails with its
+expected code and position. Tag `v0.0.3`.
+
+### 7.5 v0.0.4: Disassembler and round trip
+
+**Goal.** `rfld` prints canonical `.rfla`, and the round trip of BC-08 holds for every test
+module.
+
+**Design.**
+
+- The output follows the order of the binary: one directive or instruction per line, four spaces
+  of indentation, LF line ends, labels numbered in code order, and names spelled as GEN-12
+  states.
+- The round trip of one test file:
+  1. Assemble the file to bytes A.
+  2. Disassemble A to text T.
+  3. Assemble T to bytes B.
+  4. Disassemble B to text T2.
+  5. The test passes when A equals B and T equals T2 (TST-09).
+- The job `bytecode` runs the round trip on every file in `format/`, `lib/` and `run/`.
+
+**Commits.**
+
+1. Module directives and type names.
+2. Members and signatures.
+3. Code, labels, exception regions, stack maps and line numbers.
+4. The command `rfld`.
+5. The round trip in the command `test`.
+
+**Exit check.** The round trip holds for every test file, on both hosts. Tag `v0.0.4`.
+
+### 7.6 v0.0.5: VM0 loader and core interpreter
+
+**Goal.** VM0 loads modules and runs static code over primitives and strings, with natives.
+
+**Design.**
+
+- Loader (VM-12, VM-13): the module path is a list of directories of `.rflc` files; each
+  `requires` resolves to exactly one module (MOD-03); types and methods load at first use.
+- Natives (UNS-03, LIB-03): Java methods in a fixed table, keyed by qualified signature. A native
+  declared outside the trusted modules is a load error.
+- Interpreter (BOOT-04): one Java call per Reflect call, and a `switch` over the opcodes. Locals
+  and the operand stack hold Java values.
+- Entry: the `main` class comes from `.main` or `--main`, and `main` returns `void` or `int`
+  (ex §2.4). `main` runs on a thread with a large stack, so deep recursion in Reflect does not
+  overflow the JVM stack first.
+- Stub modules (Q49): `reflect.core` with `Object`, `String` and `Runtime`, and `reflect.io` with
+  `Console`, written in `.rfla` with the native names of ex §2.11 (`Console.write(int, String)`).
+- Instructions: constants, `dup` and `pop`; arguments and locals; arithmetic, bitwise operations,
+  shifts and comparisons over `i32`, `i64`, `f32` and `f64`; conversions among the primitive
+  types of R0 (`byte`, `short`, `char`, `int`, `long`, `float`, `double`); branches; `switch`;
+  static `call`; `ret`.
+- Until v0.0.8, a fault that later throws an exception, such as an integer division by zero,
+  stops VM0 with the exception's type name and exit code 1. Tests written with `expect-throws`
+  then stay valid when v0.0.8 makes the exceptions real.
+- VM0 counts the opcodes it executes, and `test` reports the opcodes that no test executed (§8).
+
+**Commits.**
+
+1. The stub modules.
+2. The module path and `requires` resolution, with tests for a missing module and a duplicate
+   module.
+3. Frames, the interpreter loop, `ldstr`, static calls of natives, `ret`, the command `vm0 run`,
+   and `expect-output` in `test`. Check: `run/core/hello.rfla`.
+4. Arguments, locals and `i32` arithmetic.
+5. `i64`, `f32` and `f64`; comparisons; conversions, with the IEEE and saturation cases of BC-04.
+6. Branches and `switch`. Check: programs for factorials, Fibonacci numbers and Collatz
+   sequences.
+7. Static calls with arguments and results; recursion.
+8. Exit codes: `int main`, `Runtime.exit` and `expect-exit`.
+9. Faults reported by exception name, and `expect-throws`.
+10. The opcode count and its report.
+
+**Exit check.** The programs in `run/core/` pass. From here on, the roadmap's exit test passes
+with `run/core/hello.rfla`. Tag `v0.0.5`.
