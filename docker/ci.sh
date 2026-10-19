@@ -4,11 +4,14 @@ set -eu
 cd /work
 
 if [ "$#" -ne 1 ]; then
-    echo "Usage: sh docker/ci.sh lean" >&2
+    echo "Usage: sh docker/ci.sh {stage0|lean}" >&2
     exit 2
 fi
 
 case "$1" in
+    stage0)
+        sh stage0/build.sh
+        ;;
     lean)
         expected="leanprover/lean4:v${REFLECT_LEAN_VERSION:?Lean version is not set}"
         actual=$(cat formal/lean-toolchain)

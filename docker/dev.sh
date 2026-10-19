@@ -2,12 +2,12 @@
 set -eu
 
 if [ "$#" -ne 1 ]; then
-    echo "Usage: sh docker/dev.sh lean" >&2
+    echo "Usage: sh docker/dev.sh {stage0|lean}" >&2
     exit 2
 fi
 
 case "$1" in
-    lean) ;;
+    stage0|lean) ;;
     *)
         echo "Unknown job: $1" >&2
         exit 2

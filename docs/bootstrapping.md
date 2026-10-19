@@ -45,8 +45,11 @@ flowchart TD
 
 - **BOOT-10 [Proposed]** Stage0 is built with plain `javac` and `jar` from a script in the build
   image; no Maven or Gradle, since it is deleted at v0.6. Packages:
-  `reflect.stage0.compiler` (`rflc0`), `reflect.stage0.vm` (VM0), `reflect.stage0.translit`, and
+  `reflect.stage0.compiler` (`rflc0`), `reflect.stage0.vm` (VM0), `reflect.stage0.translit`,
+  `reflect.stage0.bytecode` (the module format), `reflect.stage0.tools` (command lines), and
   `reflect.stage0.lib`, the facade that mirrors `reflect.collections` (§5).
+  `sh stage0/build.sh` uses `javac --release 21` and writes `out/stage0/stage0.jar`, with
+  `reflect.stage0.tools.Main` as its entry point.
 - **BOOT-11 [Proposed]** `rflc0` has the pipeline of `rflc` (architecture.md §4) without
   generators, analyzers or `const` methods, restricted to R0. It emits the same module format
   through a Java port of the writer, which is checked against `rfld` output in tests.
