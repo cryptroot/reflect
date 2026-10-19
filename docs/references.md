@@ -5,14 +5,14 @@ Grouped by topic; each entry notes why it matters for Reflect.
 ## Generics, variance and type systems
 
 - Andrew Kennedy, Don Syme. *Design and Implementation of Generics for the .NET Common Language
-  Runtime.* PLDI 2001. The model for reified generics with shared and specialized code (G1).
+  Runtime.* PLDI 2001. The model for reified generics with shared and specialized code.
 - ECMA-335, *Common Language Infrastructure*, 6th edition, 2012. Metadata tables, signatures,
   exception clauses, constrained calls.
 - Gilad Bracha, Martin Odersky, David Stoutamire, Philip Wadler. *Making the Future Safe for the
   Past: Adding Genericity to the Java Programming Language.* OOPSLA 1998. Erasure, the design
   Reflect avoids.
 - Atsushi Igarashi, Benjamin C. Pierce, Philip Wadler. *Featherweight Java: A Minimal Core
-  Calculus for Java and GJ.* TOPLAS 23(3), 2001. Basis of Featherweight Reflect.
+  Calculus for Java and GJ.* TOPLAS 23(3), 2001.
 - Atsushi Igarashi, Mirko Viroli. *On Variance-Based Subtyping for Parametric Types.* ECOOP 2002.
 - Mads Torgersen, Christian Plesner Hansen, Erik Ernst, Peter von der Ahé, Gilad Bracha, Neal
   Gafter. *Adding Wildcards to the Java Programming Language.* SAC 2004.
@@ -20,7 +20,7 @@ Grouped by topic; each entry notes why it matters for Reflect.
 - Andrew J. Kennedy, Benjamin C. Pierce. *On Decidability of Nominal Subtyping with Variance.*
   FOOL/WOOD 2007.
 - Ross Tate, Alan Leung, Sorin Lerner. *Taming Wildcards in Java's Type System.* PLDI 2011. The
-  four restrictions are adopted for Reflect's wildcards (F31).
+  four restrictions are adopted for Reflect's wildcards.
 - Radu Grigore. *Java Generics are Turing Complete.* POPL 2017. Why the restriction is needed.
 - Jana Dunfield, Neelakantan R. Krishnaswami. *Bidirectional Typing.* ACM Computing Surveys
   54(5), 2021.
@@ -35,17 +35,17 @@ Grouped by topic; each entry notes why it matters for Reflect.
   Addison-Wesley, 1983. Metaclasses: classes as objects with their own methods.
 - Delphi (Object Pascal) class references and virtual constructors.
 - Swift: class methods, `type(of:)`, `required` initializers, dynamic `Self`.
-- PHP: late static binding (`static::`), the closest precedent for SV4.
+- PHP: late static binding (`static::`).
 
 ## Reflection and metaprogramming
 
 - Brian Cantwell Smith. *Procedural Reflection in Programming Languages.* PhD thesis, MIT, 1982.
 - Gilad Bracha, David Ungar. *Mirrors: Design Principles for Meta-level Facilities of
   Object-Oriented Programming Languages.* OOPSLA 2004. Design principles behind one API with
-  several implementations (R4).
+  several implementations.
 - Tim Sheard, Simon Peyton Jones. *Template Meta-programming for Haskell.* Haskell Workshop 2002.
 - Nicolas Stucki, Aggelos Biboudis, Martin Odersky. *A Practical Unification of Multi-stage
-  Programming and Macros.* GPCE 2018. Scala 3 quotes and splices, the closest model for F10.
+  Programming and Macros.* GPCE 2018.
 - WG21 P2996, *Reflection for C++26* (Childers, Dimov, Katz, Revzin, Sutton, Vali,
   Vandevoorde). Compile-time reflection in a systems language.
 - JSR 269, Java's pluggable annotation processing; Roslyn source generators (C#); Rust procedural
@@ -74,7 +74,7 @@ Grouped by topic; each entry notes why it matters for Reflect.
 
 - Robert Nystrom. *Crafting Interpreters.* Genever Benning, 2021.
 - Yunhe Shi, Kevin Casey, M. Anton Ertl, David Gregg. *Virtual Machine Showdown: Stack Versus
-  Registers.* ACM TACO 4(4), 2008. Motivates V2.
+  Registers.* ACM TACO 4(4), 2008.
 - Roberto Ierusalimschy, Luiz Henrique de Figueiredo, Waldemar Celes. *The Implementation of Lua
   5.0.* Journal of Universal Computer Science 11(7), 2005.
 - M. Anton Ertl, David Gregg. *The Structure and Performance of Efficient Interpreters.* Journal
@@ -84,7 +84,7 @@ Grouped by topic; each entry notes why it matters for Reflect.
 - Stefan Brunthaler. *Inline Caching Meets Quickening.* ECOOP 2010.
 - Mark Shannon. *PEP 659: Specializing Adaptive Interpreter.* Python, 2021.
 - Haoran Xu, Fredrik Kjolstad. *Copy-and-Patch Compilation.* OOPSLA 2021. The baseline JIT's
-  technique (F17, F51).
+  technique.
 - Thomas Würthinger et al. *One VM to Rule Them All.* Onward! 2013.
 - Tim Lindholm, Frank Yellin, Gilad Bracha, Alex Buckley, Daniel Smith. *The Java Virtual Machine
   Specification, Java SE 21 Edition.* Class initialization, stack maps.
@@ -98,9 +98,8 @@ Grouped by topic; each entry notes why it matters for Reflect.
 - Stephen M. Blackburn, Perry Cheng, Kathryn S. McKinley. *Oil and Water? High Performance
   Garbage Collection in Java with MMTk.* ICSE 2004.
 - Dimitri Racordon et al. *Implementation Strategies for Mutable Value Semantics.* Journal of
-  Object Technology 21(2), 2022. An alternative to borrow checking considered for V7.
-- Jeremy Manson, William Pugh, Sarita V. Adve. *The Java Memory Model.* POPL 2005. Basis of
-  F39.
+  Object Technology 21(2), 2022. An alternative to borrow checking.
+- Jeremy Manson, William Pugh, Sarita V. Adve. *The Java Memory Model.* POPL 2005.
 
 ## Bytecode verification and mechanized semantics
 
@@ -117,4 +116,4 @@ Grouped by topic; each entry notes why it matters for Reflect.
 
 - Vaughan R. Pratt. *Top Down Operator Precedence.* POPL 1973.
 - *The Swift Programming Language*, "Advanced Operators": operator and precedence-group
-  declarations, the model for custom operators after v1 (F49).
+  declarations, the model for custom operators after v1.

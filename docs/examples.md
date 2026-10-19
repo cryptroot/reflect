@@ -1470,8 +1470,8 @@ public final class Search {
     public static boolean missing<T>(T x) { return x == null; }   // null tests: always allowed
 
     public static void main(String[] args) {
-        println(indexOf(new String[] { "a", "b" }, "b"));   // prints: 1 (String implements Equatable<String>, F2)
-        println(indexOf(new int[] { 3, 4 }, 4));            // prints: 1 (primitives implement Equatable, F97)
+        println(indexOf(new String[] { "a", "b" }, "b"));   // prints: 1 (String implements Equatable<String>)
+        println(indexOf(new int[] { 3, 4 }, 4));            // prints: 1 (primitives implement Equatable)
         println(missing<int>(0));                            // prints: false (constant for non-null value types)
         println(missing<String?>(null));                     // prints: true
     }
@@ -1697,8 +1697,7 @@ public final class ModelDemo {
 
 ### 5.4 What the generator adds
 
-`rflc --emit-generated` prints the members that `ObservableGenerator`  adds to `Model`
-[Prosposal shape]. The `import` lines are an assumption, see [reflection §3, META-04](reflection.md#3-generators-and-templates).
+`rflc --emit-generated` prints the members that `ObservableGenerator`  adds to `Model`. The `import` lines are an assumption, see [reflection §3, META-04](reflection.md#3-generators-and-templates).
 
 ```csharp
 // file: demo/model/Model.g.rfl
@@ -2035,7 +2034,7 @@ public @interface CheckResult { }
 
 public final class IgnoredResultAnalyzer implements Analyzer<Method> {
     public override void analyze(Method m, DiagnosticSink sink) {
-        for (CallSite call : m.body.calls) {          // read-only bound body  [Proposed API]
+        for (CallSite call : m.body.calls) {          // read-only bound body  [Proposed]
             if (call.resultIgnored && call.target.hasAnnotation<CheckResult>()) {
                 sink.warning(call, "RFL1002", $"result of '{call.target.name}' is ignored");
             }
@@ -2307,8 +2306,7 @@ static void quiet(List<Path> paths) {
 Function<Path, String> read = p -> Files.readString(p);   // error: Function.apply declares no IOException
 ```
 
-Several checked exceptions infer an intersection for `E`: §3.8. Generic exception classes and
-catching by type argument (not in R0):
+Several checked exceptions infer an intersection for `E`: §3.8. Generic exception classes and catching by type argument:
 
 ```csharp
 // file: demo/errors/ParseError.rfl
@@ -2450,7 +2448,7 @@ Lock design pending review - Java model vs C# model - `synchronized` is reserved
 Below is the C# model.
 
 ```csharp
-// future: after v1.0 (F39–F41); `volatile` and `synchronized` are reserved now
+// future: after v1.0; `volatile` and `synchronized` are reserved now
 public final class Counter {
     private final Lock lock = new Lock();
     private volatile boolean stopped;
@@ -2570,7 +2568,7 @@ public final class Vectors {
 
 ```csharp
 // rejected
-Vec2 d = new Point(3, 4);                  // error: no implicit conversions (O3)
+Vec2 d = new Point(3, 4);                  // error: no implicit conversions
 public struct Bad {
     public static Bad operator +(int a, int b) { return new Bad(); }   // error: a parameter must be Bad
     public static boolean operator <(Bad a, Bad b) { return false; }   // error: `<` needs `>` too
@@ -2869,8 +2867,7 @@ static Span<int> leak(scoped Span<int> xs) { return xs; }        // error: a sco
 
 ### 9.2 Records
 
-Java record syntax for classes, C# `record struct` for values; both generate value equality
-(S18, F1).
+Java record syntax for classes, C# `record struct` for values; both generate value equality.
 
 ```csharp
 // file: demo/data/Records.rfl
@@ -3089,12 +3086,12 @@ public class Actor extends Destructible {
     public Actor(Texture texture) { this.texture = texture; }
     public void despawn() { destroy(); }              // each class decides who may destroy it
     protected override void onDestroy() { texture.release(); GC.suppressFinalize(this); }
-    ~Actor() { texture.release(); }                   // finalizer safety net (V8); suppressed once destroyed
+    ~Actor() { texture.release(); }                   // finalizer safety net; suppressed once destroyed
 }
 
 Actor alias = actor;
 actor.despawn();
-println(alias.destroyed);                             // true; alias is still not null (F52 unchanged)
+println(alias.destroyed);                             // true; alias is still not null
 alias.position = new Vec2(0, 0);                      // throws ObjectDestroyedException (unchecked)
 Actor? live = Destructible.alive(alias);              // null: an explicit conversion that works with ?. and ??
 ```
@@ -3239,7 +3236,7 @@ Greeter g = Proxy.create<Greeter>((p, m, a) -> null);   // error: needs an unsaf
 
 ### 10.5 Emitting code
 
-The emit API is the compiler's own bytecode writer [Proposal API].
+The emit API is the compiler's own bytecode writer [Proposed].
 
 ```csharp
 // file: demo/meta/Emit.rfl
@@ -3309,7 +3306,7 @@ A delta that removes `text()`, changes its signature, or changes the base class 
 
 ### 11.1 Static virtual dispatch in bytecode
 
-`.rfla` text for parts of §4.1 [Proposal syntax].
+`.rfla` text for parts of §4.1 [Proposed].
 
 ```text
 .module demo 0.1.0
@@ -3349,7 +3346,7 @@ Static methods of non-final or generic classes take the receiver class as a hidd
 .method public static reflect.core.String describe()
 {
     ldstr       "Kind: "
-    ldarg       $receiver                  // hidden receiver class [P name]
+    ldarg       $receiver                  // hidden receiver class
     call.svirt  demo.kinds.Kind::get_value()   // unqualified `value`: late static binding 
     call        reflect.core.String::concat(reflect.core.String, reflect.core.String)
     ret
@@ -3390,7 +3387,7 @@ Static methods of non-final or generic classes take the receiver class as a hidd
 Lowering recipes. `$` cannot appear in source identifiers, so compiler-made names use it.
 
 ```csharp
-// lowered: Button.clicked from §5.2 [P shape]
+// lowered: Button.clicked from §5.2
 private ListenerList<Consumer<ClickEvent>>? clicked$listeners;   // allocated on first +=
 
 public void add_clicked(Consumer<ClickEvent> listener) {
@@ -3436,7 +3433,7 @@ namespace demo.interop;
 public final class Raw {
     public static int sumTo(int count) {
         unsafe {                                   // module demo declares `unsafe;` 
-            int* buf = stackalloc int[count];      // [Proposal keyword]
+            int* buf = stackalloc int[count];      // [Proposed]
             for (int i = 0; i < count; i++) { *(buf + i) = i; }
             int total = 0;
             for (int i = 0; i < count; i++) { total += buf[i]; }
@@ -3460,7 +3457,7 @@ public struct PageHeader {
 public final class Pages {
     const int PAGE_SIZE = 65536;
 
-    extern static ubyte* mmap(ubyte* addr, ulong length, int prot, int flags, int fd, long offset);   // [Proposal syntax]
+    extern static ubyte* mmap(ubyte* addr, ulong length, int prot, int flags, int fd, long offset);   // [Proposed]
 
     private static PageHeader* freeList;
 
@@ -3561,7 +3558,7 @@ Dog (mixed): Rex says woof
 1
 1
 $ rflc build --deterministic --emit-generated gen --depfile out/demo.d --out out demo
-                                 # B6, F42: confined generator IO; F43: every file they read
+                                 # confined generator IO: every file they read
 $ ls gen/demo/model
 Model.g.rfl  Point2.g.rfl  Settings.g.rfl  Document.g.rfl
 $ rflc build -G observable.trace=true --out out demo      # generator option (reflection.md §3)

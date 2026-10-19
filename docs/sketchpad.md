@@ -33,39 +33,6 @@ the Reflect-S entry in references.md (lines 62 and 63, same line count); these l
 to fix or delete. Line numbers refer to commit `00d6207`. The Q12 change added one line after
 line 611, so in the current examples.md add 1 to every line number above 611.
 
-### A.2 Decision IDs without a register
-
-| File and line | ID | Context |
-|---|---|---|
-| examples 1472 | `F2` | `String` implements `Equatable<String>` |
-| examples 1473 | `F97` | primitives implement `Equatable` |
-| examples 2310, 3574 | `R0` | bootstrap language subset; defined in BOOT-02 |
-| examples 2452 | `F39–F41` | threads after v1.0 |
-| examples 2572 | `O3` | no implicit conversions |
-| examples 2872 | `S18`, `F1` | records |
-| examples 3091 | `V8` | finalizer as a safety net |
-| examples 3096 | `F52` | a destroyed object is not null |
-| examples 3351 | `[P name]` | `$receiver` |
-| examples 3392, 3421 | `[P shape]` | lowered events and captures |
-| examples 3563 | `B6`, `F42`, `F43` | deterministic builds, confined generator IO, depfile |
-| references 8 | `G1` | reified generics with shared and specialized code |
-| references 15 | "Featherweight Reflect" | core calculus; defined in formal-model.md |
-| references 23 | `F31` | wildcard restrictions |
-| references 38 | `SV4` | late static binding |
-| references 45 | `R4` | one reflection API, two implementations |
-| references 48 | `F10` | quasi-quotes |
-| references 63 | "Reflect-S" | Reflect as the VM's modules use it, defined in BOOT-08; the entry no longer says "subset translated to C" |
-| references 77 | `V2` | stack versus register bytecode |
-| references 87 | `F17`, `F51` | baseline JIT |
-| references 101 | `V7` | alternatives to borrow checking |
-| references 103 | `F39` | memory model |
-| references 112 | `F-4` | mechanized VM model |
-| references 120 | `F49` | custom operators |
-
-Status markers in examples.md use six spellings: `[Prosposal shape]` (1700, typo),
-`[Proposed shape]` (1893), `[Proposed API]` (2037), `[Proposal API]` (3241), `[Proposal syntax]`
-(3311, 3462) and `[Proposal keyword]` (3438). A single `[Proposed]` would match the tag used here.
-
 ### A.3 Leftovers of removed references
 
 - A space before punctuation where an ID was cut: lines 95, 344, 523, 811, 956, 1083, 1645, 1794,
