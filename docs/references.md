@@ -59,8 +59,8 @@ Grouped by topic; each entry notes why it matters for Reflect.
 - David A. Wheeler. *Fully Countering Trusting Trust through Diverse Double-Compiling.* PhD
   dissertation, George Mason University, 2009.
 - Dan Ingalls, Ted Kaehler, John Maloney, Scott Wallace, Alan Kay. *Back to the Future: The Story
-  of Squeak, a Practical Smalltalk Written in Itself.* OOPSLA 1997. VM written in a subset
-  translated to C, the model for Reflect-S.
+  of Squeak, a Practical Smalltalk Written in Itself.* OOPSLA 1997. VM written in a subset of
+  Smalltalk translated to C; Reflect-S follows Jalapeño and Maxine instead, with no C step.
 - Bowen Alpern et al. *The Jalapeño Virtual Machine.* IBM Systems Journal 39(1), 2000.
 - Carl Friedrich Bolz, Antonio Cuni, Maciej Fijałkowski, Armin Rigo. *Tracing the Meta-Level:
   PyPy's Tracing JIT Compiler.* ICOOOLPS 2009.

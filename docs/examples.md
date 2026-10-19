@@ -609,6 +609,7 @@ switch (day) {
     case MONDAY: println("work");          // error: only the arrow form exists 
 }
 goto done;                                 // error: `goto` is reserved and unused
+int v = switch (x) { default -> { yield 1; } };   // error: `yield` is reserved for iterators; a block arm uses `return`
 ```
 
 ### 2.10 Arrays
