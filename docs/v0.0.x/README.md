@@ -163,3 +163,85 @@ A Lean language server, used to edit proofs, also needs the toolchain from the i
 | Git on Windows does not set executable bits. | Jobs start scripts with `sh <script>`, never as `./<script>`. |
 | Windows and Linux paths differ. | The wrappers mount the checkout with `--mount type=bind`; jobs use `/work` paths only. |
 | A TLS-intercepting proxy breaks HTTPS downloads in the image build. | If `REFLECT_EXTRA_CA` names a PEM file, the wrappers pass it to the build as a secret. The build trusts it only while it downloads, and it never enters an image layer or the repository. |
+
+## 6. Layout, commands and test files
+
+### 6.1 Files added in v0.0.x
+
+```text
+.gitattributes                        line ends and binary types (§5.5)
+.gitignore                            out/
+docker/build/Dockerfile               the reflect-build image (§5.2)
+docker/dev.ps1, docker/dev.sh         host wrappers (§5.3)
+docker/ci.sh                          the jobs, run inside the container
+stage0/build.sh                       javac and jar (BOOT-10)
+stage0/src/reflect/stage0/lib/        the facade that mirrors reflect.collections (BOOT-03)
+stage0/src/reflect/stage0/bytecode/   model, reader, writer, assembler, disassembler
+stage0/src/reflect/stage0/vm/         VM0 (BOOT-04)
+stage0/src/reflect/stage0/tools/      command lines: rfla, rfld, vm0, test
+stage0/test/                          unit tests and their harness (Q48)
+tests/bytecode/lib/                   stub modules reflect.core and reflect.io (Q49)
+tests/bytecode/run/<area>/            programs with expectations, run on VM0
+tests/bytecode/invalid/               files that rfla must reject
+out/                                  build output
+```
+
+- `reflect.stage0.lib` and `reflect.stage0.bytecode` are R0-shaped Java (BOOT-03), so the
+  transliterator can print them as Reflect (Q47). The bytecode package works on byte arrays;
+  file access stays in `reflect.stage0.tools`.
+- `reflect.stage0.vm` and `reflect.stage0.tools` are plain Java. They leave with stage0 at v0.6
+  (BOOT-15).
+
+### 6.2 Commands
+
+Inside the container (job `shell`):
+
+| Command | Purpose |
+|---|---|
+| `java -jar out/stage0/stage0.jar rfla in.rfla -o out.rflc` | assemble |
+| `java -jar out/stage0/stage0.jar rfld in.rflc` | disassemble to standard output |
+| `java -jar out/stage0/stage0.jar vm0 run [--module-path P] [--main C] app.rflc [args]` | run a module on VM0 (VM-12) |
+| `java -jar out/stage0/stage0.jar test tests/bytecode` | run the `.rfla` suite |
+
+`vm0 run` exits with:
+
+- the result of `int main`, the argument of `Runtime.exit`, or 0;
+- 1 after an uncaught exception;
+- 2 when a module cannot be read.
+
+### 6.3 Test files
+
+`.rfla` tests state their expectations in leading `//` comments, with the directives of TST-01:
+
+| Directive | Meaning |
+|---|---|
+| `// expect-output: text` | one line of standard output, in order |
+| `// expect-exit: n` | the exit code |
+| `// expect-throws: Type` | an uncaught exception of that type |
+| `// args: a b c` | arguments for `main` |
+| `// expect-error: RFAnnnn @ line:col` | `rfla` rejects the file with this diagnostic |
+
+- Assembler diagnostics have codes `RFA0001` and up, in the style of CMP-02, listed in
+  [bytecode.md](../bytecode.md) §8.
+- A directory under `run/` is one multi-module test. Its expectations sit in its `test.rfla`, as
+  for `.rfl` tests (TST-01).
+- `rfla` ignores comments, and `rfld` does not print them.
+- Every test module also goes through the round trip (§7, v0.0.4).
+
+```text
+// expect-output: Hello, world!
+.module hello 0.0.0
+.main hello.App
+.requires reflect.core
+.requires reflect.io
+
+.class public final hello.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldstr    "Hello, world!"
+        call     reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+```
+
+The `.main` directive records the descriptor's `main` class (VM-12); v0.0.1 adds it.
