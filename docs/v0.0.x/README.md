@@ -139,7 +139,7 @@ a download.
 | `unit` | the Java unit tests of stage0 | v0.0.0 |
 | `bytecode` | the `.rfla` suite: rejected files (v0.0.3), round trips (v0.0.4), programs on VM0 (v0.0.5) | v0.0.3 |
 | `lean` | `lake build` in `formal/`, after a check that `formal/lean-toolchain` names the version in the image | v0.0.0 |
-| `all` | `stage0`, `unit`, `bytecode` and `lean`, in this order; it stops at the first failure | v0.0.0 |
+| `all` | builds stage0, runs `unit`, then `lean`; `bytecode` joins before `lean` in v0.0.3; stops at the first failure | v0.0.0 |
 | `shell` | an interactive shell in the container | v0.0.0 |
 
 `docker/ci.sh` is the only CI entry point: a hosted CI service runs `docker/dev.sh all` (Q53).

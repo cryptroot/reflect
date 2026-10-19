@@ -4,7 +4,7 @@ set -eu
 cd /work
 
 if [ "$#" -ne 1 ]; then
-    echo "Usage: sh docker/ci.sh {stage0|unit|lean}" >&2
+    echo "Usage: sh docker/ci.sh {stage0|unit|lean|all|shell}" >&2
     exit 2
 fi
 
@@ -12,10 +12,13 @@ case "$1" in
     stage0)
         sh stage0/build.sh
         ;;
-    unit)
+    unit|all)
         sh stage0/build.sh
         java -cp out/stage0/classes:out/stage0/test-classes \
             reflect.stage0.test.TestRunner out/stage0/test-classes
+        if [ "$1" = all ]; then
+            sh docker/ci.sh lean
+        fi
         ;;
     lean)
         expected="leanprover/lean4:v${REFLECT_LEAN_VERSION:?Lean version is not set}"
@@ -26,6 +29,9 @@ case "$1" in
         fi
         cd formal
         lake build
+        ;;
+    shell)
+        exec sh
         ;;
     *)
         echo "Unknown job: $1" >&2

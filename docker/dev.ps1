@@ -6,8 +6,8 @@ trap {
     exit 1
 }
 
-if (-not $Job -or $args.Count -ne 0 -or $Job -notin @('stage0', 'unit', 'lean')) {
-    [Console]::Error.WriteLine('Usage: docker/dev.ps1 {stage0|unit|lean}')
+if (-not $Job -or $args.Count -ne 0 -or $Job -notin @('stage0', 'unit', 'lean', 'all', 'shell')) {
+    [Console]::Error.WriteLine('Usage: docker/dev.ps1 {stage0|unit|lean|all|shell}')
     exit 2
 }
 
@@ -57,5 +57,8 @@ $runArgs = @(
     '--mount', "type=bind,source=$root,target=/work", '--workdir', '/work',
     $image, 'sh', 'docker/ci.sh', $Job
 )
+if ($Job -eq 'shell') {
+    $runArgs = @('run', '--interactive', '--tty') + $runArgs[1..($runArgs.Count - 1)]
+}
 & docker @runArgs
 exit $LASTEXITCODE
