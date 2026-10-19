@@ -90,3 +90,76 @@ Out of scope, with the version that brings it:
 4. **Documents.** This README states the current plan only. When the plan changes, the README
    changes with it. Dates, decision history, open questions and engineering issues go to
    [sketchpad.md](sketchpad.md).
+
+## 5. Development environment: Docker
+
+- **[Decided]** Every build, test and proof job runs in a Docker container, on Windows and Linux
+  hosts alike. Lean runs in Docker too. A host needs only Docker and git.
+- **[Decided]** The Docker environment comes first: stage v0.0.0 builds it, and every later
+  commit is checked in it.
+
+### 5.1 Hosts
+
+| Host | Needs |
+|---|---|
+| Windows | Docker Desktop running Linux containers (WSL 2 backend); git; Windows PowerShell 5.1 or PowerShell 7 |
+| Linux | Docker Engine; git; a POSIX shell |
+
+A host needs no JDK and no Lean. An IDE can use a host JDK to edit stage0, but only results from
+the container count.
+
+### 5.2 The image
+
+`reflect-build` (BLD-05), built from `docker/build/Dockerfile`:
+
+1. The base is `debian:trixie-slim`.
+2. OpenJDK 21 comes from the Debian packages (Q02). Stage0 compiles with `javac --release 21`.
+3. The Lean toolchain is unpacked to `/opt/lean` (LEAN-04). The Dockerfile pins its version and
+   the SHA-256 of its release archive (Q51).
+4. The tag is `reflect-build:` followed by the first 12 hexadecimal digits of the SHA-256 of the
+   Dockerfile. A change to the Dockerfile gives a new tag, and the wrappers build the new image
+   on their next run.
+
+Only the image build uses the network. Jobs run without network access, so no job can depend on
+a download.
+
+### 5.3 Wrappers and jobs
+
+`docker/dev.ps1 <job>` on Windows and `docker/dev.sh <job>` on Linux do the same steps:
+
+1. Stop with a message if the Docker engine does not answer.
+2. Build the image if its tag does not exist.
+3. Run `sh docker/ci.sh <job>` in a new container. The checkout is mounted at `/work`, and the
+   container has no network (`--network none`).
+4. Return the exit code of the job.
+
+| Job | Runs | From |
+|---|---|---|
+| `stage0` | `stage0/build.sh`: `javac` and `jar` into `out/stage0/` (BOOT-10) | v0.0.0 |
+| `unit` | the Java unit tests of stage0 | v0.0.0 |
+| `bytecode` | the `.rfla` suite: round trips, rejected files, programs on VM0 | v0.0.4 |
+| `lean` | `lake build` in `formal/`, after a check that `formal/lean-toolchain` names the version in the image | v0.0.0 |
+| `all` | `stage0`, `unit`, `bytecode` and `lean`, in this order; it stops at the first failure | v0.0.0 |
+| `shell` | an interactive shell in the container | v0.0.0 |
+
+`docker/ci.sh` is the only CI entry point: a hosted CI service runs `docker/dev.sh all` (Q53).
+
+### 5.4 Lean
+
+1. Run `docker/dev.ps1 lean` on Windows, or `docker/dev.sh lean` on Linux.
+2. The job passes when `lake build` succeeds. The open gate obligations of FR-core,
+   `preservation` and `progress` ([formal-model.md](../formal-model.md) §3), show as `sorry`
+   warnings.
+3. The build cache `formal/.lake/` stays in the checkout; git ignores it.
+
+A Lean language server, used to edit proofs, also needs the toolchain from the image (Q54).
+
+### 5.5 Differences between hosts
+
+| Difference | Rule |
+|---|---|
+| Git on Windows can check out text files with CRLF line ends (`core.autocrlf`). Shell scripts then fail in the container, and byte comparisons of text files fail. | `.gitattributes` sets LF for every text file and marks `.rflc` and `.jar` files as binary. |
+| On Linux, a container writes files into the mounted checkout as root. | `dev.sh` runs the container as the host user (`--user uid:gid`). |
+| Git on Windows does not set executable bits. | Jobs start scripts with `sh <script>`, never as `./<script>`. |
+| Windows and Linux paths differ. | The wrappers mount the checkout with `--mount type=bind`; jobs use `/work` paths only. |
+| A TLS-intercepting proxy breaks HTTPS downloads in the image build. | If `REFLECT_EXTRA_CA` names a PEM file, the wrappers pass it to the build as a secret. The build trusts it only while it downloads, and it never enters an image layer or the repository. |
