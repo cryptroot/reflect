@@ -23,34 +23,11 @@ documents (Part C). The design itself lives in the documents listed in C.2;
 ## 0. Conventions
 
 Status tags, rule IDs and prefixes are defined in [architecture.md](architecture.md) §0. Rule IDs
-(`SVD-03`) and question IDs (`Q12`) keep their meaning forever; the IDs used in examples.md and
-references.md (`F31`, `SV4`, `G1`, ...) have no register (A.2) and are not reused.
+(`SVD-03`) and question IDs (`Q12`) keep their meaning forever.
 
 ## A. Housekeeping
 
-Nothing in examples.md or references.md was edited except the Q12 change (A.6) and the wording of
-the Reflect-S entry in references.md (lines 62 and 63, same line count); these lists are for you
-to fix or delete. Line numbers refer to commit `00d6207`. The Q12 change added one line after
-line 611, so in the current examples.md add 1 to every line number above 611.
-
-### A.6 Example changes the answers require
-
-| examples.md | Change | Answer |
-|---|---|---|
-| §2.9 rejected block | added: `yield` in a block arm is an error (done) | Q12 |
-| §2.2 Blocks.rfl, lines 152 and 157 | rename the `demo.tools` block, for example to `demo.measure` | Q13 |
-| §6.5 line 2068 | `public const ReadOnlyArray<int> SMALL_PRIMES = { 2, 3, 5, 7 };` | Q27 |
-| §8.3 `Accumulator` | `public mutating void operator +=(long x)` | Q24 |
-| §8.5 line 2738 | `Object.referenceEquals(s1, s2)` (A.4 item 1) | none |
-| §9.6 | title "Destructible objects", a `// file:` header, declarations apart from statements | Q26 |
-| §2.1 `module demo` | drop `requires reflect.meta;`, add `requires reflect.meta.dynamic;` (proxies, emit, hot reload) | Q30 |
-| §2.1 `reflect.lint`, §6.2 `reflect.observable` | drop `requires transitive reflect.meta;` (the namespace is in `reflect.core`) | Q30 |
-| §10.4 to §10.6 | `import reflect.meta.dynamic;` for `Proxy`, `ModuleBuilder`, `HotReload` | Q30 |
-| §2.1 `module demo` | optional `version "0.1.0";` (ex §11.1 prints `.module demo 0.1.0`) | Q40 |
-| §3.1 `parse` | `parse<T extends Number<T>>`, since `Number<T>` includes `Parsable<T>` | Q39 |
-| §6.1 intro, §6.2 descriptors | annotation instances are generated classes: reading them needs no `unsafe;`, so `reflect.observable` and `demo.tools` drop it | Q10 |
-| §7.7 | "only `Lockable` objects can be locked"; `Lock` implements `Lockable` | Q37 |
-| §10.2 | `cubes.getMethod("add", Cube.class)` | Q36 |
+**COMPLETED**
 
 ## B. Questions and answers
 

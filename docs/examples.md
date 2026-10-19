@@ -39,8 +39,9 @@ One module is one `.rflc` file; the descriptor is Java's `module-info` plus `uns
 ```csharp
 // file: demo/module-info.rfl
 module demo {
+    version "0.1.0";
     requires reflect.collections;        // reflect.core is implicit
-    requires reflect.meta;               // reflection API
+    requires reflect.meta.dynamic;       // proxies, emit, hot reload
     requires reflect.observable;         // @Observable, its generator and PropertyChange
     requires static reflect.lint;        // compile time only: analyzers
     requires static demo.tools;          // compile time only: @AutoToString and its generator
@@ -56,7 +57,6 @@ module demo {
 ```csharp
 // file: reflect.lint/module-info.rfl
 module reflect.lint {
-    requires transitive reflect.meta;    // modules reading reflect.lint also read reflect.meta
     requires transitive reflect.meta.compile;   // the analyzers' public signatures use its types
     exports reflect.lint;
     provides reflect.meta.compile.Analyzer
@@ -759,8 +759,8 @@ public final class GenericsDemo {
         for (S s : src) { dst.add(s); }
     }
 
-    // `&` joins bounds; Number is an interface the numeric primitives implement
-    public static T parse<T extends Number & Parsable<T>>(String text) {
+    // Number<T> aggregates Parsable<T>; Number is an interface the numeric primitives implement
+    public static T parse<T extends Number<T>>(String text) {
         return T.parse(text);                     // static abstract member through reified T
     }
 
@@ -1790,8 +1790,8 @@ public class Settings { }                       // error: every part of Settings
 ### 6.1 Annotation declarations
 
 Java `@interface` syntax, retention `RUNTIME` by default, bound to a generator with
-`@GeneratedBy`. Annotation instances are proxies, so reading them needs `unsafe;`
-until the verifier exists.
+`@GeneratedBy`. Each annotation type has a generated implementation class, so reading
+annotations needs no `unsafe;`.
 
 ```csharp
 // file: stdlib/reflect.observable/Observable.rfl
@@ -1863,10 +1863,8 @@ A generator lives in a module compiled earlier and runs on the VM inside `rflc`.
 ```csharp
 // file: stdlib/reflect.observable/module-info.rfl
 module reflect.observable {
-    requires transitive reflect.meta;    // PropertyChange exposes reflect.meta.Property
     requires reflect.meta.compile;       // ClassGenerator, GeneratorContext, Template
     exports reflect.observable;
-    unsafe;                              // the generator reads annotation instances
 }
 ```
 
@@ -1876,7 +1874,6 @@ module demo.tools {                      // a pure tooling module, compiled befo
     requires reflect.meta.compile;
     requires reflect.observable;         // its generator is ordered after ObservableGenerator
     exports demo.tools;
-    unsafe;
 }
 ```
 
@@ -2461,7 +2458,7 @@ public final class Counter {
     private int count;
 
     public void increment() {
-        synchronized (lock) { count++; }       // only `Lock` objects can be locked
+        synchronized (lock) { count++; }       // only `Lockable` objects can be locked; `Lock` implements `Lockable`
     }
 }
 ```
@@ -2658,7 +2655,7 @@ public final class Matrix {
 
 public struct Accumulator {
     public long total;
-    public void operator +=(long x) { total += x; }
+    public mutating void operator +=(long x) { total += x; }
 }
 
 final class Compound {
@@ -3183,7 +3180,7 @@ public final class Generic {
         Class<?> def = ArrayList.class;                    // generic definition
         Class<?> cubes = def.instantiate(Cube.class);      // ArrayList<Cube>, created at run time
         Object list = cubes.getConstructor()!.invoke();   // reflective construction
-        cubes.getMethod("add")!.invoke(list, new Cube(1));
+        cubes.getMethod("add", Cube.class)!.invoke(list, new Cube(1));
         println(cubes.typeArguments[0].name);              // prints: demo.kinds.Cube
         println(list.getClass() == cubes);                 // prints: true (one Class per instantiation)
         println(list instanceof List<Cube>);               // prints: true
@@ -3238,6 +3235,7 @@ does not declare reaches the caller as `UndeclaredThrowableException`.
 namespace demo.meta;
 
 import reflect.meta;
+import reflect.meta.dynamic;
 import static reflect.io.Console;
 
 public interface Greeter { String greet(String name); }
@@ -3272,6 +3270,7 @@ namespace demo.meta;
 
 import reflect.collections;
 import reflect.meta;
+import reflect.meta.dynamic;
 import static reflect.io.Console;
 
 public final class Emit {
@@ -3283,7 +3282,7 @@ public final class Emit {
         var code = add.body();                  // final class: no hidden receiver argument
         code.ldarg(0); code.ldarg(1); code.add(Type.INT); code.ret();
         Class<?> adder = mb.load().getClass("dyn.Adder")!;
-        println(adder.getMethod("add")!.invoke(null, 2, 3));  // prints: 5
+        println(adder.getMethod("add", int.class, int.class)!.invoke(null, 2, 3));  // prints: 5
     }
 }
 ```
@@ -3300,6 +3299,7 @@ namespace demo.meta;
 
 import reflect.io;
 import reflect.meta;
+import reflect.meta.dynamic;
 
 public final class Reload {
     public static void apply(Path deltaPath) throws IOException {
