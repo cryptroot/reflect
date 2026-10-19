@@ -34,6 +34,38 @@ log is [../sketchpad.md](../sketchpad.md).
   the README.
 - When a question is answered, its answer is dated here, and the README states only the result.
 
+## A. Housekeeping
+
+### A.1 Changes the main documents need
+
+These follow from the plan. Each is made in the stage named, or when its question is answered.
+
+| Document | Change | When |
+|---|---|---|
+| [architecture.md](../architecture.md) §9 | a rule that every job runs in Docker on Windows and Linux hosts, Lean included, and that a host needs only Docker and git (README §5) | when README §5 is accepted |
+| [architecture.md](../architecture.md) §3 | the layout gains `.gitattributes`, `docker/dev.ps1`, `docker/dev.sh`, `docker/ci.sh` and `tests/bytecode/` (README §6.1) | v0.0.0 |
+| [bootstrapping.md](../bootstrapping.md) BOOT-10 | the package list gains `reflect.stage0.bytecode` and `reflect.stage0.tools` | Q47 |
+| [bootstrapping.md](../bootstrapping.md) BOOT-11, BOOT-12 | one writer, written in stage0, instead of a Java port of a Reflect writer; the transliterator also prints `reflect.bytecode` | Q47 |
+| [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes | v0.0.1, v0.0.3 |
+| [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | v0.0.3 |
+| [examples.md](../examples.md) §11.1 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3) | with [../sketchpad.md](../sketchpad.md) A.6 |
+
+### A.2 Inconsistencies found while planning
+
+1. GEN-12 spells primitives by struct name in `.rfla` (`reflect.core.Int32`), but ex §11.2 writes
+   `int` (Q52).
+2. BC-08 names type parameters by index (`!0`, `!!0`); ex §11.1 also uses names (`!!K`) (Q52).
+3. ex §11.1 still passes the receiver class as a hidden `$receiver` argument after `ldtype`.
+   BC-05 replaced this with the implicit `R` of `call`, and with `call.recv` and `ldrecv`.
+4. BC-04 calls the operand of `ldstr` an index (`<n>`); BC-02 says heaps are referenced by byte
+   offset.
+5. The `Module` table of BC-11 has no column for the descriptor's `main` class, which VM-12
+   reads. v0.0.1 adds the column and the `.main` directive.
+6. BOOT-11 speaks of "a Java port of the writer". Under Q47 there is one writer.
+7. TST-09 puts verifier rejections in hand-written `.rfla` files, but names no directory.
+8. Two rule IDs have two definitions: LIB-03 (architecture.md §6 and stdlib.md §1) and OPR-08
+   (type-system.md §10 and grammar.md §5). In each pair the second restates the first (Q56).
+
 ## B. Questions and answers
 
 Answer in chat, in the question prompts, or by editing the **Answer** lines.
