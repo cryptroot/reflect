@@ -7,7 +7,7 @@ Grouped by topic; each entry notes why it matters for Reflect.
 - Andrew Kennedy, Don Syme. *Design and Implementation of Generics for the .NET Common Language
   Runtime.* PLDI 2001. The model for reified generics with shared and specialized code (G1).
 - ECMA-335, *Common Language Infrastructure*, 6th edition, 2012. Metadata tables, signatures,
-  exception clauses, constrained calls ([bytecode.md](bytecode.md)).
+  exception clauses, constrained calls.
 - Gilad Bracha, Martin Odersky, David Stoutamire, Philip Wadler. *Making the Future Safe for the
   Past: Adding Genericity to the Java Programming Language.* OOPSLA 1998. Erasure, the design
   Reflect avoids.
@@ -107,8 +107,7 @@ Grouped by topic; each entry notes why it matters for Reflect.
 - Raymie Stata, Martín Abadi. *A Type System for Java Bytecode Subroutines.* POPL 1998.
 - Xavier Leroy. *Java Bytecode Verification: Algorithms and Formalizations.* Journal of Automated
   Reasoning 30, 2003.
-- Eva Rose. *Lightweight Bytecode Verification.* Journal of Automated Reasoning 31, 2003. The
-  stack-map approach adopted in [vm §9](vm.md#9-verifier).
+- Eva Rose. *Lightweight Bytecode Verification.* Journal of Automated Reasoning 31, 2003.
 - Gerwin Klein, Tobias Nipkow. *A Machine-Checked Model for a Java-Like Language, Virtual Machine,
   and Compiler.* TOPLAS 28(4), 2006. Jinja, the template for F-4.
 - Leonardo de Moura, Sebastian Ullrich. *The Lean 4 Theorem Prover and Programming Language.*
