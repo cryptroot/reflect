@@ -267,3 +267,14 @@ before v0.0.0:
    the container.
 5. After adding `.gitattributes`, renormalize the working tree and check that the index does not
    change (it holds LF already, D.1 item 3).
+
+### D.3 v0.0.0 implementation (2026-10-19)
+
+- LF normalization left every previously tracked file unchanged.
+- Lean 4.35.0, `lean-4.35.0-linux.tar.zst`, is pinned to SHA-256
+  `7289597a44543246c9227b8cae501767e095ce17f6d448b95fc4a8dc97268f6d`.
+  Source: the `digest` field of the asset in the
+  [official release API](https://api.github.com/repos/leanprover/lean4/releases/tags/v4.35.0),
+  retrieved 2026-10-19. The Docker build independently checks the downloaded bytes.
+- The optional proxy CA is a BuildKit secret. Only the download uses the combined CA bundle;
+  neither the system trust store nor an image layer receives the extra certificate.
