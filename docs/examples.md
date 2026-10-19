@@ -48,7 +48,7 @@ module demo {
     provides demo.shapes.Shape with demo.shapes.Square;   // a service provider
     opens demo.model;                    // private members here are reflectively accessible
     opens demo.bank to reflect.json;     // qualified opens (Java)
-    unsafe;                              // Raw access to pointers (?)
+    unsafe;                              // gates pointer types, unsafe blocks, stackalloc, extern, @Unsafe members, proxies and emit (UNS-02)
     main demo.App;                       // default entry class for `rfl run`
 }
 ```
@@ -149,9 +149,9 @@ namespace demo {                         // block form; several blocks per file
     }
 }
 
-namespace demo.tools {
+namespace demo.measure {
     public final class Ruler { }
-    final class Scratch { }              // warning: hides the global Scratch inside demo.tools
+    final class Scratch { }              // warning: hides the global Scratch inside demo.measure
 }
 
 final class Scratch { }                  // outside every block: global namespace, never exported
@@ -682,8 +682,8 @@ Natives will be supported to extend functionality to outside libraries, such as 
 namespace reflect.core;
 
 public final class Natives {
-    public static native long alloc(int size);           // bound by name and signature to the VM
-    public static native void free(long handle);
+    @Unsafe public static native long alloc(int size);   // bound by name and signature to the VM
+    @Unsafe public static native void free(long handle);
 }
 ```
 
@@ -1033,7 +1033,7 @@ class Bad1<P extends List<List<? super P>>> { }                 // error: parame
 class Bad2<T extends Comparable<? super List<? super T>>> { }   // error: parameter restriction (inside `? super`)
 class Never<T extends List<String> & Collection<int>> { }       // error: intersection restriction (no common type)
 class Loose<T extends List<?> & Set<?>> { }                     // error: intersection restriction (unrelated `?`)
-Shapes<? extends Object> wide;                                  // error, or Shapes<?> with a warning : equivalence
+Shapes<? extends Object> wide;                                  // error: equivalence (bound Object is wider than Shape); fix-it: Shapes<?>
 ```
 
 ### 3.8 Intersection types
@@ -1911,6 +1911,18 @@ public final class ObservableGenerator implements ClassGenerator<Observable> {
             Name name = Name.of(f.name);
             Name event = Name.of(f.name + "Changed");
             Name constant = Name.of(Names.upperSnake(f.name) + "_PROPERTY");
+            Template<Stmt> raise = m.annotation.classWide()
+                ? quote stmt {
+                    try {
+                        ${event}(change);
+                    } catch (Exception first) {          // one raise over both events
+                        try { propertyChanged(change); }
+                        catch (Exception next) { first.addSuppressed(next); }
+                        throw first;
+                    }
+                    propertyChanged(change);
+                }
+                : quote stmt { ${event}(change); };
 
             ctx.add(quote member {
                 public partial ${t} ${name} {
@@ -1920,14 +1932,7 @@ public final class ObservableGenerator implements ClassGenerator<Observable> {
                         if (${sameValue(t, quote expr { old }, quote expr { value })}) { return; }
                         field = value;
                         var change = new PropertyChange<${t}>(this, ${constant}, old, value);
-                        try {
-                            ${event}(change);
-                        } catch (Exception first) {          // one raise over both events
-                            try { propertyChanged(change); }
-                            catch (Exception next) { first.addSuppressed(next); }
-                            throw first;
-                        }
-                        propertyChanged(change);
+                        ${raise}
                     }
                 }
             });
@@ -2045,7 +2050,7 @@ public final class IgnoredResultAnalyzer implements Analyzer<Method> {
 
 ### 6.5 Compile-time evaluation
 
-`const` methods and fields run inside the compiler; `static final` stays a run-time constant. `const`-ness may also be applied to `enums`.
+`const` methods and fields run inside the compiler; `static final` stays a run-time constant. A `const` enum's constants are constant expressions, and its `const` methods fold on a constant receiver, as `Planet.EARTH.surfaceGravity()` does below (DAT-05, META-07).
 
 ```csharp
 // file: demo/consts/Tables.rfl
@@ -2065,7 +2070,8 @@ public final class Tables {
     public const int WORD = sizeof(long);           // 8
     public const int MONEY_SIZE = sizeof(Money);    // 8: a struct without references
     public const Class<?> DEFAULT_KIND = Cube.class;
-    public const int[] SMALL_PRIMES = { 2, 3, 5, 7 };   // arrays are allowed; see reflection.md META-07
+    public const ReadOnlyArray<int> SMALL_PRIMES = { 2, 3, 5, 7 };   // read-only array; see reflection.md META-07
+    public const double EARTH_GRAVITY = Planet.EARTH.surfaceGravity();   // const enum folded by rflc (Planet: §9.3)
     public static final long STARTED = Clock.nowMillis();   // run-time constant
 
     @Route(path = PATH, priority = FIB_20 % 3)      // const values in annotation arguments
@@ -2734,7 +2740,7 @@ public final class Equality {
         String s1 = "ab";
         String s2 = new StringBuilder("a").append("b").toString();
         println(s1 == s2);                                   // prints: true (String overloads ==)
-        println(Object.referenceEquals);             // prints: false (identity, always)
+        println(Object.referenceEquals(s1, s2));             // prints: false (identity, always)
         println(new Pair(1, 2) == new Pair(1, 2));           // prints: true (records)
         println(new Vec2(1, 2) == new Vec2(1, 2));           // prints: true (declared on the struct)
         String? none = null;
@@ -2922,7 +2928,7 @@ public enum Level : ubyte { LOW = 1, HIGH = 200 }          // any integral backi
 @Flags
 public enum Permission : int { NONE = 0, READ = 1, WRITE = 2, EXECUTE = 4 }
 
-public enum Planet {
+public const enum Planet {
     MERCURY(3.303e+23, 2.4397e6),
     EARTH(5.976e+24, 6.37814e6);
 
@@ -2932,7 +2938,7 @@ public enum Planet {
 
     Planet(double mass, double radius) { this.mass = mass; this.radius = radius; }
 
-    public double surfaceGravity() { return G * mass / (radius * radius); } // constant result, could be evaluated during compilation for `const`-ness (?)
+    public const double surfaceGravity() { return G * mass / (radius * radius); }   // folds on a constant receiver
 }
 
 public enum Op {
@@ -3059,7 +3065,7 @@ public final class Tuples {
 `(...)` followed by `->` is a lambda; casts, parenthesized expressions and tuples use C#'s
 disambiguation ([grammar §4](grammar.md#4-ambiguities-and-how-they-are-resolved)).
 
-### 9.6 Missing
+### 9.6 Destructible objects
 
 Uses one flag bit in the object header to indicate existence.
 
@@ -3072,28 +3078,50 @@ Order: the onDestroy() hook runs, then a destroying event is raised, then the fl
 Access to destruction may be permitted via a static method on `Object` such as Unity's `Object.Destroy()`. Open for discussion, a closed implementation is shown below.
 
 ```csharp
+// file: stdlib/reflect.core/Destructible.rfl
+namespace reflect.core;
+
 public abstract class Destructible {                  // VM-known root class; no structs or records
     public boolean destroyed { get; }                 // header flag; never throws
     public event Runnable destroying;                 // raised in destroy(), before the flag is set
     protected final void destroy() { /* idempotent: onDestroy(), destroying, then flag in finally */ }
     protected virtual void onDestroy() { }
-    public static T? alive<T extends class & Destructible>(T? x) { return x != null && !x.destroyed ? x : null; }
+    public static T? alive<T extends Destructible>(T? x) { return x != null && !x.destroyed ? x : null; }
 }
+```
+
+```csharp
+// file: demo/actors/Actor.rfl
+namespace demo.actors;
+
+import reflect.core;
 
 public class Actor extends Destructible {
-    private final Texture texture;
+    private final Texture texture;                    // `Texture` is illustrative
     public Vec2 position { get; set; }
     public Actor(Texture texture) { this.texture = texture; }
     public void despawn() { destroy(); }              // each class decides who may destroy it
     protected override void onDestroy() { texture.release(); GC.suppressFinalize(this); }
     ~Actor() { texture.release(); }                   // finalizer safety net; suppressed once destroyed
 }
+```
 
-Actor alias = actor;
-actor.despawn();
-println(alias.destroyed);                             // true; alias is still not null
-alias.position = new Vec2(0, 0);                      // throws ObjectDestroyedException (unchecked)
-Actor? live = Destructible.alive(alias);              // null: an explicit conversion that works with ?. and ??
+```csharp
+// file: demo/actors/Main.rfl
+namespace demo.actors;
+
+import static reflect.io.Console;
+
+public final class Main {
+    public static void main(String[] args) {
+        Actor actor = new Actor(new Texture("hero.png"));
+        Actor alias = actor;
+        actor.despawn();
+        println(alias.destroyed);                         // true; alias is still not null
+        alias.position = new Vec2(0, 0);                  // throws ObjectDestroyedException (unchecked)
+        Actor? live = Destructible.alive(alias);          // null: an explicit conversion that works with ?. and ??
+    }
+}
 ```
 
 ## 10. Reflection API (run time)

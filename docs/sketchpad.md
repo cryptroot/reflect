@@ -33,28 +33,6 @@ the Reflect-S entry in references.md (lines 62 and 63, same line count); these l
 to fix or delete. Line numbers refer to commit `00d6207`. The Q12 change added one line after
 line 611, so in the current examples.md add 1 to every line number above 611.
 
-### A.4 Errors and inconsistencies in examples.md
-
-1. Line 2738: `println(Object.referenceEquals);` has no arguments. Intended:
-   `println(Object.referenceEquals(s1, s2)); // prints: false`.
-2. Lines 152 and 1956: namespace `demo.tools` exists in module `demo` (Blocks.rfl) and in module
-   `demo.tools` (AutoToString.rfl), and `demo` requires `demo.tools` (line 46). Q13 forbids split
-   namespaces, so the block needs another name (A.6).
-3. Line 1035: the rule is undecided ("error, or `Shapes<?>` with a warning").
-4. Lines 1805, 1847, 1853: `classWide` is declared and read, but `ObservableGenerator` (ex §6.3)
-   ignores it and always raises `propertyChanged`.
-5. Lines 2395, 2405: `reflect.core.Natives.alloc/free` are public, so any module can double-free.
-   They belong behind `unsafe` (UNS-02, Q18: `@Unsafe`).
-6. Line 3064: "9.6 Missing" is a placeholder title for destructible objects. The block has no
-   `// file:` line and mixes declarations with statements, and `T extends class & Destructible`
-   repeats the kind (`Destructible` is already a class).
-7. Line 2310: "catching by type argument (not in R0)", yet `Throwing.retry` above it already
-   catches `E`. Either `retry` is not R0 or the note is wrong.
-8. Line 51: `unsafe; // Raw access to pointers (?)`. The flag also gates proxies and emit until the
-   verifier (UNS-02); reading annotation instances no longer needs it (Q10).
-9. ex §6.5, last sentence: "`const`-ness may also be applied to `enums`" has no example; DAT-05
-   gives it a meaning.
-
 ### A.5 Deviations from the design proposal
 
 | Proposal | examples.md | Question |
