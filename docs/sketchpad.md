@@ -16,7 +16,7 @@ documents (Part C). The design itself lives in the documents listed in C.2;
 |---|---|---|
 | 0 | Conventions | moved to architecture.md §0 |
 | A | Housekeeping: dead references, errors, deviations from the proposal | open for your fixes |
-| B | Questions and answers | Q01 to Q44 answered |
+| B | Questions and answers | Q01 to Q44 answered; Q45 onward in [v0.0.x/sketchpad.md](v0.0.x/sketchpad.md) |
 | C | Requirements traceability, document plan | done; documents built |
 | D, E, F | Language design, implementation, glossary | moved into the documents |
 
