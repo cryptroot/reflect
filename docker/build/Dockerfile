@@ -27,4 +27,6 @@ RUN --mount=type=secret,id=reflect_extra_ca \
     tar --zstd -xf /tmp/lean.tar.zst -C /opt/lean --strip-components=1; \
     lean --version
 
+RUN useradd --create-home --uid 1000 --shell /bin/sh reflect
+
 WORKDIR /work

@@ -87,6 +87,8 @@ generator modules into the VM it runs on (reflection.md §3).
 ## 3. Repository layout
 
 ```text
+.gitattributes line ends and binary file types
+.devcontainer/ VS Code editing in reflect-build
 workspace.rfl  members, module path, outputs (§7)
 stage0/        Java 21: rflc0, VM0, transliterator (deleted at v0.6)
 compiler/      rflc: syntax, binding, lowering, emit, x86-64 backend, AOT
@@ -94,8 +96,12 @@ vm/            rfl in Reflect-S: loader, verifier, interpreter, collector, JIT, 
 stdlib/        one directory per module (reflect.core, reflect.collections, ...)
 tools/         rfla, rfld, test runner
 tests/         conformance tests (testing.md)
+  bytecode/    hand-written .rfla format, library, run and invalid tests (v0.0.x)
 formal/        Lean 4 project (formal-model.md)
 docker/        build and runtime images (§9)
+  dev.sh       Linux host wrapper
+  dev.ps1      Windows host wrapper
+  ci.sh        container jobs, shared by local development and CI
 docs/          these documents
 ```
 
@@ -246,8 +252,11 @@ finalizers, hot reload, dynamic layers) are Reflect-S code inside the same binar
 - **BLD-05 [Decided, Q04]** Linux x86-64 is the only target. Images: `reflect-build` (the previous
   release, or the JDK and stage0 before v0.6, plus Lean for proof jobs) and `reflect-runtime`
   (`rfl` and the stdlib). Windows users run both through Docker.
-- **BLD-06 [Proposed]** CI runs every job in `reflect-build`: stage0 or seed build, self-build,
-  fixpoint, conformance tiers, Lean proofs (testing.md).
+- **BLD-06 [Decided]** Every build, test and proof job runs in `reflect-build`, on Windows and
+  Linux hosts alike; a host needs only Docker and git (plus its standard shell). Jobs have no
+  network access. The host wrappers build the Dockerfile-hashed image on demand and run
+  `docker/ci.sh`, the shared CI entry point. Jobs grow with the implementation: stage0 or seed
+  build, self-build, fixpoint, conformance tiers and Lean proofs (testing.md).
 
 ## 10. Glossary
 

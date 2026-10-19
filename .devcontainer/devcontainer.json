@@ -1,0 +1,20 @@
+{
+    "name": "Reflect (reflect-build)",
+    "build": {
+        "dockerfile": "../docker/build/Dockerfile",
+        "context": "../docker/build",
+        "options": ["--platform=linux/amd64"]
+    },
+    "workspaceMount": "source=${localWorkspaceFolder},target=/work,type=bind",
+    "workspaceFolder": "/work",
+    "remoteUser": "reflect",
+    "runArgs": ["--network=none"],
+    "customizations": {
+        "vscode": {
+            "extensions": ["leanprover.lean4"],
+            "settings": {
+                "lean4.envPathExtensions": ["/opt/lean/bin"]
+            }
+        }
+    }
+}

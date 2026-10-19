@@ -98,3 +98,7 @@ theorem progress {ct : ClassTable} (_wf : WellFormed ct) {e : Expr} {T : Ty}
 
   `lake build` runs in its own CI job (TST-05); a `sorry` is a warning, and the release check
   counts the obligations that remain (TST-06).
+  Run `sh docker/dev.sh lean` on Linux or `docker/dev.ps1 lean` on Windows. The build image
+  pins Lean and the release archive's SHA-256, without elan, and checks `lean-toolchain`
+  before building. The Dev Container uses that same toolchain for editing; no host Lean
+  installation is needed. See [v0.0.x/README.md](v0.0.x/README.md) §5.

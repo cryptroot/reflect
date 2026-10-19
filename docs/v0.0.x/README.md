@@ -153,6 +153,13 @@ a download.
 3. The build cache `formal/.lake/` stays in the checkout; git ignores it.
 
 A Lean language server, used to edit proofs, also needs the toolchain from the image (Q54).
+VS Code's **Dev Containers: Reopen in Container** uses
+[the Dev Container definition](../../.devcontainer/devcontainer.json), the same Dockerfile and
+`leanprover.lean4`, with `/opt/lean/bin` on the extension's path. The editor container is also
+offline; install the extension from the host if VS Code cannot download it locally.
+On a proxy host, add `--secret` and `id=reflect_extra_ca,src=<local PEM path>` to the Dev
+Container's `build.options` locally, without committing the path or certificate. The host
+wrappers handle `REFLECT_EXTRA_CA` automatically.
 
 ### 5.5 Differences between hosts
 
@@ -171,6 +178,7 @@ A Lean language server, used to edit proofs, also needs the toolchain from the i
 ```text
 .gitattributes                        line ends and binary types (§5.5)
 .gitignore                            out/
+.devcontainer/devcontainer.json      Lean editing with the build image (§5.4)
 docker/build/Dockerfile               the reflect-build image (§5.2)
 docker/dev.ps1, docker/dev.sh         host wrappers (§5.3)
 docker/ci.sh                          the jobs, run inside the container
