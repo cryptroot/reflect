@@ -279,6 +279,10 @@ included.
 - The test harness (Q48): a `@Test` annotation; a runner that finds test classes by name
   (`*Test`) and runs their annotated static methods; assertions that throw `AssertionError`; a
   summary line; a non-zero exit code when a test fails.
+  Tests live in `stage0/test`, outside the production JAR. The `unit` job builds them first.
+  The runner sorts classes and methods, requires public static parameterless `void` tests, and
+  rejects an empty suite. Its self-tests invoke passing, failing and invalid fixtures in child
+  JVMs to check actual summaries and exit codes.
 
 **Commits.**
 
