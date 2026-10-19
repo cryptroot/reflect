@@ -149,3 +149,58 @@ links, and that each cited rule ID has exactly one definition. Add it after the 
 | Docker on Windows and Linux, Lean in Docker (instruction, 2026-10-19) | v0.0.0 | BLD-05, BLD-06, TST-05, LEAN-04 |
 | a branch per version and frequent small commits (instruction, 2026-10-19) | every stage | RM-04 |
 | README for the plan, sketchpad for notes (instruction, 2026-10-19) | every stage | RM-05 |
+
+## D. Engineering log
+
+### D.1 The Windows machine (2026-10-19)
+
+The documents were drafted on a Linux machine; work continues on a Windows machine. Findings
+before v0.0.0:
+
+1. Docker: client and engine 29.6.1; the engine is `linux/amd64`, in the context
+   `desktop-linux`.
+2. Host tools: a JDK 21 is installed (Liberica 21.0.9); `lean`, `lake` and `elan` are not. Lean
+   was installed with elan on the Linux machine (Q44). Here it runs only in Docker.
+3. Line ends: the system git configuration sets `core.autocrlf=true`, and the repository has no
+   `.gitattributes`. `git ls-files --eol` shows every tracked file as LF in the index and CRLF in
+   the working tree, `formal/lean-toolchain` included. v0.0.0 starts with `.gitattributes`.
+4. PowerShell: the execution policy is `Unrestricted` in the machine and local-machine scopes, so
+   `docker/dev.ps1` runs here. A machine with the Windows default can run it with
+   `powershell -ExecutionPolicy Bypass -File docker\dev.ps1 all`.
+5. Windows PowerShell 5.1 breaks double quotes inside arguments to native programs. In a probe,
+   `docker run ... sh -c` with a script that contained double quotes lost them, and `curl`
+   reported "no URL specified". `docker/dev.ps1` must build its `docker` arguments without inner
+   double quotes.
+6. Network: a TLS-intercepting proxy sits between this machine and the internet. HEAD requests
+   with `curl` from a `gcc:14` container (Debian) gave:
+
+   | URL | System trust store | System store plus the proxy CA |
+   |---|---|---|
+   | `https://github.com/leanprover/lean4/releases` | 200 | not tested |
+   | Lean 4.35.0 archive `lean-4.35.0-linux.tar.zst` (redirects to `release-assets.githubusercontent.com`) | TLS failure | 200 |
+   | elan archive for x86-64 Linux (same redirect) | TLS failure | 200 |
+   | `https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh` | TLS failure | 200 |
+   | `https://releases.lean-lang.org/` | TLS failure | 200 |
+   | `http://deb.debian.org/debian/dists/trixie/Release` | 200 | plain HTTP |
+
+   Result: on this machine the image build needs the proxy CA while it downloads Lean
+   (`REFLECT_EXTRA_CA`, README §5.5). The CA must not enter the repository or an image layer.
+7. Base images: `eclipse-temurin:21-jdk` is Ubuntu 26.04 with `curl`, `tar` and `gzip`, but
+   without `zstd`, `unzip` and `git`, and `apt-get update` in it gets HTTP 403 from
+   `archive.ubuntu.com` through the proxy. `debian:trixie-slim` (Debian 13) reaches
+   `deb.debian.org` and offers `openjdk-21-jdk-headless` 21.0.12.1+1-1~deb13u1 and `zstd` 1.5.7.
+   Hence the Debian base of README §5.2.
+
+### D.2 Issues to handle in v0.0.0
+
+1. Record the SHA-256 of the Lean archive when the image first builds, and where the value came
+   from (Q51).
+2. Record the size of the image; the Lean toolchain makes it large. If size or build time becomes
+   a problem, split Lean into its own image (BLD-05 keeps one image).
+3. Bind mounts from the Windows file system into the WSL 2 VM can be slower than the VM's own
+   disk, and Lake writes many small files. Measure the `lean` job; if it is slow, keep
+   `formal/.lake` in a named volume.
+4. With `--user uid:gid` on Linux, the container user has no home directory; set `HOME=/tmp` in
+   the container.
+5. After adding `.gitattributes`, renormalize the working tree and check that the index does not
+   change (it holds LF already, D.1 item 3).
