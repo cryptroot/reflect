@@ -324,6 +324,7 @@ numbers.
   `.rfla` gets the `.main` directive.
 - `reflect.stage0.bytecode` declares the numbers as constants: `Opcode`, `SigCode`, `TableId` and
   `SectionId`.
+- The opcode table marks the instructions of the R0 subset, which VM0 implements in v0.0.x.
 - A unit test reads the tables from bytecode.md and compares them with the constants.
 
 **Commits.**
@@ -637,3 +638,27 @@ generic code reads its exact type arguments.
 
 **Exit check.** The programs in `run/generics/` and the integration test pass, and the exit test
 of v0.0.x (§8) passes. Tag `v0.0.9`.
+
+## 8. Exit test
+
+v0.0.x is done when one commit on its branch meets all of these conditions:
+
+1. `docker/dev.ps1 all` passes on a Windows host, and `docker/dev.sh all` passes on a Linux
+   host.
+2. `all` runs:
+   1. the stage0 build;
+   2. the unit tests, with the document test of §7.2;
+   3. the `.rfla` suite: every file in `format/`, `lib/` and `run/` round-trips; every program in
+      `run/` meets its expectations on VM0; every file in `invalid/` fails with its expected
+      diagnostic;
+   4. the Lean job.
+3. The opcode report of `test` shows that the suite executes every instruction that the opcode
+   table marks as R0 (§7.2).
+
+The roadmap's exit test is the case `run/core/hello.rfla` of item 2.3.
+
+When the exit test passes:
+
+1. The tag of the last stage marks the commit: `v0.0.9`, unless a stage was dropped.
+2. `v0.0.x` merges into the integration branch with a merge commit (§4).
+3. `v0.1.x` starts from that merge commit.
