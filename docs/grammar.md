@@ -3,6 +3,10 @@
 Lexical structure and syntax of Reflect source. Semantics live in
 [type-system.md](type-system.md); conventions in [architecture.md](architecture.md) §0.
 
+Proposed method contracts and `transaction` blocks are described separately in
+[Intent Contracts and Transactions](intent-contracts-and-transactions.md); they are not yet part
+of the grammar below.
+
 ## 1. Source files
 
 - **LEX-01 [Proposed]** Source files are UTF-8 (a BOM is ignored) with extension `.rfl`. Each
@@ -335,4 +339,3 @@ its static type (META-05). Templates are valid only in modules that require
 
 - **OPR-08 [Decided]** A new operator token must be a character sequence that is a syntax error
   today: `|>` qualifies, `<-` does not (`x<-1` is valid now).
-

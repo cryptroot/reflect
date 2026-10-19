@@ -47,3 +47,11 @@ Immix and generational collection (memory.md §9), closed-world AOT (JIT-14), C 
 with Reflect's own dynamic loader (UNS-04), iterators if they did not make v1.0 (STM-06),
 `async`/`await` (CON-03), custom operators (OPR-08), `Borrow` types (Q05), layer unloading if it
 did not make v1.0 (VM-15).
+
+## Unscheduled proposals
+
+[Intent Contracts and Transactions](intent-contracts-and-transactions.md) proposes method
+preconditions, postconditions and entry-state captures with run-time fallback, plus dynamically
+scoped managed-memory undo logs. Neither feature has an assigned milestone; both need their
+open semantics, conformance tests and proof layers before becoming stable. They do not expand
+R0 or change the self-hosting milestones above.

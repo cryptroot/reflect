@@ -6,6 +6,10 @@ services. Memory management: [memory.md](memory.md); code generation: [jit-aot.m
 instruction semantics: [bytecode.md](bytecode.md). Conventions: [architecture.md](architecture.md)
 §0.
 
+Proposed dynamic undo logs and transaction-aware managed stores are described in
+[Intent Contracts and Transactions](intent-contracts-and-transactions.md); they are not current
+VM guarantees.
+
 ## 1. Process
 
 - **VM-01 [Decided, Q04]** Linux x86-64 only: one static ELF that calls the kernel directly, run
@@ -177,4 +181,3 @@ instruction semantics: [bytecode.md](bytecode.md). Conventions: [architecture.md
   single-stepping and the `breakpoint` instruction.
 - **VM-24 [Proposed]** Diagnostic options: `--interpret` (no JIT), `--trace-load`, `--trace-gc`,
   `--verify-all` (also verify trusted modules), and the collector's stress modes (memory.md §10).
-

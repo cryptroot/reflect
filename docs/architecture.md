@@ -33,6 +33,7 @@ the decision log in sketchpad.md.
 | `LEAN` | formal model | [formal-model.md](formal-model.md) |
 | `RM` | milestones | [roadmap.md](roadmap.md) |
 | `HR` | features and optimizations to keep possible | [headroom.md](headroom.md) |
+| `IC`, `TXN` | proposed Intent Contracts and Transactions | [intent-contracts-and-transactions.md](intent-contracts-and-transactions.md) |
 
 ## 1. Components
 

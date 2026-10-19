@@ -4,6 +4,10 @@ The static and dynamic rules of Reflect, area by area. Syntax: [grammar.md](gram
 reflection, annotations and generators: [reflection.md](reflection.md); conventions:
 [architecture.md](architecture.md) §0. Examples are cited as **ex §N** ([examples.md](examples.md)).
 
+Intent Contracts and managed-memory rollback scopes are proposed separately in
+[Intent Contracts and Transactions](intent-contracts-and-transactions.md). Their rules are not
+yet part of the baseline language below.
+
 ## 1. Modules, namespaces, visibility (MOD)
 
 - **MOD-01 [Decided]** A module is one `.rflc` file: the unit of compilation, versioning, access
@@ -716,4 +720,3 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   - `Lock` is a ready-made final class implementing it, for private lock objects (ex §7.7);
   - an analyzer warns on `synchronized (this)` in public lockable types, because any holder of a
     reference can take that lock (Java's pitfall).
-
