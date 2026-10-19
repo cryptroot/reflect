@@ -59,3 +59,34 @@ Out of scope, with the version that brings it:
 | `rfl`, its register form, unsafe instructions, the `reflect-runtime` image | v0.6 |
 | the verifier | v0.7 |
 | proofs | the proof track of [roadmap.md](../roadmap.md) |
+
+## 4. Working rules
+
+- **[Decided, RM-04]** v0.0.x is developed on its own branch, `v0.0.x`, while work on it
+  continues.
+- **[Decided, RM-04]** Commits are small and frequent, so that each one can be reviewed and
+  checked alone.
+
+1. **Branch.** `v0.0.x` starts from the integration branch (Q45). Every v0.0.x commit goes to
+   it. When the exit test passes (§8), merge it into the integration branch with a merge commit,
+   and stop committing to it.
+2. **Stages.** A stage is a group of commits with one exit check. When the check passes, put an
+   annotated tag `v0.0.N` on the last commit of the stage. A tag marks a stage, not a release
+   (RM-01). A stage that merges with another or drops gets no tag, and its number is not used
+   again (Q46).
+3. **Commits.** One commit holds one change:
+   1. From the commit that adds the job `all` (v0.0.0), `all` passes in Docker on every commit.
+   2. Code, its test and the document section it implements change in the same commit.
+   3. The subject is imperative, at most 72 characters, and starts with the stage, for example
+      `v0.0.2: Write the section directory`. A change to this plan starts with `v0.0.x:`.
+   4. The body names the rule IDs and the test that checks the change.
+
+   ```text
+   v0.0.2: Write the section directory
+
+   BC-02. Checked by WriterTest.sectionDirectory.
+   ```
+
+4. **Documents.** This README states the current plan only. When the plan changes, the README
+   changes with it. Dates, decision history, open questions and engineering issues go to
+   [sketchpad.md](sketchpad.md).
