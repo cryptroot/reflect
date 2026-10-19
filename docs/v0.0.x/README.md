@@ -491,3 +491,149 @@ module.
 
 **Exit check.** The programs in `run/core/` pass. From here on, the roadmap's exit test passes
 with `run/core/hello.rfla`. Tag `v0.0.5`.
+
+### 7.7 v0.0.6: VM0 objects and dispatch
+
+**Goal.** VM0 runs classes, interfaces, fields, constructors, virtual and interface calls, type
+tests and class initialization.
+
+**Design.**
+
+- A run-time type per class (VM-03): field slots, a vtable built from the `Override` rows
+  (BC-12), an interface table, static storage and the initialization state.
+- An object is a Java object that holds its run-time type and an array of slots (BOOT-04).
+- `callvirt` becomes a direct call when the target is not virtual (BC-06). Default methods of
+  interfaces are found through the interface table.
+- Class initialization follows VM-07: at first active use, superclasses first, with the states
+  not started, running, done and failed. A nested request from the running initializer sees
+  default values.
+- Frames record the receiver class `R` of static calls (BC-05, VM-20). No instruction reads it
+  before v0.4.
+- `castclass` to a non-null type throws `NullPointerException` for `null`, and `instanceof` is
+  false for `null` (NUL-05).
+- Loading checks `final`, `sealed` and `permits`, and that every `Override` row names an
+  existing method (BC-12, VM-13).
+- Tables added: `InterfaceImpl`, `Override`, `Constant`, and `TypeSpec` for nullable types
+  (`NULLABLE`, BC-03).
+
+**Commits.**
+
+1. Type loading and layout; `newobj`, constructors, `ldfld` and `stfld`.
+2. Static fields and class initialization, with tests of order, re-entry and failure.
+3. Non-virtual instance calls; `callvirt` and vtables.
+4. Interfaces, default methods and interface tables.
+5. `ldnull`, `brnull`, `brnonnull`, `ceq.ref`, `instanceof` and `castclass`, with the null
+   rules.
+6. `ldconst` and the `Constant` table.
+7. The load-time checks.
+
+**Exit check.** The programs in `run/objects/` pass. Tag `v0.0.6`.
+
+### 7.8 v0.0.7: VM0 arrays, strings and boxing
+
+**Goal.** VM0 runs arrays with reified element types, the string operations that R0 needs, and
+boxing.
+
+**Design.**
+
+- An array is a Java array together with its run-time array type, which holds the element type
+  and its nullability (VM-02, NUL-01). Array types are `TypeSpec` rows with `ARRAY` signatures
+  (BC-03).
+- `stelem` of a reference checks the element type and nullability (`ArrayStoreException`,
+  BC-14, NUL-05), and every index is checked (`IndexOutOfBoundsException`).
+- `box` and `unbox` work for primitives and enums; an enum value is its backing integer on the
+  stack (DAT-05).
+- String operations are natives of the stub `reflect.core`. The set grows with the tests that
+  need it; v0.1 fixes it with the stdlib sources.
+- `main` receives its arguments as a `String[]`.
+
+**Commits.**
+
+1. `newarr`, `ldlen`, and `ldelem` and `stelem` for primitive kinds.
+2. Reference arrays and their store checks.
+3. Index checks.
+4. `box` and `unbox`.
+5. String natives: length, characters, concatenation, comparison, and conversion of primitives
+   to strings.
+6. `main` arguments and the `args` directive.
+
+**Exit check.** The programs in `run/arrays/` and `run/strings/` pass. Tag `v0.0.7`.
+
+### 7.9 v0.0.8: VM0 exceptions
+
+**Goal.** Exceptions are Reflect objects that programs throw and catch, and that VM0 raises.
+
+**Design.**
+
+- `throw`, `rethrow`, `leave` and `endfinally`. Exception regions are searched innermost first in
+  each frame (BC-18, VM-06), and `finally` runs on every exit from its `try` (EXC-07).
+- A Java exception carries the Reflect `Throwable` through the Java frames of the interpreter
+  (BOOT-04).
+- VM0 raises the exceptions of EXC-05 that the R0 subset can produce: `NullPointerException`,
+  `ArithmeticException`, `IndexOutOfBoundsException`, `ClassCastException`,
+  `ArrayStoreException`, `ExceptionInInitializerError` and `TypeLoadError`. The JVM's
+  `StackOverflowError` and `OutOfMemoryError` become the Reflect ones (BOOT-04). These
+  exceptions replace the stops of v0.0.5.
+- The first use of a class whose static initializer fails throws `ExceptionInInitializerError`;
+  every later use throws a new one with the same cause (VM-07, MEM-06).
+- A stack trace is recorded at construction as pairs of method and offset, and decoded through
+  the DEBUG line table only when printed (EXC-06, VM-21). An uncaught exception prints its trace
+  to standard error, and VM0 exits with code 1.
+
+**Commits.**
+
+1. The exception classes of the stub `reflect.core`: `Throwable`, `Exception`,
+   `RuntimeException`, `Error`, and the subset above.
+2. `throw`, the uncaught path, and `expect-throws` with real exceptions.
+3. `catch` regions and `leave`; nested regions and `rethrow`.
+4. `finally` regions and `endfinally`: exits by `leave` and by an exception, and an exception
+   thrown inside `finally`.
+5. The exceptions that VM0 raises, one test each.
+6. Stack overflow, tested with unbounded recursion.
+7. Initializer failure and `ExceptionInInitializerError`.
+8. Stack traces with line numbers.
+
+**Exit check.** The programs in `run/exceptions/` pass, and the `expect-throws` tests of earlier
+stages still pass. Tag `v0.0.8`.
+
+### 7.10 v0.0.9: VM0 reified types and generics
+
+**Goal.** Every instantiation is a run-time type of its own with its own `Class<T>` object, and
+generic code reads its exact type arguments.
+
+**Design.**
+
+- Tables added: `MethodSpec`, `GenericParam` and `GenericConstraint`. Signatures add
+  `GENERICINST`, `VAR` and `MVAR` (BC-03).
+- One run-time type per instantiation, nullability included, created at first use (BOOT-04,
+  GEN-02, GEN-08), with its own statics and initialization. `Box<String>.count` and
+  `Box<String?>.count` are two fields (VM-03).
+- Every run-time type owns its `Class<T>` object from creation (BC-15); `ldtype` and `getclass`
+  push it.
+- The type context (GEN-09, VM-17): instance code reads the run-time type of `this`, static code
+  reads `R`, and a generic method receives a hidden method-instantiation argument. VM0 runs the
+  shared bytecode for every instantiation.
+- `instanceof`, `castclass`, `newarr`, `ldelem`, `stelem` and field access accept type
+  parameters; `(T) o` checks for null when `T` is instantiated with a non-null type (NUL-05).
+- A type test with wildcards checks each type argument (GEN-04).
+- `call.constrained` calls a member of a type parameter's bound without boxing (BC-16), for
+  example `compareTo` when `T` is `int`.
+- An integration test closes the stage. It has two modules: a library with a generic list and
+  its iterator, and an application with a sealed hierarchy, virtual dispatch, string building
+  and exceptions.
+
+**Commits.**
+
+1. Instantiated run-time types and their statics. Check: `Box<String>.count` and
+   `Box<String?>.count` are two fields.
+2. `Class<T>` objects, `ldtype` and `getclass`.
+3. `VAR` in instance code.
+4. `MVAR`, `MethodSpec` and the method-instantiation argument.
+5. `R` as the type context of static code.
+6. Type tests, casts and arrays over type parameters, with the null rules.
+7. Type tests with wildcards.
+8. `call.constrained`.
+9. The integration test.
+
+**Exit check.** The programs in `run/generics/` and the integration test pass, and the exit test
+of v0.0.x (§8) passes. Tag `v0.0.9`.
