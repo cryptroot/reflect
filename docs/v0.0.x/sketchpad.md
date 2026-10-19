@@ -14,7 +14,7 @@ log is [../sketchpad.md](../sketchpad.md).
 | Stage | Content | Status |
 |---|---|---|
 | plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 |
-| v0.0.0 | Docker environment, skeleton, Lean in Docker | not started |
+| v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux and PowerShell 7 checks pass; native Windows check and tag pending (D.3) |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
 | v0.0.3 | assembler; suite runner for rejected files | not started |
@@ -42,9 +42,9 @@ These follow from the plan. Each is made in the stage named, or when its questio
 
 | Document | Change | When |
 |---|---|---|
-| [architecture.md](../architecture.md) §9 | a rule that every job runs in Docker on Windows and Linux hosts, Lean included, and that a host needs only Docker and git (README §5) | when README §5 is accepted |
-| [architecture.md](../architecture.md) §3 | the layout gains `.gitattributes`, `docker/dev.ps1`, `docker/dev.sh`, `docker/ci.sh` and `tests/bytecode/` (README §6.1) | v0.0.0 |
-| [bootstrapping.md](../bootstrapping.md) BOOT-10 | the package list gains `reflect.stage0.bytecode` and `reflect.stage0.tools` | Q47 |
+| [architecture.md](../architecture.md) §9 | a rule that every job runs in Docker on Windows and Linux hosts, Lean included, and that a host needs only Docker and git (README §5) | done in v0.0.0 |
+| [architecture.md](../architecture.md) §3 | the layout gains `.gitattributes`, `docker/dev.ps1`, `docker/dev.sh`, `docker/ci.sh` and `tests/bytecode/` (README §6.1) | done in v0.0.0 |
+| [bootstrapping.md](../bootstrapping.md) BOOT-10 | the package list gains `reflect.stage0.bytecode` and `reflect.stage0.tools` | done in v0.0.0 (Q47) |
 | [bootstrapping.md](../bootstrapping.md) BOOT-11, BOOT-12 | one writer, written in stage0, instead of a Java port of a Reflect writer; the transliterator also prints `reflect.bytecode` | Q47 |
 | [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes | v0.0.1, v0.0.3 |
 | [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | v0.0.3 |
@@ -278,3 +278,26 @@ before v0.0.0:
   retrieved 2026-10-19. The Docker build independently checks the downloaded bytes.
 - The optional proxy CA is a BuildKit secret. Only the download uses the combined CA bundle;
   neither the system trust store nor an image layer receives the extra certificate.
+- Linux checks used Docker 29.8.2, OpenJDK 21.0.12.1 and Lean 4.35.0. In a fresh clone in a
+  path with spaces, `all` passed in 3.51 s; a second run passed in 2.39 s and reused the same
+  image without building. The cached `lean` job took 1.04 s. These are Linux measurements,
+  not measurements of a Windows bind mount.
+- The image `reflect-build:a5bb09736f0c` is 4,777,768,003 bytes (4.78 GB). Most of its size
+  comes from the full Lean release. Keep the single image for now (BLD-05).
+- The unit job passes nine tests, including subprocess fixtures for passing and failing tests,
+  invalid test methods, an empty suite, missing classes and CLI usage/errors. An injected
+  failing suite confirmed that `all` stops before Lean. Rebuilds remove stale classes, and the
+  production JAR contains no test classes.
+- Both host wrappers passed eight stubbed argument/failure scenarios: invalid and
+  case-mismatched jobs, an unavailable engine, job and build failures, a missing CA file, CA
+  secret arguments and interactive shell flags. The Linux wrapper also preserves file
+  ownership; the Lean job rejects a mismatched toolchain.
+- A no-cache image build with an ephemeral test CA verified the Lean checksum, left the system
+  CA bundle byte-identical, and retained neither the secret nor temporary download files.
+  This checks secret handling, not connectivity behind an actual intercepting proxy.
+- PowerShell 7.4.7 on Linux ran `all` against Docker from a separate fresh clone with spaces in
+  its path. The official Dev Container CLI 0.89.0 validated the configuration and built the
+  editor image; `all` also passed as its non-root `reflect` user.
+- Native Windows / Windows PowerShell 5.1 was unavailable in this environment. Its fresh-clone
+  `docker/dev.ps1 all` check, image reuse and bind-mount timing remain to be run there.
+  No `v0.0.0` tag was created: the two-host exit gate still applies.
