@@ -135,3 +135,17 @@ links, and that each cited rule ID has exactly one definition. Add it after the 
 (both are stated twice today). **Answer:**
 
 <!-- questions:end -->
+
+## C. Traceability
+
+| Roadmap content and instructions | Stages | Rules |
+|---|---|---|
+| these documents | every stage updates the sections it implements; A.1 | architecture.md §0 |
+| the `.rflc` format | v0.0.1, v0.0.2 | BC-02, BC-03, BC-04, BC-10, BC-11, BC-12, BC-17, BC-18, BC-19, BOOT-05 |
+| the `reflect.bytecode` design | v0.0.2 to v0.0.4 | ARC-11, BC-08, Q47 |
+| the assembler | v0.0.3, v0.0.4 | BC-08, TST-09 |
+| VM0 in stage0 | v0.0.5 to v0.0.9 | BOOT-04, VM-03, VM-06, VM-07, VM-12, VM-13, VM-17, VM-20, VM-21, BC-05, BC-06, BC-14, BC-15, BC-16, NUL-01, NUL-05, GEN-02, GEN-04, GEN-09, EXC-05, EXC-06, EXC-07, UNS-03, LIB-03 |
+| exit test | v0.0.4 (round trip), v0.0.5 (runs on VM0), v0.0.9 (the whole suite) | RM-03 |
+| Docker on Windows and Linux, Lean in Docker (instruction, 2026-10-19) | v0.0.0 | BLD-05, BLD-06, TST-05, LEAN-04 |
+| a branch per version and frequent small commits (instruction, 2026-10-19) | every stage | RM-04 |
+| README for the plan, sketchpad for notes (instruction, 2026-10-19) | every stage | RM-05 |
