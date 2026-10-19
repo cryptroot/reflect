@@ -49,7 +49,7 @@ module demo {
     opens demo.model;                    // private members here are reflectively accessible
     opens demo.bank to reflect.json;     // qualified opens (Java)
     unsafe;                              // Raw access to pointers (?)
-    main demo.App;                       // default entry class for `rfl run` 
+    main demo.App;                       // default entry class for `rfl run`
 }
 ```
 
@@ -81,9 +81,9 @@ import static reflect.io.Console;
 
 public final class Gallery {
     public static void show() {
-        for (var provider : ServiceLoader.load<Shape>()) {   // List<Provider<Shape>> 
+        for (var provider : ServiceLoader.load<Shape>()) {   // List<Provider<Shape>>
             println(provider.type.kindName);                 // prints: SQUARE (a static, read before any instance exists)
-            Shape shape = provider.get();                    // calls Square.provider() 
+            Shape shape = provider.get();                    // calls Square.provider()
             println(shape.describe());                       // prints: square: 1.00
         }
     }
@@ -92,7 +92,7 @@ public final class Gallery {
 
 ### 2.2 Namespaces and aliases
 
-Namespaces are lowercase, file-scoped or block form, and hold types only .
+Namespaces are lowercase, file-scoped or block form, and hold types only.
 
 ```csharp
 // file: demo/shapes/Catalog.rfl
@@ -100,16 +100,16 @@ namespace demo.shapes;                   // file-scoped: applies to the whole fi
 
 import reflect.collections;               // import a namespace
 import static reflect.io.Console;         // import static members: println(...)
-using StringMap = HashMap<String, String>;              // alias; may use the imports above 
-using IntMap<V> = HashMap<int, V>;                      // generic alias 
-using Lookup<V extends class> = HashMap<String, V?>;    // bounds and kinds as on generic types 
+using StringMap = HashMap<String, String>;              // alias; may use the imports above
+using IntMap<V> = HashMap<int, V>;                      // generic alias
+using Lookup<V extends class> = HashMap<String, V?>;    // bounds and kinds as on generic types
 
 public final class Catalog {
     public static void print(StringMap entries) {
         for (String key : entries.keys) { println($"{key} = {entries[key]}"); }
     }
 
-    // bySides is a HashMap<int, ? extends Shape> , byName a HashMap<String, Shape?>
+    // bySides is a HashMap<int, ? extends Shape>, byName a HashMap<String, Shape?>
     public static void count(IntMap<? extends Shape> bySides, Lookup<Shape> byName) {
         println(bySides.size + byName.size);
         println(StringMap.class == HashMap<String, String>.class);   // prints: true (an alias is no new type)
@@ -123,48 +123,48 @@ namespace demo.bad;
 
 import reflect.collections;
 using StringMap = HashMap<String, String>;
-using Names = StringMap;                 // error: an alias target cannot use another alias 
+using Names = StringMap;                 // error: an alias target cannot use another alias
 using Cache<V> = HashMap<String, V?>;    // error: V? needs V extends class or V extends struct
-using Unused<T> = String;                // error: T does not occur in the target 
+using Unused<T> = String;                // error: T does not occur in the target
 using Lookup<V extends class> = HashMap<String, V?>;
 using Mirror<T> = HashMap<T, T>;
 
 final class Lookups {
-    void ids(Lookup<int> ids) { }        // error: int violates the alias's bound V extends class 
-    void pairs(Mirror<?> pairs) { }      // error: wildcard for T, which occurs twice in the target 
+    void ids(Lookup<int> ids) { }        // error: int violates the alias's bound V extends class
+    void pairs(Mirror<?> pairs) { }      // error: wildcard for T, which occurs twice in the target
 }
 ```
 
 ```csharp
 // file: demo/Blocks.rfl
-namespace demo {                         // block form; several blocks per file 
-    import static reflect.io.Console;     // also applies inside nested blocks 
+namespace demo {                         // block form; several blocks per file
+    import static reflect.io.Console;     // also applies inside nested blocks
 
     public final class Units { public const String SUFFIX = "cm"; }
 
-    namespace geometry {                 // nested block: demo.geometry 
+    namespace geometry {                 // nested block: demo.geometry
         public final class Origin {
-            public static void show() { println($"(0, 0) {Units.SUFFIX}"); }   // demo.Units without `import` 
+            public static void show() { println($"(0, 0) {Units.SUFFIX}"); }   // demo.Units without `import`
         }
     }
 }
 
 namespace demo.tools {
     public final class Ruler { }
-    final class Scratch { }              // warning: hides the global Scratch inside demo.tools 
+    final class Scratch { }              // warning: hides the global Scratch inside demo.tools
 }
 
-final class Scratch { }                  // outside every block: global namespace, never exported 
+final class Scratch { }                  // outside every block: global namespace, never exported
 ```
 
 ```csharp
 // rejected
 namespace demo {
-    final class Draft { }                // package-private: namespace demo only 
+    final class Draft { }                // package-private: namespace demo only
 
     namespace geometry {
         final class Sketch {
-            Draft? draft;                // error: Draft is found  but not accessible from demo.geometry 
+            Draft? draft;                // error: Draft is found  but not accessible from demo.geometry
         }
     }
 }
@@ -173,8 +173,8 @@ namespace demo {
 ```csharp
 // rejected
 namespace demo.bad;
-namespace demo.other { }                 // error: a file has one file-scoped namespace or else blocks 
-public static void helper() { }          // error: no top-level functions 
+namespace demo.other { }                 // error: a file has one file-scoped namespace or else blocks
+public static void helper() { }          // error: no top-level functions
 ```
 
 ### 2.3 Visibility
@@ -188,7 +188,7 @@ namespace demo.bank;                     // not exported: public types are modul
 public class Vault {
     public String name { get; }          // all of module demo (other modules too, if exported)
     protected long reserve;              // subclasses, plus demo.bank inside module demo
-    long audited;                        // package-private: demo.bank inside module demo 
+    long audited;                        // package-private: demo.bank inside module demo
     private long secret;                 // Vault and its nested types
 
     public Vault(String name) { this.name = name; }
@@ -207,7 +207,7 @@ import demo.bank;
 
 final class Teller {
     long look(Vault v) {
-        return v.audited;                // error: package-private member, other namespace 
+        return v.audited;                // error: package-private member, other namespace
     }
 }
 ```
@@ -221,7 +221,7 @@ namespace demo;
 import static reflect.io.Console;
 
 public final class App {
-    public static void main(String[] args) {      // or: public static int main(String[] args) 
+    public static void main(String[] args) {      // or: public static int main(String[] args)
         String who = args.length > 0 ? args[0] : "world";
         println($"Hello, {who}!");                 // prints: Hello, world!
     }
@@ -291,7 +291,7 @@ import reflect.collections;
 public final class Enclosure {
     private final List<Animal> animals = new ArrayList<>();
 
-    public class Tag {                           // nested: no `static`, never an outer instance 
+    public class Tag {                           // nested: no `static`, never an outer instance
         public final String label;
         public Tag(String label) { this.label = label; }
         public int countIn(Enclosure e) { return e.animals.size; }   // private access (Java)
@@ -326,7 +326,7 @@ public final class Zoo {
 // rejected
 public class Cat extends Animal {
     public Cat() { super("Tom", 4); }
-    public String sound() { return "meow"; }     // error: redeclares an inherited member without `override` 
+    public String sound() { return "meow"; }     // error: redeclares an inherited member without `override`
     public int describe;                         // error: one member namespace; `describe` is a method
 }
 public class Husky extends Dog { }               // error: Dog is final
@@ -334,14 +334,14 @@ public class Husky extends Dog { }               // error: Dog is final
 public final class Enclosure2 {
     private int size;
     public class Counter {
-        int read() { return size; }              // error: no outer instance 
+        int read() { return size; }              // error: no outer instance
     }
 }
 ```
 
 ### 2.6 Interfaces
 
-Default methods, private helpers, properties, events and static abstract members .
+Default methods, private helpers, properties, events and static abstract members.
 
 ```csharp
 // file: demo/shapes/Shape.rfl
@@ -360,7 +360,7 @@ public interface Shape {
     }
     private static String format(double d) { return Doubles.toString(d, 2); }   // private helper
 
-    static abstract String kindName { get; }     // static abstract member 
+    static abstract String kindName { get; }     // static abstract member
 }
 ```
 
@@ -380,10 +380,10 @@ public final class Square implements Shape {
         set { field = value; changed(this); }    // raise the event inside the implementing class
     }
 
-    public override double area() { return side * side; }        // `override` for interfaces too 
+    public override double area() { return side * side; }        // `override` for interfaces too
     public override String name { get { return "square"; } }
     public override event Consumer<Shape> changed;
-    public static override String kindName { get; } = "SQUARE";  // static abstract implemented 
+    public static override String kindName { get; } = "SQUARE";  // static abstract implemented
 }
 ```
 
@@ -398,18 +398,18 @@ public interface Tagged { default String label() { return "tagged"; } }
 
 public final class Both implements Named, Tagged {
     public override String label() {             // required: two defaults conflict
-        return Named.super.label() + "+" + Tagged.super.label();   // name the parent 
+        return Named.super.label() + "+" + Tagged.super.label();   // name the parent
     }
 }
 
 public final class OnlyNamed implements Named {
-    public override String label() { return $"[{super.label()}]"; }   // Named.label(): the one parent with it 
+    public override String label() { return $"[{super.label()}]"; }   // Named.label(): the one parent with it
 }
 
 public class Plain { public virtual String label() { return "plain"; } }
 
 public final class Fancy extends Plain implements Named {
-    public override String label() { return super.label() + "!"; }   // Plain.label(): the class member wins 
+    public override String label() { return super.label() + "!"; }   // Plain.label(): the class member wins
 }
 ```
 
@@ -418,7 +418,7 @@ public final class Fancy extends Plain implements Named {
 namespace demo.shapes;
 
 public final class Either implements Named, Tagged {
-    public override String label() { return super.label(); }   // error: Named and Tagged both provide label 
+    public override String label() { return super.label(); }   // error: Named and Tagged both provide label
 }
 ```
 
@@ -446,17 +446,17 @@ public final class Literals {
         int mask = 0b1010_0101;
         float f = 1.5f;
         double d = 2.5e-3;
-        char c = 'A';                    // one UTF-16 code unit 
+        char c = 'A';                    // one UTF-16 code unit
         char omega = '\u03A9';
         String str = "tab\there, \"quoted\"\n";   // UTF-16 string, a class like any other
 
         int max = int.MAX_VALUE;         // primitives are structs with static members
-        Int32 same = Int32.MAX_VALUE;    // int is an alias of reflect.core.Int32 
-        int wrapped = max + 1;           // wraps to int.MIN_VALUE 
+        Int32 same = Int32.MAX_VALUE;    // int is an alias of reflect.core.Int32
+        int wrapped = max + 1;           // wraps to int.MIN_VALUE
         long wide = i;                   // implicit widening
         byte narrow = (byte) 300;        // explicit narrowing: 44
         long mixed = i + ui;             // int + uint is long (C# promotion)
-        Object boxed = 42;               // implicit boxing 
+        Object boxed = 42;               // implicit boxing
         int back = (int) boxed;          // checked unboxing cast
         println($"{wrapped} {narrow} {mixed} {back}");   // prints: -2147483648 44 84 42
     }
@@ -508,19 +508,19 @@ public final class Nulls {
             println(nick.length);                  // narrowed to String by flow analysis
         }
         int len = nick?.length ?? 0;               // ?. yields int?, ?? supplies the fallback
-        nick ??= "anonymous";                      // assigns only when null 
-        String sure = nick!;                       // asserts non-null at run time ; a null throws NullPointerException
+        nick ??= "anonymous";                      // assigns only when null
+        String sure = nick!;                       // asserts non-null at run time; a null throws NullPointerException
 
         var count = 10;                            // int
         var names = new ArrayList<String>();       // ArrayList<String>
         names.add(name);
         double pct = 12.345;
         println($"{name} knows {names.size} names; {count} max; {sure} ({len})");
-        println($"share: {pct:0.0}%");             // format after `:` ; prints: share: 12.3%
+        println($"share: {pct:0.0}%");             // format after `:`; prints: share: 12.3%
         println($"{{braces}} {(len > 3 ? "long" : "short")}");   // {{ }} escape; a conditional needs ( )
     }
 
-    /** Fields other than `final` fields of `this` are not narrowed across calls . */
+    /** Fields other than `final` fields of `this` are not narrowed across calls. */
     int cachedLength() {
         String? c = cached;                        // copy into a local, which narrows
         return c != null ? c.length : -1;
@@ -531,7 +531,7 @@ public final class Nulls {
 ```csharp
 // rejected
 String? nick = null;
-int a = nick.length;                       // error: nick may be null 
+int a = nick.length;                       // error: nick may be null
 String s = null;                           // error: null for a non-null type
 String[] slots = new String[4];            // error: elements would start as null; use new String?[4]
                                            //        or Array.filled(4, "")
@@ -540,11 +540,11 @@ class Person {
     Person() { }                           // error: non-null field `name` not definitely assigned
 }
 class Holder<T> {
-    T? item;                               // error: T? needs `T extends class` or `T extends struct` 
+    T? item;                               // error: T? needs `T extends class` or `T extends struct`
 }
 String page = """
     text block
-    """;                                   // error: no text blocks or raw strings in v1 
+    """;                                   // error: no text blocks or raw strings in v1
 ```
 
 ### 2.9 Statements
@@ -569,8 +569,8 @@ public final class Statements {
         int n = 3;
         while (n > 0) { n--; }
         do { n++; } while (n < 2);
-        for (int i = 0; i < n; i++) { print(i); }          // classic for: one shared `i` 
-        for (final String s : rows[0]) { print(s); }       // enhanced for: fresh `s` per iteration 
+        for (int i = 0; i < n; i++) { print(i); }          // classic for: one shared `i`
+        for (final String s : rows[0]) { print(s); }       // enhanced for: fresh `s` per iteration
         for (var row : rows) { print(row.size); }
 
         switch (day) {
@@ -596,7 +596,7 @@ public final class Statements {
         for (List<String> r : rows) {
             for (String cell : r) {
                 if (cell.isEmpty) { continue outer; }
-                if (cell == "stop") { break outer; }       // String == is value equality 
+                if (cell == "stop") { break outer; }       // String == is value equality
             }
         }
     }
@@ -606,7 +606,7 @@ public final class Statements {
 ```csharp
 // rejected
 switch (day) {
-    case MONDAY: println("work");          // error: only the arrow form exists 
+    case MONDAY: println("work");          // error: only the arrow form exists
 }
 goto done;                                 // error: `goto` is reserved and unused
 int v = switch (x) { default -> { yield 1; } };   // error: `yield` is reserved for iterators; a block arm uses `return`
@@ -629,20 +629,20 @@ public final class ArrayDemo {
         int[] zeros = new int[4];                         // value-type elements start at zero
         int[] primes = { 2, 3, 5, 7 };                    // initializer in a declaration
         String[] words = new String[] { "a", "b" };       // non-null elements need values
-        String[] blanks = Array.filled(3, "");            // static helper of the Array base class 
-        Array any = blanks;                               // every array type extends Array 
+        String[] blanks = Array.filled(3, "");            // static helper of the Array base class
+        Array any = blanks;                               // every array type extends Array
         String?[] slots = new String?[3];                 // nullable elements start as null
         String[]? maybe = null;                           // the array itself is nullable
         int[]?[] rows = new int[]?[2];                    // jagged: rows start as null, see type-system.md NUL-07
 
         Square[] squares = { new Square(1), new Square(2) };
-        Shape[] shapes = squares;                         // Square[] <: Shape[] 
+        Shape[] shapes = squares;                         // Square[] <: Shape[]
         Object[] objects = words;
         try {
             objects[0] = 42;                              // throws: ArrayStoreException (boxed int into String[])
         } catch (ArrayStoreException e) { println("store check"); }
 
-        String?[] loose = words;                          // String[] <: String?[] 
+        String?[] loose = words;                          // String[] <: String?[]
         try {
             loose[0] = null;                              // throws: ArrayStoreException (element type is String)
         } catch (ArrayStoreException e) { println("nullability is checked too"); }
@@ -663,10 +663,10 @@ long[] longs = new int[3];                 // error: no array conversion between
 // file: stdlib/reflect.core/Array.rfl
 namespace reflect.core;
 
-public abstract class Array {                                 // every array type extends it 
+public abstract class Array {                                 // every array type extends it
     public static native T[] filled<T>(int n, T value);      // allocated and filled in one VM step
 
-    public static Span<T> asSpan<T>(this T[] array, int start, int length) {   // also numbers.asSpan(2, 5) 
+    public static Span<T> asSpan<T>(this T[] array, int start, int length) {   // also numbers.asSpan(2, 5)
         return new Span<T>(array, start, length);            // checks bounds and the exact element type
     }
 }
@@ -682,7 +682,7 @@ Natives will be supported to extend functionality to outside libraries, such as 
 namespace reflect.core;
 
 public final class Natives {
-    public static native long alloc(int size);           // bound by name and signature to the VM 
+    public static native long alloc(int size);           // bound by name and signature to the VM
     public static native void free(long handle);
 }
 ```
@@ -724,7 +724,7 @@ public class Box<T> {
     public static int count;                      // one per instantiation
     private T item;
 
-    static { BoxStats.instantiations++; }         // runs once per instantiation 
+    static { BoxStats.instantiations++; }         // runs once per instantiation
 
     public Box(T item) { this.item = item; count++; }
     public T get() { return item; }
@@ -737,7 +737,7 @@ final class BoxStats { public static int instantiations; }
 // file: stdlib/reflect.core/Parsable.rfl
 namespace reflect.core;
 
-public interface Parsable<T extends Parsable<T>> {                // implemented by the numeric primitives 
+public interface Parsable<T extends Parsable<T>> {                // implemented by the numeric primitives
     static abstract T parse(String text);                         // bad input: unchecked NumberFormatException
     static abstract boolean tryParse(String text, out T result);  // never throws
 }
@@ -759,9 +759,9 @@ public final class GenericsDemo {
         for (S s : src) { dst.add(s); }
     }
 
-    // `&` joins bounds ; Number is an interface the numeric primitives implement 
+    // `&` joins bounds; Number is an interface the numeric primitives implement
     public static T parse<T extends Number & Parsable<T>>(String text) {
-        return T.parse(text);                     // static abstract member through reified T 
+        return T.parse(text);                     // static abstract member through reified T
     }
 
     public static void main(String[] args) {
@@ -777,7 +777,7 @@ public final class GenericsDemo {
         var list = new ArrayList<String>();       // or: List<String> list = new ArrayList<>();
         List<Object> sink = new ArrayList<>();    // diamond
         copy<Object, String>(sink, List.of("a", "b"));
-        int n = parse<int>("42");                 // int implements Parsable<int> 
+        int n = parse<int>("42");                 // int implements Parsable<int>
     }
 }
 ```
@@ -797,19 +797,19 @@ public class Cache<K extends class, V extends struct> {
     }
 }
 
-public class Sorted<T extends class & Comparable<T>> { }   // kind plus bound, kind first 
+public class Sorted<T extends class & Comparable<T>> { }   // kind plus bound, kind first
 ```
 
 ```csharp
 // rejected
 var c = new Cache<int, String>();          // error: int is not a class, String is not a struct
-Box<Span<int>> spans;                      // error: a ref struct is never a type argument 
+Box<Span<int>> spans;                      // error: a ref struct is never a type argument
 // T? on an unconstrained T: §2.8
 ```
 
 ### 3.2 Use-site variance
 
-Wildcards `? extends` / `? super` in static types only .
+Wildcards `? extends` / `? super` in static types only.
 
 ```csharp
 // file: demo/generics/Variance.rfl
@@ -845,7 +845,7 @@ public final class Variance {
 // rejected
 List<? extends Shape> shapes = new ArrayList<Square>();
 shapes.add(new Square(2));                 // error: no writes through `? extends`
-var w = new ArrayList<? extends Shape>();  // error: wildcards are never instantiated 
+var w = new ArrayList<? extends Shape>();  // error: wildcards are never instantiated
 List<Shape> fixed = new ArrayList<Square>();   // error: invariant without a wildcard
 ```
 
@@ -879,20 +879,20 @@ public final class Reified {
 
     static T[] zeros<T extends struct>(int n) { return new T[n]; }     // zero-initialized elements
     static T?[] slots<T extends class>(int n) { return new T?[n]; }
-    static T blank<T extends struct>() { return default(T); }          // the all-zero value 
+    static T blank<T extends struct>() { return default(T); }          // the all-zero value
 
-    static K make<K extends Kind>(int size) { return new K(size); }    // virtual constructor 
+    static K make<K extends Kind>(int size) { return new K(size); }    // virtual constructor
 
     public static void main(String[] args) {
         Object o = new ArrayList<Cube>();
         println(o instanceof List<Cube>);                 // prints: true
         println(o instanceof List<? extends Kind>);       // prints: true (arguments checked against the bound)
         println(o instanceof List<Sphere>);               // prints: false
-        println(classOf<List<int>>().name);               // prints: reflect.collections.List<reflect.core.Int32> 
+        println(classOf<List<int>>().name);               // prints: reflect.collections.List<reflect.core.Int32>
         println(isA<String>("x"));                        // prints: true
         String s = cast<String>(42);                      // throws: ClassCastException
 
-        var mixed = List.of<Object>("a", 1, "b");         // explicit: String and int have no best common type 
+        var mixed = List.of<Object>("a", 1, "b");         // explicit: String and int have no best common type
         List<String> strings = onlyOf<String>(mixed);     // [a, b]
         Cube cube = make<Cube>(3);
         int[] none = zeros<int>(4);                       // [0, 0, 0, 0]
@@ -910,10 +910,10 @@ import reflect.collections;
 import static reflect.io.Console;
 
 public final class Definitions {
-    public static void main(String[] args) throws Exception {   // reflective actions throw checked exceptions 
+    public static void main(String[] args) throws Exception {   // reflective actions throw checked exceptions
         Class<?> def = ArrayList.class;                   // generic definition ArrayList<>
         Class<?> ints = def.instantiate(int.class);       // ArrayList<int>, built at run time
-        Object list = ints.getConstructor()!.invoke();    // reflective construction ; lookups may return null 
+        Object list = ints.getConstructor()!.invoke();    // reflective construction; lookups may return null
         println(ints.name);                               // prints: reflect.collections.ArrayList<reflect.core.Int32>
         println(ints.genericDefinition == def);           // prints: true
     }
@@ -937,16 +937,16 @@ public final class Identity {
         Object strict = new ArrayList<String>();
         Object loose = new ArrayList<String?>();
         println(strict instanceof List<String>);          // prints: true
-        println(loose instanceof List<String>);           // prints: false 
+        println(loose instanceof List<String>);           // prints: false
         println(strict.getClass() == loose.getClass());   // prints: false: two classes, shared code
 
         Object ints = new ArrayList<int>();               // own specialized code
         println(ints instanceof List<long>);              // prints: false
 
         Object pairs = new ArrayList<(int count, String label)>();
-        println(pairs instanceof List<(int, String)>);    // prints: true: tuple names are metadata 
+        println(pairs instanceof List<(int, String)>);    // prints: true: tuple names are metadata
 
-        var oops = (List<String?>) strict;                // throws: ClassCastException 
+        var oops = (List<String?>) strict;                // throws: ClassCastException
     }
 }
 ```
@@ -954,7 +954,7 @@ public final class Identity {
 ### 3.6 Inference
 
 Inferred type arguments are reified, so inference picks a best common type, counting the target
-type, and never synthesizes one . The only exception is a `throws` type parameter.
+type, and never synthesizes one. The only exception is a `throws` type parameter.
 
 ```csharp
 // file: demo/generics/Inference.rfl
@@ -975,7 +975,7 @@ public final class Inference {
 
 ```csharp
 // rejected
-var x = pick(cube, sphere);                // error: neither Cube nor Sphere converts to the other 
+var x = pick(cube, sphere);                // error: neither Cube nor Sphere converts to the other
 ```
 
 ### 3.7 Wildcard restrictions
@@ -1045,7 +1045,7 @@ type arguments, casts and `instanceof`.
 // file: demo/generics/Intersections.rfl
 namespace demo.generics;
 
-import demo.errors;                                // Throwing.map 
+import demo.errors;                                // Throwing.map
 import reflect.collections;
 import reflect.functions;
 import reflect.io;
@@ -1081,7 +1081,7 @@ public final class Intersections {
 
     static void run(List<Query> queries, Object item, List<Runnable> queue) {
         try {
-            // E = Exception & Retryable, reified like any type argument ;
+            // E = Exception & Retryable, reified like any type argument;
             // warning: E is wider than NetTimeout and DbBusy
             List<Row> rows = Throwing.map(queries, q -> fetch(q));
         } catch (Exception e) {
@@ -1095,19 +1095,19 @@ public final class Intersections {
         List<IOException & Retryable> failures = new ArrayList<>();
 
         Object tasks = new ArrayList<Runnable & Retryable>();
-        println(tasks instanceof List<Retryable & Runnable>);  // prints: true: components are sorted 
-        println(Reified.classOf<Runnable & Retryable>().kind); // prints: INTERSECTION 
+        println(tasks instanceof List<Retryable & Runnable>);  // prints: true: components are sorted
+        println(Reified.classOf<Runnable & Retryable>().kind); // prints: INTERSECTION
     }
 }
 ```
 
 ```csharp
 // rejected
-Runnable & Retryable r = task;             // error: not a declaration type; use var or a pattern 
-if (item instanceof Runnable & Retryable) { }   // error: parenthesize the intersection 
-var p = Inference.pick(new NetTimeout(), new DbBusy());   // error: no best common type 
-class Late<T extends Runnable & IOException> { }  // error: the class component comes first 
-List<IOException & Exception> causes;      // error: two class components, even related ones 
+Runnable & Retryable r = task;             // error: not a declaration type; use var or a pattern
+if (item instanceof Runnable & Retryable) { }   // error: parenthesize the intersection
+var p = Inference.pick(new NetTimeout(), new DbBusy());   // error: no best common type
+class Late<T extends Runnable & IOException> { }  // error: the class component comes first
+List<IOException & Exception> causes;      // error: two class components, even related ones
 ```
 
 ## 4. Static virtual members
@@ -1124,7 +1124,7 @@ public abstract class Kind {
     public static String describe() { return "Kind: " + value; }   // unqualified `value`: late-bound
 
     protected final int size;
-    public virtual Kind(int size) { this.size = size; }            // virtual constructor 
+    public virtual Kind(int size) { this.size = size; }            // virtual constructor
 }
 ```
 
@@ -1134,7 +1134,7 @@ namespace demo.kinds;
 
 public class Cube extends Kind {
     public static override String value { get; } = "CUBE_KIND";    // own storage
-    public override Cube(int size) { super(size); }                // re-declared with `override` 
+    public override Cube(int size) { super(size); }                // re-declared with `override`
 }
 
 public class Sphere extends Kind { }    // reads Kind's value; inherits Kind(int)
@@ -1186,14 +1186,14 @@ public class Probe extends Kind {
 }
 
 public class SubProbe extends Probe {
-    public static override String value { get { return "SUB/" + super.value; } }   // super forwards the receiver 
+    public static override String value { get { return "SUB/" + super.value; } }   // super forwards the receiver
 }
 
 public abstract class Token {
     public static virtual Object id { get; } = "token";
 }
 public class NamedToken extends Token {
-    public final static override String id { get; } = "named";   // covariant (get-only), final 
+    public final static override String id { get; } = "named";   // covariant (get-only), final
 }
 
 public final class Resolution {
@@ -1217,7 +1217,7 @@ public final class Resolution {
 ```csharp
 // rejected
 public class Hider extends Kind {
-    public static String value { get; } = "X";               // error: no hiding; write `static override` 
+    public static String value { get; } = "X";               // error: no hiding; write `static override`
 }
 public class Counter0 { public static virtual int n { get; set; } }
 public class Wrong extends Counter0 {
@@ -1286,7 +1286,7 @@ public final class Polygons {
     public static void main(String[] args) {
         println(Triangle.summary());     // prints: triangle with 3 sides
         println(new Triangle().tag());   // prints: <triangle>
-        println(Polygon.summary());      // throws: AbstractMemberError: receiver Polygon 
+        println(Polygon.summary());      // throws: AbstractMemberError: receiver Polygon
     }
 }
 ```
@@ -1296,7 +1296,7 @@ public final class Polygons {
 println(Polygon.label);                    // error: abstract static through the class name
 public class Square4 extends Polygon { }   // error: must override the static abstract `label`
 static String show<P extends Polygon>() { return P.label; }
-show<Polygon>();                           // error: Polygon leaves static abstracts unimplemented 
+show<Polygon>();                           // error: Polygon leaves static abstracts unimplemented
 ```
 
 ### 4.5 Class references and virtual constructors
@@ -1321,7 +1321,7 @@ public final class Factory {
         Sphere s = make<Sphere>(5);             // Sphere inherited Kind(int)
 
         Class<? extends Kind> abstractOne = Kind.class;
-        Kind none = abstractOne.create(1);      // throws: InstantiationError 
+        Kind none = abstractOne.create(1);      // throws: InstantiationError
     }
 }
 ```
@@ -1329,7 +1329,7 @@ public final class Factory {
 ```csharp
 // rejected
 public class Pyramid extends Kind {
-    public Pyramid() { super(1); }             // error: declares constructors but not the virtual Kind(int) 
+    public Pyramid() { super(1); }             // error: declares constructors but not the virtual Kind(int)
 }
 static T build<T>(int n) { return new T(n); } // error: T's bound declares no virtual constructor
 ```
@@ -1344,7 +1344,7 @@ namespace demo.plugins;
 import static reflect.io.Console;
 
 public abstract class Plugin {
-    public static virtual String kind { get; } = "none";    // warning: hidden by Class<T>.kind 
+    public static virtual String kind { get; } = "none";    // warning: hidden by Class<T>.kind
     public static Plugin create(String spec) { return new Echo(spec.length); }   // warning: hidden by Class<T>.create
     public virtual Plugin(int id) { }
 }
@@ -1376,10 +1376,10 @@ argument. `Addable` belongs to the stdlib, so the numeric primitives implement i
 // file: stdlib/reflect.core/Addable.rfl
 namespace reflect.core;
 
-public interface Addable<T extends Addable<T>> {                  // implemented by the numeric primitives 
+public interface Addable<T extends Addable<T>> {                  // implemented by the numeric primitives
     static abstract T zero { get; }
     static abstract T operator +(T a, T b);
-    static virtual T operator checked +(T a, T b) { return a + b; }   // used inside `checked`; integers trap 
+    static virtual T operator checked +(T a, T b) { return a + b; }   // used inside `checked`; integers trap
 }
 ```
 
@@ -1391,7 +1391,7 @@ public struct Money implements Addable<Money> {
     public final long cents;
     public Money(long cents) { this.cents = cents; }
 
-    public static override Money zero { get; } = new Money(0);       // `override` 
+    public static override Money zero { get; } = new Money(0);       // `override`
     public static override Money operator +(Money a, Money b) { return new Money(a.cents + b.cents); }
     public override String toString() { return $"Money({cents})"; }
 }
@@ -1408,7 +1408,7 @@ public final class Sums {
     public static T sum<T extends Addable<T>>(List<T> items) {
         T total = T.zero;                  // static abstract property through reified T
         for (T item : items) {
-            total = total + item;          // T's operator +, dispatched through reified T 
+            total = total + item;          // T's operator +, dispatched through reified T
         }
         return total;
     }
@@ -1416,7 +1416,7 @@ public final class Sums {
     public static T checkedSum<T extends Addable<T>>(List<T> items) {
         T total = T.zero;
         for (T item : items) {
-            total = checked(total + item); // T's operator checked + 
+            total = checked(total + item); // T's operator checked +
         }
         return total;
     }
@@ -1429,7 +1429,7 @@ public final class Sums {
         byte hundred = 100;
         println(sum(List.of(hundred, hundred)));         // prints: -56 (a byte sum wraps at 8 bits)
         println(hundred + hundred);                      // prints: 200 (predefined `+` gives int)
-        println(checkedSum(List.of(int.MAX_VALUE, 1)));  // throws: ArithmeticException 
+        println(checkedSum(List.of(int.MAX_VALUE, 1)));  // throws: ArithmeticException
     }
 }
 ```
@@ -1481,10 +1481,10 @@ public final class Search {
 ```csharp
 // rejected
 public static boolean same<T extends class>(T a, T b) {
-    return a == b;                             // error: the bound declares no `==` 
+    return a == b;                             // error: the bound declares no `==`
 }
-public static boolean eq<T>(T a, T b) { return a == b; }   // error: no bound declares `==` 
-boolean m = new Money(1) == new Money(1);      // error: struct without `operator ==` 
+public static boolean eq<T>(T a, T b) { return a == b; }   // error: no bound declares `==`
+boolean m = new Money(1) == new Money(1);      // error: struct without `operator ==`
 ```
 
 ## 5. Properties, events, `@Observable`
@@ -1541,7 +1541,7 @@ public final class Gauge {
     public int value {
         get;
         set {
-            println($"{this.value} -> {value}");   // this.value: the property; value: the new value 
+            println($"{this.value} -> {value}");   // this.value: the property; value: the new value
             field = value;
         }
     }
@@ -1570,11 +1570,11 @@ import reflect.functions;
 public record ClickEvent(Button source) { }
 
 public final class Button {
-    public event Consumer<ClickEvent> clicked;     // event type: a functional interface 
+    public event Consumer<ClickEvent> clicked;     // event type: a functional interface
     public static event Runnable anyPressed;       // static event
 
     public void press() {
-        clicked(new ClickEvent(this));             // raise: only inside the declaring class 
+        clicked(new ClickEvent(this));             // raise: only inside the declaring class
         anyPressed();                              // no listeners: no-op
     }
 }
@@ -1602,7 +1602,7 @@ public final class Saver {
     public event ThrowingConsumer<String, IOException> saved;   // the raise may throw IOException
 
     public void save(String name) throws IOException {
-        saved(name);       // all listeners run; first failure rethrown, later ones suppressed 
+        saved(name);       // all listeners run; first failure rethrown, later ones suppressed
     }
 }
 ```
@@ -1638,12 +1638,12 @@ public final class Events {
 
         var t = new Saver();
         t.saved += n -> { throw new IOException("first"); };
-        t.saved += n -> { throw new OutOfMemoryError(); };    // an Error ends the raise at once 
+        t.saved += n -> { throw new OutOfMemoryError(); };    // an Error ends the raise at once
         t.saved += n -> println("never runs");
         try {
             t.save("b");
         } catch (OutOfMemoryError e) {
-            println(e.suppressed.length);          // prints: 1 (earlier failures attached )
+            println(e.suppressed.length);          // prints: 1 (earlier failures attached)
         } catch (IOException e) { }
     }
 }
@@ -1651,9 +1651,9 @@ public final class Events {
 
 ```csharp
 // rejected
-ok.clicked(new ClickEvent(ok));            // error: only the declaring class raises an event 
+ok.clicked(new ClickEvent(ok));            // error: only the declaring class raises an event
 ok.clicked = null;                         // error: outside the declaring class only += and -=
-public event Object changed;               // error: the event type must be a functional interface 
+public event Object changed;               // error: the event type must be a functional interface
 ```
 
 ### 5.3 The proposal's `@Property` example
@@ -1718,7 +1718,7 @@ public partial class Model implements PropertyChangeSource {
             var change = new PropertyChange<int>(this, VALUE_PROPERTY, old, value);
             try {
                 valueChanged(change);
-            } catch (Exception first) {          // one raise over both events 
+            } catch (Exception first) {          // one raise over both events
                 try { propertyChanged(change); } catch (Exception next) { first.addSuppressed(next); }
                 throw first;                     // precise rethrow: still unchecked here
             }
@@ -1791,7 +1791,7 @@ public class Settings { }                       // error: every part of Settings
 
 Java `@interface` syntax, retention `RUNTIME` by default, bound to a generator with
 `@GeneratedBy`. Annotation instances are proxies, so reading them needs `unsafe;`
-until the verifier exists .
+until the verifier exists.
 
 ```csharp
 // file: stdlib/reflect.observable/Observable.rfl
@@ -1799,7 +1799,7 @@ namespace reflect.observable;
 
 import reflect.meta;
 
-@Target({ ElementType.FIELD, ElementType.PROPERTY })   // PROPERTY is a Reflect addition 
+@Target({ ElementType.FIELD, ElementType.PROPERTY })   // PROPERTY is a Reflect addition
 @GeneratedBy(ObservableGenerator.class)                // annotation → generator binding
 public @interface Observable {
     boolean classWide() default true;                  // Java element syntax
@@ -1817,11 +1817,11 @@ public enum Verb { GET, POST }
 public @interface Since { int major(); int minor(); }
 public @interface Tag { String value(); }              // `value` allows the single-element form
 
-@Retention(RetentionPolicy.RUNTIME)                    // the default ; SOURCE, CLASS also exist 
+@Retention(RetentionPolicy.RUNTIME)                    // the default; SOURCE, CLASS also exist
 @Target({ ElementType.TYPE, ElementType.METHOD })
 public @interface Route {
     String path();
-    Verb[] verbs() default { Verb.GET };               // `{ }` arrays only in annotations 
+    Verb[] verbs() default { Verb.GET };               // `{ }` arrays only in annotations
     Class<?> handler() default Object.class;
     int priority() default 0;
     Since since() default @Since(major = 0, minor = 1);   // nested annotation
@@ -1849,7 +1849,7 @@ public partial class Document {
 
     public static void main(String[] args) {
         Property title = Document.class.getProperty("title")!;
-        Observable? o = title.getAnnotation<Observable>();   // reified type argument; a proxy 
+        Observable? o = title.getAnnotation<Observable>();   // reified type argument; a proxy
         println(o != null && o.classWide());                 // prints: false
         println(title.hasAnnotation<Observable>());          // prints: true (metadata only, no proxy)
     }
@@ -1863,10 +1863,10 @@ A generator lives in a module compiled earlier and runs on the VM inside `rflc`.
 ```csharp
 // file: stdlib/reflect.observable/module-info.rfl
 module reflect.observable {
-    requires transitive reflect.meta;    // PropertyChange exposes reflect.meta.Property 
+    requires transitive reflect.meta;    // PropertyChange exposes reflect.meta.Property
     requires reflect.meta.compile;       // ClassGenerator, GeneratorContext, Template
     exports reflect.observable;
-    unsafe;                              // the generator reads annotation instances 
+    unsafe;                              // the generator reads annotation instances
 }
 ```
 
@@ -1874,7 +1874,7 @@ module reflect.observable {
 // file: tools/module-info.rfl
 module demo.tools {                      // a pure tooling module, compiled before demo
     requires reflect.meta.compile;
-    requires reflect.observable;         // its generator is ordered after ObservableGenerator 
+    requires reflect.observable;         // its generator is ordered after ObservableGenerator
     exports demo.tools;
     unsafe;
 }
@@ -1922,7 +1922,7 @@ public final class ObservableGenerator implements ClassGenerator<Observable> {
                         var change = new PropertyChange<${t}>(this, ${constant}, old, value);
                         try {
                             ${event}(change);
-                        } catch (Exception first) {          // one raise over both events 
+                        } catch (Exception first) {          // one raise over both events
                             try { propertyChanged(change); }
                             catch (Exception next) { first.addSuppressed(next); }
                             throw first;
@@ -2005,7 +2005,7 @@ public partial class Point2 {
 ### 6.4 Analyzers
 
 Analyzers only report diagnostics; they may read a read-only view of bound bodies.
-They are registered with `provides` and enabled with `requires static` .
+They are registered with `provides` and enabled with `requires static`.
 
 ```csharp
 // file: reflect.lint/MutablePublicFieldAnalyzer.rfl
@@ -2066,7 +2066,7 @@ public final class Tables {
     public const int MONEY_SIZE = sizeof(Money);    // 8: a struct without references
     public const Class<?> DEFAULT_KIND = Cube.class;
     public const int[] SMALL_PRIMES = { 2, 3, 5, 7 };   // arrays are allowed; see reflection.md META-07
-    public static final long STARTED = Clock.nowMillis();   // run-time constant 
+    public static final long STARTED = Clock.nowMillis();   // run-time constant
 
     @Route(path = PATH, priority = FIB_20 % 3)      // const values in annotation arguments
     public static void serve() { }
@@ -2169,7 +2169,7 @@ public final class Lambdas {
         Supplier<String> greeting = this::greet;             // bound receiver
         Function<int, Cube> makeCube = Cube::new;            // constructor reference
         Function<int, int> doubler = Lambdas::twice;         // static method
-        Function<Square, double> side = Square::side;        // property getter (Kotlin) 
+        Function<Square, double> side = Square::side;        // property getter (Kotlin)
         BinaryOperator<int> add = (a, b) -> a + b;
         BiFunction<int, int, int> times = (int a, int b) -> a * b;   // explicit parameter types
         Transformer<String, int> custom = s -> s.length * 2;
@@ -2183,7 +2183,7 @@ public final class Lambdas {
 
 ```csharp
 // rejected
-Object o = () -> 1;                        // error: Object is not a functional interface 
+Object o = () -> 1;                        // error: Object is not a functional interface
 var f = (int x) -> x + 1;                  // error: a lambda needs a target type
 ```
 
@@ -2219,10 +2219,10 @@ public final class Captures {
 ```csharp
 // rejected
 static void bump(ref int total) {
-    Runnable r = () -> total++;            // error: no capture of `ref`/`in`/`out` parameters 
+    Runnable r = () -> total++;            // error: no capture of `ref`/`in`/`out` parameters
 }
 static void peek(Span<int> xs) {
-    Supplier<int> first = () -> xs[0];     // error: a ref struct value cannot be captured 
+    Supplier<int> first = () -> xs[0];     // error: a ref struct value cannot be captured
 }
 ```
 
@@ -2276,7 +2276,7 @@ public final class Throwing {
     public static T retry<T, E extends Exception>(int times, ThrowingSupplier<T, E> f) throws E {
         for (int i = 1; ; i++) {
             try { return f.get(); }
-            catch (E e) { if (i == times) { throw e; } }    // catches exactly the reified E 
+            catch (E e) { if (i == times) { throw e; } }    // catches exactly the reified E
         }
     }
 }
@@ -2301,7 +2301,7 @@ public final class Transparency {
 ```csharp
 // rejected
 static void quiet(List<Path> paths) {
-    Throwing.map(paths, p -> Files.readString(p));   // error: unreported IOException 
+    Throwing.map(paths, p -> Files.readString(p));   // error: unreported IOException
 }
 Function<Path, String> read = p -> Files.readString(p);   // error: Function.apply declares no IOException
 ```
@@ -2349,7 +2349,7 @@ public final class Parsing {
 
 ### 7.4 try-with-resources
 
-Java's statement and translation; `close()` failures become suppressed exceptions .
+Java's statement and translation; `close()` failures become suppressed exceptions.
 
 ```csharp
 // file: stdlib/reflect.core/AutoCloseable.rfl
@@ -2416,10 +2416,10 @@ public final class Buffers {
     public static void main(String[] args) {
         try (var scratch = new NativeBuffer(64)) { }   // closed, never finalized
         new NativeBuffer(32);                          // forgotten: finalizable once unreachable
-        kept = new NativeBuffer(16);                   // reachable from a static: never finalized 
-        GC.collect();                                  // 
-        GC.runPendingFinalizers();                     // drains in allocation order 
-    }   // end of main: one full collection, then one drain 
+        kept = new NativeBuffer(16);                   // reachable from a static: never finalized
+        GC.collect();
+        GC.runPendingFinalizers();                     // drains in allocation order
+    }   // end of main: one full collection, then one drain
 }
 ```
 
@@ -2433,7 +2433,7 @@ public struct Handle {
 ### 7.6 async/await
 
 ```csharp
-// future: after the preview ; `async` and `await` are reserved now
+// future: after the preview; `async` and `await` are reserved now
 public async Task<String> fetch(Uri uri) throws IOException {
     var response = await http.get(uri);
     return await response.readText();
@@ -2455,7 +2455,7 @@ public final class Counter {
     private int count;
 
     public void increment() {
-        synchronized (lock) { count++; }       // only `Lock` objects can be locked 
+        synchronized (lock) { count++; }       // only `Lock` objects can be locked
     }
 }
 ```
@@ -2497,17 +2497,17 @@ public final class Raised {
         Object boxed = 42;
         Object[] objects = new String[1];
 
-        expect("!", () -> none!.length);                     // NullPointerException 
+        expect("!", () -> none!.length);                     // NullPointerException
         expect("/", () -> 1 / one[0]);                       // ArithmeticException
-        expect("checked", () -> checked(int.MAX_VALUE + one[0] + 1));   // ArithmeticException 
+        expect("checked", () -> checked(int.MAX_VALUE + one[0] + 1));   // ArithmeticException
         expect("index", () -> one[2]);                       // IndexOutOfBoundsException
         expect("cast", () -> (String) boxed);                // ClassCastException
-        expect("store", () -> { objects[0] = boxed; return null; });    // ArrayStoreException 
-        expect("create", () -> Kind.class.create(1));        // InstantiationError 
-        expect("abstract", () -> Polygon.summary());         // AbstractMemberError 
+        expect("store", () -> { objects[0] = boxed; return null; });    // ArrayStoreException
+        expect("create", () -> Kind.class.create(1));        // InstantiationError
+        expect("abstract", () -> Polygon.summary());         // AbstractMemberError
         expect("init", () -> Broken.VALUE);                  // ExceptionInInitializerError
         expect("instantiate", () -> Cache.class.instantiate(int.class, String.class));   // TypeLoadError
-        expect("invoke", () -> Raised.class.getMethod("fail")!.invoke(null));   // InvocationTargetException 
+        expect("invoke", () -> Raised.class.getMethod("fail")!.invoke(null));   // InvocationTargetException
     }
 }
 ```
@@ -2669,7 +2669,7 @@ final class Compound {
 ```csharp
 // rejected
 final class Holder { public Accumulator acc { get; set; } }
-holder.acc += 5;                           // error: in-place struct operator on a property result 
+holder.acc += 5;                           // error: in-place struct operator on a property result
 ```
 
 ### 8.4 Indexers
@@ -2708,7 +2708,7 @@ public final class FileLines {
 final class Board {
     static void place(Grid<String> grid, String player, String fallback) {
         grid[2, 3] = player;
-        grid[2, 4] ??= fallback;                 // assigns only when the cell is null 
+        grid[2, 4] ??= fallback;                 // assigns only when the cell is null
         grid[new Point(0, 0)] = "origin";
     }
 }
@@ -2745,7 +2745,7 @@ public final class Equality {
 
 ```csharp
 // rejected
-boolean same = new Point(1, 2) == new Point(1, 2);   // error: struct without `operator ==` 
+boolean same = new Point(1, 2) == new Point(1, 2);   // error: struct without `operator ==`
 ```
 
 ### 8.6 Custom operators after v1
@@ -2753,7 +2753,7 @@ boolean same = new Point(1, 2) == new Point(1, 2);   // error: struct without `o
 Swift-style operator and precedence-group declarations; syntax and placement are open for discussion.
 
 ```csharp
-// future: after v1 ; `infix`, `prefix`, `postfix`, `precedence` are reserved now
+// future: after v1; `infix`, `prefix`, `postfix`, `precedence` are reserved now
 precedence PipePrecedence { associativity left; lowerThan AdditivePrecedence; }
 infix operator |> : PipePrecedence;
 
@@ -2784,7 +2784,7 @@ public struct Point {
 
 public struct Pin {
     public Point at;
-    public String? label;                 // reference fields of structs are nullable 
+    public String? label;                 // reference fields of structs are nullable
 }
 ```
 
@@ -2799,7 +2799,7 @@ public final class Structs {
         Point p = new Point(1, 2);
         Point q = p;                      // copy
         q.x = 5;                          // p.x is still 1
-        Object o = p;                     // boxing 
+        Object o = p;                     // boxing
         Point back = (Point) o;           // unboxing
         Pin blank = default(Pin);         // all zero: at = (0, 0), label = null
         Point[] pts = new Point[3];       // zero-initialized elements
@@ -2847,7 +2847,7 @@ public final class Refs {
         int[] numbers = { 1, 2, 3, 4, 5, 6, 7, 8 };
         ref int s = ref slot(numbers, 3);
         s = 0;                                            // writes numbers[3]
-        Span<int> window = numbers.asSpan(2, 5);          // zero-copy slice of 3, 0, 5, 6, 7 ; Array.asSpan 
+        Span<int> window = numbers.asSpan(2, 5);          // zero-copy slice of 3, 0, 5, 6, 7; Array.asSpan
         println(sum(window));                             // prints: 21
     }
 }
@@ -2858,7 +2858,7 @@ public final class Refs {
 
 ```csharp
 // rejected
-public struct Named { public String name; }        // error: reference-typed struct fields must be nullable 
+public struct Named { public String name; }        // error: reference-typed struct fields must be nullable
 final class Keeper { Span<int> kept; }              // error: a ref struct never reaches the heap
 Object boxedSpan = window;                          // error: no boxing of ref structs
 static ref int dangling() { int local = 1; return ref local; }   // error: a reference to a local escapes
@@ -2889,9 +2889,9 @@ public record struct Rgb(ubyte r, ubyte g, ubyte b) { }     // value record (C# 
 public final class Records {
     public static void main(String[] args) {
         var p = new Point3(1, 2, 3);
-        println(p.x);                                        // prints: 1 (get-only property )
+        println(p.x);                                        // prints: 1 (get-only property)
         println(p);                                          // prints: Point3[x=1, y=2, z=3]
-        println(p == new Point3(1, 2, 3));                   // prints: true 
+        println(p == new Point3(1, 2, 3));                   // prints: true
         if (p instanceof Point3(int x, int y, int z) && z > 0) { println(x + y); }   // prints: 3
         println(new Rgb(255, 0, 0) == new Rgb(255, 0, 0));   // prints: true
         new Range(5, 1);                                     // throws: IllegalArgumentException
@@ -2907,7 +2907,7 @@ p.x = 5;                                   // error: record components are get-o
 ### 9.3 Enums
 
 One value-type enum kind with an integral backing type, Java-style per-constant members and
-`@Flags` . Rules: [type-system §11, DAT-05](type-system.md#11-structs-ref-safety-records-enums-sealed-types-tuples-destructible-objects-dat).
+`@Flags`. Rules: [type-system §11, DAT-05](type-system.md#11-structs-ref-safety-records-enums-sealed-types-tuples-destructible-objects-dat).
 
 ```csharp
 // file: demo/data/Enums.rfl
@@ -2977,8 +2977,8 @@ enum Mode : int {
 
 ### 9.4 Sealed hierarchies and pattern matching
 
-Java 17 `sealed`/`permits`/`unsealed`, Java 21 patterns and guards . Stage0 supports type
-patterns only; deconstruction and guards come with `rflc` .
+Java 17 `sealed`/`permits`/`unsealed`, Java 21 patterns and guards. Stage0 supports type
+patterns only; deconstruction and guards come with `rflc`.
 
 ```csharp
 // file: demo/data/Expr.rfl
@@ -3049,8 +3049,8 @@ public final class Tuples {
         (int, String) pair = (1, "one");
         (int count, String label) named = (2, "two");
         println(named.count);                         // prints: 2
-        pair = named;                                 // names are not part of the type 
-        var (lo, hi) = range(new int[] { 3, 9, 1 });  // deconstruction 
+        pair = named;                                 // names are not part of the type
+        var (lo, hi) = range(new int[] { 3, 9, 1 });  // deconstruction
         println($"{lo}..{hi}");                       // prints: 1..9
     }
 }
@@ -3098,10 +3098,10 @@ Actor? live = Destructible.alive(alias);              // null: an explicit conve
 
 ## 10. Reflection API (run time)
 
-`reflect.meta` ; `Class<T>` lives in `reflect.core`. API surface:
+`reflect.meta`; `Class<T>` lives in `reflect.core`. API surface:
 [reflection §1](reflection.md#1-api-surface-reflectmeta). Reflective actions declare checked
-exceptions, so these `main` methods say `throws Exception` ; lookups return `null` for a
-missing member, hence the `!` .
+exceptions, so these `main` methods say `throws Exception`; lookups return `null` for a
+missing member, hence the `!`.
 
 ### 10.1 Inspection and invocation
 
@@ -3154,7 +3154,7 @@ public final class Generic {
     public static void main(String[] args) throws Exception {
         Class<?> def = ArrayList.class;                    // generic definition
         Class<?> cubes = def.instantiate(Cube.class);      // ArrayList<Cube>, created at run time
-        Object list = cubes.getConstructor()!.invoke();   // reflective construction 
+        Object list = cubes.getConstructor()!.invoke();   // reflective construction
         cubes.getMethod("add")!.invoke(list, new Cube(1));
         println(cubes.typeArguments[0].name);              // prints: demo.kinds.Cube
         println(list.getClass() == cubes);                 // prints: true (one Class per instantiation)
@@ -3166,7 +3166,7 @@ public final class Generic {
 ### 10.3 Access control
 
 Private members are reachable reflectively only through `opens`. Module `demo` opens
-`demo.bank` to `reflect.json` only ; `Account.cents` is private .
+`demo.bank` to `reflect.json` only; `Account.cents` is private.
 
 ```csharp
 // file: reflect.json/JsonWriter.rfl
@@ -3203,7 +3203,7 @@ public final class Snoop {
 
 Proxies arrive in v0.6, before the verifier, so the calling module declares `unsafe;`.
 The handler may throw anything (`throws Throwable`); a checked exception that the proxied method
-does not declare reaches the caller as `UndeclaredThrowableException` .
+does not declare reaches the caller as `UndeclaredThrowableException`.
 
 ```csharp
 // file: demo/meta/Proxies.rfl
@@ -3216,12 +3216,12 @@ public interface Greeter { String greet(String name); }
 
 public final class Proxies {
     public static Greeter logged(Greeter real) {
-        return Proxy.create<Greeter>((proxy, method, args) -> {   // demo is `unsafe;` 
+        return Proxy.create<Greeter>((proxy, method, args) -> {   // demo is `unsafe;`
             println("call " + method.name);
             try {
                 return method.invoke(real, args);
             } catch (InvocationTargetException e) {
-                throw e.cause!;                    // rethrow what `real` threw, unwrapped 
+                throw e.cause!;                    // rethrow what `real` threw, unwrapped
             }
         });
     }
@@ -3231,7 +3231,7 @@ public final class Proxies {
 ```csharp
 // rejected
 // in module plugins.host, which does not declare `unsafe;`
-Greeter g = Proxy.create<Greeter>((p, m, a) -> null);   // error: needs an unsafe module until the verifier 
+Greeter g = Proxy.create<Greeter>((p, m, a) -> null);   // error: needs an unsafe module until the verifier
 ```
 
 ### 10.5 Emitting code
@@ -3252,7 +3252,7 @@ public final class Emit {
         var cb = mb.defineClass("dyn.Adder", Object.class, Modifier.PUBLIC | Modifier.FINAL);
         var add = cb.defineMethod("add", Modifier.PUBLIC | Modifier.STATIC,
                                   int.class, List.of(int.class, int.class));
-        var code = add.body();                  // final class: no hidden receiver argument 
+        var code = add.body();                  // final class: no hidden receiver argument
         code.ldarg(0); code.ldarg(1); code.add(Type.INT); code.ret();
         Class<?> adder = mb.load().getClass("dyn.Adder")!;
         println(adder.getMethod("add")!.invoke(null, 2, 3));  // prints: 5
@@ -3275,7 +3275,7 @@ import reflect.meta;
 
 public final class Reload {
     public static void apply(Path deltaPath) throws IOException {
-        HotReload.apply(ModuleDelta.read(deltaPath));   // delta produced by `rflc delta` 
+        HotReload.apply(ModuleDelta.read(deltaPath));   // delta produced by `rflc delta`
     }
 }
 ```
@@ -3315,7 +3315,7 @@ A delta that removes `text()`, changes its signature, or changes the base class 
 .class public abstract demo.kinds.Kind {
     .property static virtual reflect.core.String value { .get get_value }
     .method public static virtual reflect.core.String get_value() {
-        ldsfld   demo.kinds.Kind::value$field      // each overrider's accessor reads its own storage 
+        ldsfld   demo.kinds.Kind::value$field      // each overrider's accessor reads its own storage
         ret
     }
 }
@@ -3347,7 +3347,7 @@ Static methods of non-final or generic classes take the receiver class as a hidd
 {
     ldstr       "Kind: "
     ldarg       $receiver                  // hidden receiver class
-    call.svirt  demo.kinds.Kind::get_value()   // unqualified `value`: late static binding 
+    call.svirt  demo.kinds.Kind::get_value()   // unqualified `value`: late static binding
     call        reflect.core.String::concat(reflect.core.String, reflect.core.String)
     ret
 }
@@ -3365,7 +3365,7 @@ Static methods of non-final or generic classes take the receiver class as a hidd
 .method static boolean isA<T>(reflect.core.Object? o)       // §3.3
 {
     ldarg       o
-    instanceof  !!0                        // T read from the type context 
+    instanceof  !!0                        // T read from the type context
     ret
 }
 
@@ -3376,7 +3376,7 @@ Static methods of non-final or generic classes take the receiver class as a hidd
 {
     .try {
         ...
-    } .catch !!1 {                         // catch type MVAR 1: matched against the reified E 
+    } .catch !!1 {                         // catch type MVAR 1: matched against the reified E
         ...
     }
 }
@@ -3404,10 +3404,10 @@ private void raise_clicked(ClickEvent e) {
     for (Consumer<ClickEvent> listener : snapshot) {
         try {
             listener.accept(e);
-        } catch (Error error) {               // an Error ends the raise at once 
+        } catch (Error error) {               // an Error ends the raise at once
             if (first != null) { error.addSuppressed(first); }
             throw error;
-        } catch (Throwable t) {               // run every listener, keep the first failure 
+        } catch (Throwable t) {               // run every listener, keep the first failure
             if (first == null) { first = t; } else { first.addSuppressed(t); }
         }
     }
@@ -3432,7 +3432,7 @@ namespace demo.interop;
 
 public final class Raw {
     public static int sumTo(int count) {
-        unsafe {                                   // module demo declares `unsafe;` 
+        unsafe {                                   // module demo declares `unsafe;`
             int* buf = stackalloc int[count];      // [Proposed]
             for (int i = 0; i < count; i++) { *(buf + i) = i; }
             int total = 0;
@@ -3475,7 +3475,7 @@ public final class Pages {
 
     public static ulong fnv1a(ubyte* data, int length) {
         ulong h = 14695981039346656037UL;
-        for (int i = 0; i < length; i++) { h = (h ^ data[i]) * 1099511628211UL; }   // wraps 
+        for (int i = 0; i < length; i++) { h = (h ^ data[i]) * 1099511628211UL; }   // wraps
         return h;
     }
 }
@@ -3609,16 +3609,16 @@ import reflect.collections;
 import static reflect.compiler.Diagnostics;
 
 public class TokenList {
-    private final List<int> kinds = new ArrayList<>();       // Integer becomes int 
+    private final List<int> kinds = new ArrayList<>();       // Integer becomes int
 
-    public int count() { return kinds.size; }               // size() becomes a property 
+    public int count() { return kinds.size; }               // size() becomes a property
 
-    public virtual int kindAt(int i) {                      // @Virtual becomes `virtual` 
+    public virtual int kindAt(int i) {                      // @Virtual becomes `virtual`
         if (i >= kinds.size) { error("token index " + i); }
         return kinds.get(i);
     }
 
-    final class Cursor {                                    // no `static` 
+    final class Cursor {                                    // no `static`
         int index;
     }
 }

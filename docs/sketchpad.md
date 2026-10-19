@@ -33,14 +33,6 @@ the Reflect-S entry in references.md (lines 62 and 63, same line count); these l
 to fix or delete. Line numbers refer to commit `00d6207`. The Q12 change added one line after
 line 611, so in the current examples.md add 1 to every line number above 611.
 
-### A.3 Leftovers of removed references
-
-- A space before punctuation where an ID was cut: lines 95, 344, 523, 811, 956, 1083, 1645, 1794,
-  2008, 2353, 2894, 2912, 2982, 2983, 3106, 3171, 3208.
-- An empty comment: line 2421 (`GC.collect(); //`).
-- 159 lines end in spaces, mostly comments that lost an ID.
-  `sed -i 's/[[:space:]]*$//' docs/examples.md` removes them; review with `git diff`.
-
 ### A.4 Errors and inconsistencies in examples.md
 
 1. Line 2738: `println(Object.referenceEquals);` has no arguments. Intended:
