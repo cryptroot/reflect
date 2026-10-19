@@ -2089,9 +2089,9 @@ public const int B = A + 1;                         // error: initializer cycle
 public const List<int> LIST = List.of(1, 2);        // error: not a constant-pool type
 ```
 
-### 6.6 Inlining
+### 6.6 Inlining and eager compilation
 
-`@Inline` or `@ForceInline` annotations (Java) should be added to improve performance on functions declared to be inlineable to the JIT.
+`@Inline` and `@ForceInline` hint the optimizing JIT to inline functions. `@Precompile` requests eager compilation at module load under the JIT, and always under the AOT compiler (JIT-03).
 
 ### 6.7 One API for both phases
 

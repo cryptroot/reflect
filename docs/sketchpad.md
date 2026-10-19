@@ -33,18 +33,6 @@ the Reflect-S entry in references.md (lines 62 and 63, same line count); these l
 to fix or delete. Line numbers refer to commit `00d6207`. The Q12 change added one line after
 line 611, so in the current examples.md add 1 to every line number above 611.
 
-### A.5 Deviations from the design proposal
-
-| Proposal | examples.md | Question |
-|---|---|---|
-| Item 8: `@Property`, `value.onValueChanged().addListener(x -> ...)` | `@Observable` generator; `valueChanged` and `propertyChanged` events; listeners get `PropertyChange<T>` | Q14: examples kept |
-| Item 9: "overriding assignment operators" | compound assignment operators and property setters; plain `=` is not overloadable | Q15: examples kept |
-| Item 5 snippet: `void <K extends Kind> Function(K kind)`, `Value`, `string` | `function<K extends Kind>(K kind)`, lowerCamelCase members, `String` | Q16: examples kept |
-| Item 6: "prefer a Rust model and avoid a GC" | tracing GC plus C# 11 ref safety; `Borrow` types open | Q05: examples kept |
-| Item 4: eager JIT "requested by annotation" | only `@Inline` and `@ForceInline` (ex §6.6) | Q17: `@Precompile` added |
-| Item 1: a minimal standard library may use external tooling, "C++ for example" | Java stage0 and VM0 only; the VM is Reflect-S compiled by `rflc` | Q01, Q19: no C or C++ |
-| Item 2: "templating and generics day one" | reified generics; templating is the generators' quasi-quotes (ex §6.3) | none |
-
 ### A.6 Example changes the answers require
 
 | examples.md | Change | Answer |
