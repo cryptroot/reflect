@@ -6,8 +6,7 @@ source that should compile once `rflc` exists, so it doubles as a review of the 
 ## 1. How to read the examples
 
 - `csharp` fences contain Reflect (the label only enables highlighting); `text` fences contain
-  bytecode assembly or console output; `java` and `c` fences contain stage0 input and C backend
-  outputs.
+  bytecode assembly or console output; `java` fence contains stage0 input.
 - A block starting with `// file: <path>` is a complete source file of the example module `demo`
   . Blocks without that line are fragments of the nearest file above.
 - Blocks starting with `// rejected` do not compile; each `// error:` line names the rule that
@@ -2084,7 +2083,11 @@ public const int B = A + 1;                         // error: initializer cycle
 public const List<int> LIST = List.of(1, 2);        // error: not a constant-pool type
 ```
 
-### 6.6 One API for both phases
+### 6.6 Inlining
+
+`@Inline` or `@ForceInline` annotations (Java) should be added to improve performance on functions declared to be inlineable to the JIT.
+
+### 6.7 One API for both phases
 
 The same code runs over compiler symbols in a generator and over VM metadata in a program.
 
