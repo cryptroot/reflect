@@ -245,3 +245,144 @@ Inside the container (job `shell`):
 ```
 
 The `.main` directive records the descriptor's `main` class (VM-12); v0.0.1 adds it.
+
+## 7. Stages
+
+Each stage states its goal, its design, its commits and its exit check. A numbered commit is one
+commit, or a few if the change is too large for one review. A commit's check is the test it adds,
+run by `all`.
+
+| Stage | Goal | Exit check |
+|---|---|---|
+| v0.0.0 | Docker environment and skeleton | `all` passes on both hosts |
+| v0.0.1 | exact encoding | the document test passes |
+| v0.0.2 | model, writer and reader | write, read and write give identical bytes; defects are rejected |
+| v0.0.3 | assembler | test files assemble; invalid files are rejected |
+| v0.0.4 | disassembler and round trip | the round trip holds for every test file |
+| v0.0.5 | VM0 loader and core interpreter | `run/core/` passes; the roadmap's exit test passes |
+| v0.0.6 | VM0 objects and dispatch | `run/objects/` passes |
+| v0.0.7 | VM0 arrays, strings and boxing | `run/arrays/` and `run/strings/` pass |
+| v0.0.8 | VM0 exceptions | `run/exceptions/` passes |
+| v0.0.9 | VM0 reified types and generics | `run/generics/` and the integration test pass; §8 |
+
+### 7.1 v0.0.0: Docker environment and skeleton
+
+**Goal.** One command builds and checks the repository in Docker, on Windows and on Linux, Lean
+included.
+
+**Design.**
+
+- The image, wrappers and jobs of §5.
+- `stage0/build.sh` compiles `stage0/src` and `stage0/test` with `javac --release 21` and packs
+  `out/stage0/stage0.jar` with `jar`. There is no build tool (BOOT-10).
+- The test harness (Q48): a `@Test` annotation; a runner that finds test classes by name
+  (`*Test`) and runs their annotated static methods; assertions that throw `AssertionError`; a
+  summary line; a non-zero exit code when a test fails.
+
+**Commits.**
+
+1. Add `.gitattributes` and renormalize the working tree. Check: on Windows, `git ls-files --eol`
+   shows `w/lf` for every text file, and the index does not change.
+2. Add the root `.gitignore` for `out/`.
+3. Add the Dockerfile with OpenJDK 21. Check: `java -version` in the image prints version 21.
+4. Add the `REFLECT_EXTRA_CA` build secret. Check: the image builds on a host behind a
+   TLS-intercepting proxy, and its trust store does not contain the extra CA.
+5. Add the Lean toolchain to the image. Check: `lean --version` in the image prints the pinned
+   version.
+6. Add `docker/ci.sh` with the job `lean`. Check: `lake build` passes with the two known `sorry`
+   warnings.
+7. Add `docker/dev.sh`. Check: `docker/dev.sh lean` passes on Linux.
+8. Add `docker/dev.ps1`. Check: `docker/dev.ps1 lean` passes in Windows PowerShell 5.1.
+9. Add `stage0/build.sh`, a `reflect.stage0.tools.Main` that prints the usage, and the job
+   `stage0`. Check: `java -jar out/stage0/stage0.jar` prints the usage.
+10. Add the harness, its self-tests and the job `unit`. Check: a passing fixture and a failing
+    fixture give the expected summaries and exit codes.
+11. Add the jobs `all` and `shell`. Check: `all` passes on Windows and on Linux.
+12. If Q54 is accepted, add the Dev Container definition.
+
+**Exit check.** In a fresh clone, `docker/dev.ps1 all` passes on Windows and `docker/dev.sh all`
+passes on Linux; a second run reuses the image. Tag `v0.0.0`.
+
+### 7.2 v0.0.1: Encoding
+
+**Goal.** Every byte of a module is specified for the instructions and tables of v0.0.x. The
+numbers exist once in code, and a test shows that [bytecode.md](../bytecode.md) states the same
+numbers.
+
+**Design.**
+
+- bytecode.md gets exact tables: opcode numbers for the whole instruction set, inside the ranges
+  of BC-04; signature codes (BC-03); table numbers and column encodings (BC-11) for the tables
+  that v0.0.x uses; section contents (BC-02); method bodies (BC-17); exception regions (BC-18);
+  stack maps (BC-19); the DEBUG section; and the `.rfla` grammar in EBNF (BC-08).
+- A new rule in bytecode.md defines the canonical form: LEB128 values are minimal; padding and
+  reserved fields are zero; tables are sorted by their keys; heap entries are unique, referenced
+  and in canonical order. A module that is not canonical is invalid. Each valid module then has
+  exactly one encoding, so the round trip of BC-08 is exact by construction.
+- The `Module` table gets a column for the descriptor's `main` class, which VM-12 reads, and
+  `.rfla` gets the `.main` directive.
+- `reflect.stage0.bytecode` declares the numbers as constants: `Opcode`, `SigCode`, `TableId` and
+  `SectionId`.
+- A unit test reads the tables from bytecode.md and compares them with the constants.
+
+**Commits.**
+
+1. The opcode table, `Opcode` and the document test.
+2. Signature codes and `SigCode`.
+3. Table numbers, column encodings and `TableId`.
+4. The header, the sections and `SectionId`; the layouts of method bodies, exception regions,
+   stack maps and the DEBUG section.
+5. The canonical form; the `main` column and `.main`.
+6. The `.rfla` grammar.
+
+The check of each commit is the document test, run by `unit`.
+
+**Exit check.** The tables cover every instruction, and every table that v0.0.x uses; `all`
+passes. Tag `v0.0.1`.
+
+### 7.3 v0.0.2: Model, writer and reader
+
+**Goal.** Modules are built in memory, written deterministically, and read back with full
+checks.
+
+**Design.**
+
+- First comes the facade `reflect.stage0.lib`: the list and map types that the package needs,
+  with the member names of LIB-04 (Q47).
+- The model holds the tables as lists of rows, the heaps, and method bodies as lists of
+  instructions with symbolic operands (labels and references), not as bytes.
+- The writer sorts the tables by their keys, assigns rows and tokens, deduplicates the heaps and
+  lays out the code. LEB128 operands make the size of an instruction depend on offsets and
+  tokens, so the layout repeats until no size changes; sizes only grow, so the loop ends. Then
+  the writer aligns the sections and computes the content hash (BC-02, BOOT-05).
+- The reader checks the magic, versions, directory, bounds, alignment and token ranges, and that
+  each branch target is the start of an instruction. Then it writes the model again, and it
+  accepts the module only if the bytes are equal (the canonical form of §7.2).
+- SHA-256 and the UTF-8 and UTF-16LE codecs are written in R0-shaped Java. Unit tests compare
+  them with `MessageDigest` and `String.getBytes`.
+- A table arrives with the stage that first needs it. v0.0.2 covers `Module`, `ModuleRef`,
+  `TypeDef`, `TypeRef`, `Field`, `Method`, `Param` and `MemberRef`.
+
+**Commits.**
+
+1. Facade lists and maps.
+2. LEB128 and SLEB128, with tests at each byte-length boundary and for padded encodings.
+3. SHA-256, tested against `MessageDigest` with the empty input, `abc`, and one MiB of seeded
+   random bytes.
+4. The UTF-8 and UTF-16LE codecs, tested with surrogate pairs and with unpaired surrogates, which
+   BC-02 allows in LITERALS.
+5. The header and the section directory.
+6. The three heaps and their deduplication.
+7. The tables listed above.
+8. Signature blobs.
+9. The CODE section: instruction encoding and the layout loop, tested with branches across
+   LEB128 size boundaries.
+10. Exception regions, and stack maps stored as given (Q50).
+11. The DEBUG section.
+12. The canonical check in the reader, with one test per defect: a padded LEB128 value, unsorted
+    rows, an unreferenced heap entry, a wrong content hash, a branch into the middle of an
+    instruction.
+
+**Exit check.** For every module that the unit tests build, write, read and write again gives
+identical bytes, and every defect is rejected with a message that names its offset. Tag
+`v0.0.2`.
