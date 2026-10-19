@@ -63,8 +63,9 @@ These follow from the plan. Each is made in the stage named, or when its questio
    reads. v0.0.1 adds the column and the `.main` directive.
 6. BOOT-11 speaks of "a Java port of the writer". Under Q47 there is one writer.
 7. TST-09 puts verifier rejections in hand-written `.rfla` files, but names no directory.
-8. Two rule IDs have two definitions: LIB-03 (architecture.md §6 and stdlib.md §1) and OPR-08
-   (type-system.md §10 and grammar.md §5). In each pair the second restates the first (Q56).
+8. Two rule IDs have two definitions. LIB-03 is stated in architecture.md §6 and restated in
+   stdlib.md §1. OPR-08 is split: type-system.md §10 gives its timing, and grammar.md §5 its
+   token rule (Q56).
 
 ## B. Questions and answers
 
@@ -132,7 +133,7 @@ v0.0.x at v0.0.5 and grow VM0 in v0.1 together with `rflc0`. **Answer:**
 **Q56. A job that checks the documents.** *Recommendation:* a `docs` job that checks relative
 links, and that each cited rule ID has exactly one definition. Add it after the broken links of
 [../sketchpad.md](../sketchpad.md) A.1 are fixed and LIB-03 and OPR-08 have one definition each
-(both are stated twice today). **Answer:**
+(each has two today, A.2 item 8). **Answer:**
 
 <!-- questions:end -->
 
