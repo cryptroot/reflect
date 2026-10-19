@@ -633,7 +633,7 @@ public final class ArrayDemo {
         Array any = blanks;                               // every array type extends Array 
         String?[] slots = new String?[3];                 // nullable elements start as null
         String[]? maybe = null;                           // the array itself is nullable
-        int[]?[] rows = new int[]?[2];                    // jagged: rows start as null, see §13
+        int[]?[] rows = new int[]?[2];                    // jagged: rows start as null, see type-system.md NUL-07
 
         Square[] squares = { new Square(1), new Square(2) };
         Shape[] shapes = squares;                         // Square[] <: Shape[] 
@@ -1698,7 +1698,7 @@ public final class ModelDemo {
 ### 5.4 What the generator adds
 
 `rflc --emit-generated` prints the members that `ObservableGenerator`  adds to `Model`
-[Prosposal shape]. The `import` lines are an assumption, see §13.
+[Prosposal shape]. The `import` lines are an assumption, see [reflection §3, META-04](reflection.md#3-generators-and-templates).
 
 ```csharp
 // file: demo/model/Model.g.rfl
@@ -1762,7 +1762,7 @@ import reflect.observable;
 
 public partial class Settings {
     @Observable
-    public partial String theme { get; set; } = "light";   // explicit form of the field shorthand; see §13
+    public partial String theme { get; set; } = "light";   // explicit form of the field shorthand; see reflection.md META-04
 }
 ```
 
@@ -2066,7 +2066,7 @@ public final class Tables {
     public const int WORD = sizeof(long);           // 8
     public const int MONEY_SIZE = sizeof(Money);    // 8: a struct without references
     public const Class<?> DEFAULT_KIND = Cube.class;
-    public const int[] SMALL_PRIMES = { 2, 3, 5, 7 };   // arrays are allowed; see §13
+    public const int[] SMALL_PRIMES = { 2, 3, 5, 7 };   // arrays are allowed; see reflection.md META-07
     public static final long STARTED = Clock.nowMillis();   // run-time constant 
 
     @Route(path = PATH, priority = FIB_20 % 3)      // const values in annotation arguments
@@ -2910,7 +2910,7 @@ p.x = 5;                                   // error: record components are get-o
 ### 9.3 Enums
 
 One value-type enum kind with an integral backing type, Java-style per-constant members and
-`@Flags` . Rules: [scratchpad §9.3](../scratchpad.md#93-enums-d-s18).
+`@Flags` . Rules: [type-system §11, DAT-05](type-system.md#11-structs-ref-safety-records-enums-sealed-types-tuples-destructible-objects-dat).
 
 ```csharp
 // file: demo/data/Enums.rfl
@@ -2956,14 +2956,14 @@ public final class Enums {
     public static void main(String[] args) {
         Permission rw = Permission.READ | Permission.WRITE;   // bit operators only on @Flags enums
         println((int) rw);                                     // prints: 3
-        println((rw & Permission.WRITE) != Permission.NONE);  // prints: true (enum `==`: see §13)
+        println((rw & Permission.WRITE) != Permission.NONE);  // prints: true (enum `==`: see type-system.md DAT-05)
         println(Color.valueOf("GREEN").ordinal);              // prints: 1
         println(Color.BLUE.name);                             // prints: BLUE
         for (Color c : Color.values()) { print(temperature(c) + " "); }   // prints: warm cool cool
         println(Op.MUL.apply(6, 7));                          // prints: 42
         println((int) Level.HIGH);                            // prints: 200
         Permission all = (Permission) 7;                      // undeclared combination: fine for @Flags
-        Color odd = (Color) 7;                                // throws: undeclared value (unlike C#), see §13
+        Color odd = (Color) 7;                                // throws: undeclared value (unlike C#), see type-system.md DAT-05
     }
 }
 ```
@@ -3060,7 +3060,7 @@ public final class Tuples {
 ```
 
 `(...)` followed by `->` is a lambda; casts, parenthesized expressions and tuples use C#'s
-disambiguation ([grammar §4](grammar.md#4-ambiguities-and-how-they-are-resolved-p)).
+disambiguation ([grammar §4](grammar.md#4-ambiguities-and-how-they-are-resolved)).
 
 ### 9.6 Missing
 
@@ -3469,7 +3469,7 @@ public final class Pages {
         if (page == null) {
             page = (PageHeader*) mmap(null, PAGE_SIZE, 3, 0x22, -1, 0);
         } else {
-            freeList = (*page).next;               // `->` is the lambda arrow, see §13
+            freeList = (*page).next;               // `->` is the lambda arrow, see type-system.md UNS-01
         }
         (*page).sizeClass = sizeClass;
         (*page).freeCount = (uint) (PAGE_SIZE - sizeof(PageHeader)) / sizeClass;
@@ -3564,7 +3564,7 @@ $ rflc build --deterministic --emit-generated gen --depfile out/demo.d --out out
                                  # B6, F42: confined generator IO; F43: every file they read
 $ ls gen/demo/model
 Model.g.rfl  Point2.g.rfl  Settings.g.rfl  Document.g.rfl
-$ rflc build -G observable.trace=true --out out demo      # generator option (reflection §3)
+$ rflc build -G observable.trace=true --out out demo      # generator option (reflection.md §3)
 $ rflc delta --base out/demo.rflc demo                    # hot-reload delta for §10.6
 $ rfld out/demo.rflc > demo.rfla                          # disassemble
 $ rfla demo.rfla -o check.rflc && cmp check.rflc out/demo.rflc   # round trip: identical bytes

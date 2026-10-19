@@ -33,26 +33,6 @@ the Reflect-S entry in references.md (lines 62 and 63, same line count); these l
 to fix or delete. Line numbers refer to commit `00d6207`. The Q12 change added one line after
 line 611, so in the current examples.md add 1 to every line number above 611.
 
-### A.1 Links to missing documents or sections
-
-examples.md has no §13 (its contents list stops at 12) and linked four files that did not exist;
-three of them exist now.
-
-| examples.md line | Reference | Where the topic lives now |
-|---|---|---|
-| 635 | `see §13` (jagged arrays) | type-system.md NUL-07 |
-| 1700 | `see §13` (imports of generated files) | reflection.md META-04 |
-| 1764 | `see §13` (field shorthand) | reflection.md META-04 |
-| 2068 | `see §13` (const arrays) | reflection.md META-07 |
-| 2958 | `see §13` (enum `==`) | type-system.md DAT-05 |
-| 2965 | `see §13` (undeclared enum values) | type-system.md DAT-05 |
-| 3471 | `see §13` (`->` is the lambda arrow) | type-system.md UNS-01 |
-| 2858 | `[architecture §6](architecture.md#6-dependency-rules)` | resolves again: architecture.md §6 |
-| 2912 | `[scratchpad §9.3](../scratchpad.md#93-enums-d-s18)` | still missing; type-system.md DAT-05 |
-| 3062 | `[grammar §4](grammar.md#4-ambiguities-and-how-they-are-resolved-p)` | grammar.md §4 exists; drop the `-p` from the anchor |
-| 3104 | `[reflection §1](reflection.md#1-api-surface-reflectmeta)` | resolves again: reflection.md §1 |
-| 3566 | `(reflection §3)` (generator options) | reflection.md §3 (META-04) |
-
 ### A.2 Decision IDs without a register
 
 | File and line | ID | Context |
