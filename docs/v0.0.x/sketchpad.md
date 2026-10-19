@@ -13,12 +13,12 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | in progress 2026-10-19 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 open |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | not started |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
-| v0.0.3 | assembler | not started |
-| v0.0.4 | disassembler, round trip, suite runner | not started |
+| v0.0.3 | assembler; suite runner for rejected files | not started |
+| v0.0.4 | disassembler, round trip | not started |
 | v0.0.5 | VM0 loader and core interpreter | not started |
 | v0.0.6 | VM0 objects and dispatch | not started |
 | v0.0.7 | VM0 arrays, strings and boxing | not started |
