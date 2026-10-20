@@ -17,36 +17,47 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 2. File layout
 
-- **BC-02 [Proposed]**
+- **BC-02 [Proposed]** A module file is a header, a section directory and the sections. This
+  document describes format 0.1: formatMajor 0 and formatMinor 1.
 
-  ```text
-  Header (64 bytes)
-    magic         4   "RFLC"
-    formatMajor   2
-    formatMinor   2
-    flags         4   bit 0 unsafe, bit 1 delta; other bits zero (BC-20)
-    reserved     16   zero
-    sectionCount  4
-    contentHash  32   the module's identity (BC-22)
-  Section directory: sectionCount entries of { id u32, offset u32, length u32 }, sorted by id
-  Sections, each 8-byte aligned, in directory order; bit 31 of an id marks an ancillary section:
-    1           IDENTS    identifiers and namespace names, UTF-8, length-prefixed
-    2           LITERALS  string literals, UTF-16LE code units, length-prefixed
-                          (unpaired surrogates allowed)
-    3           BLOBS     signatures, constants, annotation values, length-prefixed
-    4           TABLES    table directory (table, row count, row size per present table),
-                          then the rows of each table
-    5           CODE      method bodies (§6)
-    6           DELTA     base module hash and change list; only in delta modules
-                          (reflection.md §8)
-    0x80000001  DEBUG     ancillary, optional: contentHash, the source files (relative path
-                          and SHA-256), then per method token its line table and local names
-  ```
+  | Offset | Size | Header field | Content |
+  |---|---|---|---|
+  | `0` | `4` | `magic` | `RFLC` |
+  | `4` | `2` | `formatMajor` | u16 |
+  | `6` | `2` | `formatMinor` | u16 |
+  | `8` | `4` | `flags` | header flags, u32; other bits zero (BC-20) |
+  | `12` | `16` | `reserved` | zero |
+  | `28` | `4` | `sectionCount` | u32, the number of directory entries |
+  | `32` | `32` | `contentHash` | the module's identity (BC-22) |
 
-  Heaps are referenced by byte offset from the start of the heap (BC-22); table rows by a
-  **token** `(table << 24) | row`, rows counted from 1, token 0 meaning none (CIL's scheme). The
-  writer deduplicates heap entries in the order of a canonical traversal, so equal inputs give
-  equal bytes (BOOT-05). Ancillary sections sort last, so stripping them removes their directory
+  | Header flag | Name | Meaning |
+  |---|---|---|
+  | `01` | `UNSAFE` | the module declares `unsafe;` (UNS-02) |
+  | `02` | `DELTA` | the module is a hot-reload delta (REFL-07) |
+
+  The section directory follows the header: sectionCount entries of 12 bytes, each an id, an
+  offset from the start of the file and a length, all u32, sorted by id. The first section
+  starts at the next multiple of 8 bytes after the directory, and each later one at the next
+  multiple of 8 bytes after the section before it. Zero bytes fill the gaps, and the file ends
+  where its last section ends. Bit 31 of an ID marks an ancillary section:
+
+  | ID | Section | Content |
+  |---|---|---|
+  | `00000001` | `IDENTS` | identifiers and namespace names, UTF-8 |
+  | `00000002` | `LITERALS` | string literals, UTF-16LE code units (unpaired surrogates allowed) |
+  | `00000003` | `BLOBS` | signatures (BC-03), constant values and annotation values (§3.1) |
+  | `00000004` | `TABLES` | table directory, then the rows of each table (§3.1) |
+  | `00000005` | `CODE` | method bodies (§6) |
+  | `00000006` | `DELTA` | base module hash and change list, only in delta modules (reflection.md §8); its layout comes with v0.5, and until then a reader rejects it |
+  | `80000001` | `DEBUG` | ancillary, optional: contentHash, the source files (relative path and SHA-256), then per method token its line table and local names (§6) |
+
+  IDENTS, LITERALS and BLOBS are heaps. A heap entry is a ULEB128 length, then that many units:
+  UTF-8 bytes in IDENTS, UTF-16LE code units of two bytes in LITERALS, bytes in BLOBS. Offset 0 of
+  each heap holds its empty entry, one zero byte. Heaps are referenced by the byte offset of an
+  entry's length from the start of the heap (BC-22); table rows by a **token**
+  `(table << 24) | row`, rows counted from 1, token 0 meaning none (CIL's scheme). The writer
+  deduplicates heap entries in the order of a canonical traversal, so equal inputs give equal
+  bytes (BOOT-05). Ancillary sections sort last, so stripping them removes their directory
   entries and the end of the file.
 
 - **BC-20 [Decided, Q57]** Unknown content. An ancillary section is one a reader may skip: the

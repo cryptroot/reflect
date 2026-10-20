@@ -3,6 +3,8 @@ package reflect.stage0.bytecode;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -170,6 +173,84 @@ public final class DocumentTest {
             }
         }
         checkAllListed(Flags.class, listed);
+    }
+
+    @Test
+    public static void headerLayout() throws IOException {
+        var listed = new HashSet<String>();
+        int end = 0;
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Offset | Size | Header field | Content |")) {
+            String field = row.code(2);
+            String name = constantName(field) + "_OFFSET";
+            int offset = decimal(row, row.code(0));
+            row.check(offset == end, field + " does not start where the field before it ends");
+            row.expect("Header." + name, offset, constant(row, Header.class, name));
+            listed.add(name);
+            end = offset + decimal(row, row.code(1));
+            if (field.equals("magic")) {
+                row.expect("Header.MAGIC", littleEndian(row.code(3)), Header.MAGIC);
+                listed.add("MAGIC");
+            }
+        }
+        expect("Header.SIZE", end, Header.SIZE);
+        MatchResult version = prose("This document describes format (\\d+)\\.(\\d+)");
+        expect("Header.FORMAT_MAJOR", Integer.parseInt(version.group(1)), Header.FORMAT_MAJOR);
+        expect("Header.FORMAT_MINOR", Integer.parseInt(version.group(2)), Header.FORMAT_MINOR);
+        MatchResult entry = prose("sectionCount entries of (\\d+) bytes");
+        expect("Header.DIRECTORY_ENTRY_SIZE", Integer.parseInt(entry.group(1)), Header.DIRECTORY_ENTRY_SIZE);
+        MatchResult alignment = prose("next multiple of (\\d+) bytes after the directory");
+        expect("Header.ALIGNMENT", Integer.parseInt(alignment.group(1)), Header.ALIGNMENT);
+        listed.addAll(List.of("SIZE", "FORMAT_MAJOR", "FORMAT_MINOR", "DIRECTORY_ENTRY_SIZE", "ALIGNMENT"));
+        checkCodes("| Header flag | Name | Meaning |", Header.class, "FLAG_", listed);
+        checkAllListed(Header.class, listed);
+    }
+
+    @Test
+    public static void sectionIds() throws IOException {
+        var listed = new HashSet<String>();
+        var values = new HashSet<Integer>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| ID | Section | Content |")) {
+            int id = checkCode(row, row.code(0), SectionId.class, row.code(1), listed, values);
+            row.expect("ancillary mark of " + row.code(1), row.cell(2).startsWith("ancillary"),
+                    SectionId.isAncillary(id));
+        }
+        MatchResult bit = prose("Bit (\\d+) of an ID marks an ancillary section");
+        expect("SectionId.ANCILLARY", 1 << Integer.parseInt(bit.group(1)), SectionId.ANCILLARY);
+        listed.add("ANCILLARY");
+        checkAllListed(SectionId.class, listed);
+    }
+
+    // Finds the only match of a pattern in the text of the document, with line breaks as spaces.
+    private static MatchResult prose(String regex) throws IOException {
+        String text = String.join(" ", Files.readAllLines(BYTECODE, StandardCharsets.UTF_8)).replaceAll("\\s+", " ");
+        Matcher matcher = Pattern.compile(regex).matcher(text);
+        if (!matcher.find()) {
+            throw new AssertionError(BYTECODE + ": no text matches " + regex);
+        }
+        MatchResult result = matcher.toMatchResult();
+        if (matcher.find()) {
+            throw new AssertionError(BYTECODE + ": two places match " + regex);
+        }
+        return result;
+    }
+
+    private static void expect(String what, Object document, Object code) {
+        if (!document.equals(code)) {
+            throw new AssertionError(BYTECODE + ": " + what + ": the document says " + document + ", the code says " + code);
+        }
+    }
+
+    private static int decimal(MarkdownTable.Row row, String text) {
+        row.check(text.matches("[0-9]+"), "not a decimal number: " + text);
+        return Integer.parseInt(text);
+    }
+
+    private static int littleEndian(String ascii) {
+        int value = 0;
+        for (int i = ascii.length() - 1; i >= 0; i--) {
+            value = (value << 8) | ascii.charAt(i);
+        }
+        return value;
     }
 
     // The first two cells of each row are a hexadecimal value and the name of a constant after prefix.
