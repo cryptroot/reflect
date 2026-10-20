@@ -45,7 +45,7 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   |---|---|---|
   | `00000001` | `IDENTS` | identifiers and namespace names, UTF-8 |
   | `00000002` | `LITERALS` | string literals, UTF-16LE code units (unpaired surrogates allowed) |
-  | `00000003` | `BLOBS` | signatures (BC-03), constant values and annotation values (§3.1) |
+  | `00000003` | `BLOBS` | signatures (BC-03), constant values (§3.1) and annotation values |
   | `00000004` | `TABLES` | table directory, then the rows of each table (§3.1) |
   | `00000005` | `CODE` | method bodies (§6) |
   | `00000006` | `DELTA` | base module hash and change list, only in delta modules (reflection.md §8); its layout comes with v0.5, and until then a reader rejects it |
@@ -90,7 +90,7 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   trip of BC-08 is exact by construction. A module that breaks one of these rules is invalid, and
   a reader rejects it:
   1. LEB128 values are minimal and fit their field: no value has a redundant last byte, `<i8>`
-     fits 64 bits, and `<i4>` and every ULEB128 value fit 32 bits.
+     fits 64 bits, and every other LEB128 value fits 32 bits.
   2. Padding, `reserved` and every flag that the format does not define are zero.
   3. A section is present only when it has content, and the directory lists the sections by ID
      with no ID twice (BC-02). IDENTS, LITERALS, BLOBS and TABLES are always present, and CODE
@@ -238,8 +238,8 @@ u32, in the order given:
   rows owned by types come before those owned by methods, so the run of the last type ends where
   the run of the first method starts. `Field`, `Method` and `Param` keep each run in declaration
   order, and the runs in the order of their owners.
-- Keys compare column by column: identifiers by their UTF-8 bytes, tokens and row numbers as
-  unsigned numbers, signatures by their bytes.
+- Keys compare column by column: identifiers by their UTF-8 bytes, signatures by their bytes, and
+  the other columns as unsigned numbers.
 - A constructor is named `new` and a static initializer `static`. Both have the `CONSTRUCTOR`
   flag, and a static initializer also has `STATIC`. Both words are reserved in source, so no
   method name can clash with them.
@@ -783,7 +783,7 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 | `fileCount` | ULEB128 | number of source files |
 | `files` | | per file: its path relative to the module root, with `/` separators, as a ULEB128 length and UTF-8 bytes; then the SHA-256 of the file, 32 bytes |
 | `methodCount` | ULEB128 | number of methods |
-| `methods` | | per method, by increasing token: the token of its `Method` row (ULEB128), its lines and its locals |
+| `methods` | | per method that has a line entry or a named local, by increasing token: the token of its `Method` row (ULEB128), its lines and its locals |
 
 - Lines: a ULEB128 count, then per entry a code offset, the index of a file in `files` and a
   line number counted from 1, each ULEB128, by increasing offset. An entry holds from its offset
@@ -830,17 +830,17 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 
 ## 8. Assembly syntax
 
-- **BC-08 [Proposed; references Decided, Q69, Q71]** `.rfla` maps one-to-one to the binary, so
-  `rfld` then `rfla` reproduces a module byte for byte (ex §12.2). Directives: `.module name
-  version`, `.main`, `.requires`, `.exports`, `.opens`, `.source`, `.class`, `.field`, `.method`,
-  `.property`, `.event`, `.override`, `.annotation`, `.locals`, `.maxstack`, `.try`, `.catch`,
-  `.finally`, `.line`, `.stackmap`, `.section`; labels end in `:`; type names use the canonical
-  spelling (GEN-12), with `!0` and `!!0` for type parameters. `.main` names the descriptor's
-  `main` class (VM-12). A reference to another module states the signature that its row holds
-  (Q69), so `rfla` reads no other module. `rfld` prints a section it cannot print as directives,
-  such as an unknown ancillary section (BC-20), as `.section <id> hex "..."`, so the round trip
-  covers it too. §8.1 gives the grammar; `.property`, `.event` and `.annotation` join it with
-  their tables.
+- **BC-08 [Proposed; references and regions Decided, Q69, Q71]** `.rfla` maps one-to-one to the
+  binary, so `rfld` then `rfla` reproduces a module byte for byte (ex §12.2). Directives:
+  `.module name version`, `.main`, `.requires`, `.exports`, `.opens`, `.source`, `.class`,
+  `.field`, `.method`, `.property`, `.event`, `.override`, `.annotation`, `.locals`, `.maxstack`,
+  `.try`, `.catch`, `.finally`, `.line`, `.stackmap`, `.section`; labels end in `:`; type names
+  use the canonical spelling (GEN-12), with `!0` and `!!0` for type parameters. `.main` names the
+  descriptor's `main` class (VM-12). A reference to another module states the signature that its
+  row holds (Q69), so `rfla` reads no other module. `rfld` prints a section it cannot print as
+  directives, such as an unknown ancillary section (BC-20), as `.section <id> hex "..."`, so the
+  round trip covers it too. §8.1 gives the grammar; `.property`, `.event` and `.annotation` join
+  it with their tables.
 
   ```text
   .module demo 0.1.0
