@@ -6,6 +6,7 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,6 +30,8 @@ public final class DocumentTest {
             "`([0-9A-F]{2}(?: [0-9A-F]{2})?)`(?:-`([0-9A-F]{2}(?: [0-9A-F]{2})?)`)?");
     private static final Pattern TABLE_NAME = Pattern.compile("`([A-Za-z]+)`");
     private static final Pattern LEADING_NUMBER = Pattern.compile("[0-9][0-9,]*");
+    private static final Pattern CODE_SPAN = Pattern.compile("`([^`]+)`");
+    private static final Set<String> CHARACTER_CLASSES = Set.of("IdStart", "IdPart", "Digit", "HexDigit", "Char");
 
     @Test
     public static void opcodeTable() throws IOException {
@@ -217,6 +220,144 @@ public final class DocumentTest {
                 throw new AssertionError("Limits." + field.getName() + " is missing from " + BYTECODE);
             }
         }
+    }
+
+    @Test
+    public static void grammarRulesAreDefinedAndReachable() throws IOException {
+        Map<String, List<String>> rules = grammar();
+        for (Map.Entry<String, List<String>> rule : rules.entrySet()) {
+            for (String symbol : rule.getValue()) {
+                if (!rules.containsKey(symbol) && !CHARACTER_CLASSES.contains(symbol)) {
+                    throw new AssertionError("Grammar rule " + rule.getKey() + " uses " + symbol + ", which no rule defines");
+                }
+            }
+        }
+        var reached = new HashSet<String>();
+        var pending = new ArrayDeque<String>(List.of("File"));
+        while (!pending.isEmpty()) {
+            String name = pending.pop();
+            if (reached.add(name) && rules.containsKey(name)) {
+                pending.addAll(rules.get(name));
+            }
+        }
+        for (String name : rules.keySet()) {
+            if (!reached.contains(name)) {
+                throw new AssertionError("Grammar rule " + name + " cannot be reached from File");
+            }
+        }
+    }
+
+    @Test
+    public static void operandSyntax() throws IOException {
+        Map<String, List<String>> rules = grammar();
+        var notations = new HashSet<String>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Opcode | Instruction | Operands | R0 |")) {
+            notations.add(row.cell(2));
+        }
+        var described = new HashSet<String>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Operands | Syntax |")) {
+            row.check(described.add(row.cell(0)), "gives the syntax of " + row.cell(0) + " twice");
+            row.check(notations.contains(row.cell(0)), "no instruction takes the operands " + row.cell(0));
+            Matcher span = CODE_SPAN.matcher(row.cell(1));
+            while (span.find()) {
+                String text = span.group(1);
+                if (Character.isUpperCase(text.charAt(0))) {
+                    row.check(rules.containsKey(text), text + " is not a grammar rule");
+                } else {
+                    row.check(takesToken(text), text + " is not an instruction with a <tok> operand");
+                }
+            }
+        }
+        for (String notation : notations) {
+            if (!described.contains(notation)) {
+                throw new AssertionError(BYTECODE + " section 8.1 gives no syntax for the operands " + notation);
+            }
+        }
+    }
+
+    // Maps each rule of section 8.1 to the rules and character classes on its right side.
+    private static Map<String, List<String>> grammar() throws IOException {
+        List<String> lines = Files.readAllLines(BYTECODE, StandardCharsets.UTF_8);
+        int start = lines.indexOf("### 8.1 Grammar");
+        if (start < 0) {
+            throw new AssertionError(BYTECODE + " has no section 8.1 Grammar");
+        }
+        while (!lines.get(start).equals("```text")) {
+            start++;
+        }
+        var text = new StringBuilder();
+        for (int i = start + 1; !lines.get(i).equals("```"); i++) {
+            text.append(lines.get(i)).append('\n');
+        }
+        List<String> tokens = grammarTokens(text.toString());
+        var rules = new LinkedHashMap<String, List<String>>();
+        int i = 0;
+        while (i < tokens.size()) {
+            String name = tokens.get(i);
+            if (!isSymbol(name) || i + 1 == tokens.size() || !tokens.get(i + 1).equals("=")) {
+                throw new AssertionError("Grammar: a rule should start at " + name);
+            }
+            var symbols = new ArrayList<String>();
+            for (i += 2; i < tokens.size() && !tokens.get(i).equals(";"); i++) {
+                if (isSymbol(tokens.get(i))) {
+                    symbols.add(tokens.get(i));
+                }
+            }
+            if (i == tokens.size()) {
+                throw new AssertionError("Grammar rule " + name + " has no closing ;");
+            }
+            i++;
+            if (rules.put(name, symbols) != null) {
+                throw new AssertionError("Grammar rule " + name + " is defined twice");
+            }
+        }
+        if (!rules.containsKey("File")) {
+            throw new AssertionError("Grammar: no rule File");
+        }
+        return rules;
+    }
+
+    // Quoted terminals become one token each, which keeps their characters out of the rule structure.
+    private static List<String> grammarTokens(String text) {
+        var tokens = new ArrayList<String>();
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            if (Character.isWhitespace(c)) {
+                i++;
+            } else if (c == '"' || c == '\'') {
+                int end = text.indexOf(c, i + 1);
+                if (end < 0) {
+                    throw new AssertionError("Grammar: unterminated quote at " + text.substring(i));
+                }
+                tokens.add(text.substring(i, end + 1));
+                i = end + 1;
+            } else if (Character.isLetter(c)) {
+                int end = i;
+                while (end < text.length() && Character.isLetterOrDigit(text.charAt(end))) {
+                    end++;
+                }
+                tokens.add(text.substring(i, end));
+                i = end;
+            } else {
+                tokens.add(String.valueOf(c));
+                i++;
+            }
+        }
+        return tokens;
+    }
+
+    private static boolean isSymbol(String token) {
+        return Character.isLetter(token.charAt(0));
+    }
+
+    private static boolean takesToken(String mnemonic) {
+        for (int code : possibleOpcodes()) {
+            if (Opcode.isDefined(code) && Opcode.mnemonic(code).equals(mnemonic)) {
+                return Opcode.operands(code) == Opcode.OPERAND_TOK;
+            }
+        }
+        return false;
     }
 
     @Test

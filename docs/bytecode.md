@@ -830,14 +830,17 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 
 ## 8. Assembly syntax
 
-- **BC-08 [Proposed]** `.rfla` maps one-to-one to the binary, so `rfld` then `rfla` reproduces a
-  module byte for byte (ex §12.2). Directives: `.module name version`, `.main`, `.requires`,
-  `.exports`, `.opens`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`,
-  `.annotation`, `.locals`, `.try`, `.catch`, `.finally`, `.stackmap`, `.section`; labels end in
-  `:`; type names use the canonical spelling (GEN-12), with `!0` and `!!0` for type parameters.
-  `.main` names the descriptor's `main` class (VM-12). `rfld` prints a section it cannot print as
-  directives, such as an unknown ancillary section (BC-20), as `.section <id> hex "..."`, so the
-  round trip covers it too.
+- **BC-08 [Proposed; references Decided, Q69, Q71]** `.rfla` maps one-to-one to the binary, so
+  `rfld` then `rfla` reproduces a module byte for byte (ex §12.2). Directives: `.module name
+  version`, `.main`, `.requires`, `.exports`, `.opens`, `.source`, `.class`, `.field`, `.method`,
+  `.property`, `.event`, `.override`, `.annotation`, `.locals`, `.maxstack`, `.try`, `.catch`,
+  `.finally`, `.line`, `.stackmap`, `.section`; labels end in `:`; type names use the canonical
+  spelling (GEN-12), with `!0` and `!!0` for type parameters. `.main` names the descriptor's
+  `main` class (VM-12). A reference to another module states the signature that its row holds
+  (Q69), so `rfla` reads no other module. `rfld` prints a section it cannot print as directives,
+  such as an unknown ancillary section (BC-20), as `.section <id> hex "..."`, so the round trip
+  covers it too. §8.1 gives the grammar; `.property`, `.event` and `.annotation` join it with
+  their tables.
 
   ```text
   .module demo 0.1.0
@@ -852,6 +855,134 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
       }
   }
   ```
+
+### 8.1 Grammar
+
+The grammar of `.rfla`, in the notation of grammar.md §3.1, for the tables of §3.1. White space
+separates tokens, and a `//` comment runs to the end of its line. Five character classes stay
+outside the grammar: `IdStart` and `IdPart` are the characters of Unicode `ID_Start` and
+`ID_Continue` (LEX-02), `Digit` is `0` to `9`, `HexDigit` is a digit or a letter from `a` to `f`
+in either case, and `Char` is any character but `"`, `\` and a line end.
+
+```text
+File         = ModuleDecl TopLevel* ;
+TopLevel     = Main | Requires | Exports | Opens | Source | Section | Class ;
+ModuleDecl   = ".module" QName Version ;
+Main         = ".main" TypeName ;
+Requires     = ".requires" ( "transitive" | "static" )* QName ;
+Exports      = ".exports" QName ToModules? ;
+Opens        = ".opens" QName ToModules? ;
+ToModules    = "to" QName ( "," QName )* ;
+Source       = ".source" String Hex ;
+Section      = ".section" Int Hex ;
+
+Class        = ".class" TypeFlag* TypeKind? TypeName TypeParams? Backing? Extends? Implements?
+               "{" Member* "}" ;
+TypeFlag     = "public" | "protected" | "private" | "abstract" | "final" | "sealed" | "unsealed" ;
+TypeKind     = "interface" | "struct" | "ref" "struct" | "record" "struct"? | "enum"
+             | "annotation" ;
+Backing      = ":" Type ;
+Extends      = "extends" Type ;
+Implements   = "implements" Types ;
+Member       = Field | Method | Class ;
+Field        = ".field" FieldFlag* Type Ident ( "=" Constant )? ;
+FieldFlag    = "public" | "protected" | "private" | "static" | "final" | "const" | "backing" ;
+Constant     = Int | Real | String | "true" | "false" ;
+Method       = ".method" MethodFlag* ReturnType Ident TypeParams? "(" Params? ")"
+               "{" BodyItem* "}" ;
+MethodFlag   = "public" | "protected" | "private" | "static" | "virtual" | "abstract" | "final"
+             | "native" | "extern" | "unsafe" | "mutating" | "const" | "precompile"
+             | "synthesized" ;
+Params       = Param ( "," Param )* ;
+Param        = ( "scoped" | "this" )* Type "..."? Ident? ;
+TypeParams   = "<" TypeParam ( "," TypeParam )* ">" ;
+TypeParam    = Ident ( "extends" Bound ( "&" Bound )* )? ;
+Bound        = "class" | "struct" | Type ;
+
+BodyItem     = Label ":" | Instruction | Locals | MaxStack | Override | Region | Line | StackMap ;
+Locals       = ".locals" "(" ( Local ( "," Local )* )? ")" ;
+Local        = Type Ident? ;
+MaxStack     = ".maxstack" Int ;
+Override     = ".override" MethodRef ;
+Region       = ".try" Label Label ( ".catch" Type | ".finally" ) Label Label ;
+Line         = ".line" String? Int ;
+StackMap     = ".stackmap" "(" VTypes? ")" "(" VTypes? ")" ;
+VTypes       = VType ( "," VType )* ;
+VType        = "i32" | "i64" | "f32" | "f64" | "null" | "ptr"
+             | ( "ref" | "uninit" | "byref" | "byref.readonly" | "struct" | "class" ) Type ;
+Instruction  = Mnemonic Operand* ;
+Operand      = Int | Real | String | Index | Label | Targets | Type | FieldRef | MethodRef ;
+Index        = Int | Ident ;
+Targets      = "(" ( Label ( "," Label )* )? ")" ;
+FieldRef     = Type? Type "::" Ident ;
+MethodRef    = ( "static"? ReturnType )? Type "::" Ident TypeArgs? "(" Types? ")" ;
+
+Type         = ( "ref" | "in" | "out" ) Type | BaseType Suffix* ;
+BaseType     = Primitive | "valuetype"? TypeName TypeArgs? | TypeVar | Intersection ;
+TypeVar      = "!" Digits | "!!" Digits ;
+Intersection = "(" Type ( "&" Type )+ ")" ;
+Suffix       = "?" | "[" "]" | "*" ;
+TypeArgs     = "<" TypeArg ( "," TypeArg )* ">" ;
+TypeArg      = Type | "?" ( ( "extends" | "super" ) Type )? ;
+Types        = Type ( "," Type )* ;
+ReturnType   = "void" | Type ;
+Primitive    = "boolean" | "byte" | "ubyte" | "short" | "ushort" | "char" | "int" | "uint"
+             | "long" | "ulong" | "float" | "double" ;
+TypeName     = QName ( "/" Ident )* ;
+QName        = Ident ( "." Ident )* ;
+Mnemonic     = Ident ( "." Ident )* ;
+Label        = Ident ;
+Ident        = ( IdStart | "_" | "$" ) ( IdPart | "$" )* ;
+
+Version      = Digits "." Digits "." Digits ;
+Int          = "-"? ( Digits | "0x" HexDigits ) ;
+Real         = "-"? Digits ( "." Digits )? Exponent? | "inf" | "-inf" | "bits" Int ;
+Exponent     = ( "e" | "E" ) ( "+" | "-" )? Digits ;
+String       = '"' ( Char | Escape )* '"' ;
+Escape       = '\"' | "\\" | "\n" | "\t" | "\r" | "\0" | "\u" HexDigit HexDigit HexDigit HexDigit ;
+Hex          = "hex" '"' ( HexDigit HexDigit )* '"' ;
+Digits       = Digit+ ;
+HexDigits    = HexDigit+ ;
+```
+
+- A `Class` inside another declares a nested type and names only itself. Elsewhere a nested type
+  follows its enclosing type after `/` (GEN-12).
+- A name resolves to a type parameter in scope before a type, and a primitive keyword means its
+  struct (Q52). `valuetype` marks a value type (Q69).
+- The short form of `FieldRef` and `MethodRef`, without the leading field type, `static` or
+  return type, refers only to a member of the module being assembled, and `rfld` always prints
+  the full form (Q69). `TypeArgs` after a method name instantiate it (a `MethodSpec`).
+- `.override` in a method makes the method fill the slot of the method it names (BC-12).
+- A `Label` names the offset of the instruction that follows it. `Region` lines may appear
+  anywhere in a body (Q71).
+- `.locals` gives the types of the locals and, in DEBUG, their names; an `Index` names an
+  argument or a local by number or by name. `.maxstack` sets the maximum stack depth.
+- `.source` declares a source file and its SHA-256. `.line` with a path starts lines in that
+  file; without one, it continues the file of the method's previous `.line`.
+- `.section` holds an unknown ancillary section, with its ID in hexadecimal (BC-20).
+- The type of a field decides how its `Constant` is read; the operand kind of an instruction
+  decides how an operand is read.
+- `Real` gives a decimal value rounded to the nearest float, `inf`, `-inf`, or with `bits` the
+  exact IEEE 754 bit pattern, which covers NaN payloads.
+- `String` holds UTF-16 code units; `\u` gives one code unit, so an unpaired surrogate can be
+  written.
+
+The operands of an instruction follow its operand kind in §5.1:
+
+| Operands | Syntax |
+|---|---|
+| | nothing |
+| `<i4>` | `Int` |
+| `<i8>` | `Int` |
+| `<r4>` | `Real` |
+| `<r8>` | `Real` |
+| `<str>` | `String` |
+| `<tok>` | `FieldRef` for `ldfld`, `stfld`, `ldflda`, `ldsfld`, `stsfld`, `ldsflda` and `ldconst`; `MethodRef` for `newobj`, `newobj.svirt`, `call`, `call.recv`, `callvirt` and `call.svirt`; `Type` for the others |
+| `<n>` | `Index` |
+| `<off>` | `Label` |
+| `<count> <off>...` | `Targets` |
+| `<tok> <tok>` | `Type`, then `MethodRef` |
+| `<n> <n>` | `Int`, then `Int` |
 
 ## 9. Binary compatibility
 
