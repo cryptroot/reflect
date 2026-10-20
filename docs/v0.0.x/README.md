@@ -325,17 +325,19 @@ numbers.
 **Design.**
 
 - bytecode.md gets exact tables: opcode numbers for the whole instruction set, inside the ranges
-  of BC-04; signature codes (BC-03); table numbers and column encodings (BC-11) for the tables
-  that v0.0.x uses; section contents (BC-02); method bodies (BC-17); exception regions (BC-18);
-  stack maps (BC-19); the DEBUG section; and the `.rfla` grammar in EBNF (BC-08).
-- A new rule in bytecode.md defines the canonical form: LEB128 values are minimal; padding and
-  reserved fields are zero; tables are sorted by their keys; heap entries are unique, referenced
-  and in canonical order. A module that is not canonical is invalid. Each valid module then has
-  exactly one encoding, so the round trip of BC-08 is exact by construction.
+  of BC-04; signature codes (BC-03); table numbers and fixed column widths (BC-11) for the tables
+  that v0.0.x uses; section contents, the ancillary bit and the content hash (BC-02, BC-20,
+  BC-22); method bodies (BC-17); exception regions (BC-18); stack maps (BC-19); the DEBUG
+  section, keyed by method token; and the `.rfla` grammar in EBNF (BC-08).
+- A new rule in bytecode.md defines the canonical form: LEB128 values are minimal; padding,
+  reserved fields and undefined flag bits are zero; sections are sorted by ID; each row has the
+  size that its table and the formatMinor give; tables are sorted by their keys; heap entries are
+  unique, referenced and in canonical order. A module that is not canonical is invalid. Each valid
+  module then has exactly one encoding, so the round trip of BC-08 is exact by construction.
 - The `Module` table gets a column for the descriptor's `main` class, which VM-12 reads, and
   `.rfla` gets the `.main` directive.
-- `reflect.stage0.bytecode` declares the numbers as constants: `Opcode`, `SigCode`, `TableId` and
-  `SectionId`.
+- `reflect.stage0.bytecode` declares the numbers as constants: `Opcode`, `SigCode`, `TableId`,
+  `SectionId` and the limits of BC-21, `Limits`.
 - The opcode table marks the instructions of the R0 subset, which VM0 implements in v0.0.x.
 - A unit test reads the tables from bytecode.md and compares them with the constants.
 
@@ -343,11 +345,11 @@ numbers.
 
 1. The opcode table, `Opcode` and the document test.
 2. Signature codes and `SigCode`.
-3. Table numbers, column encodings and `TableId`.
-4. The header, the sections and `SectionId`; the layouts of method bodies, exception regions,
-   stack maps and the DEBUG section.
-5. The canonical form; the `main` column and `.main`.
-6. The `.rfla` grammar.
+3. Table numbers, fixed column widths, the TABLES directory and `TableId`.
+4. The header, the sections, the ancillary bit and `SectionId`, with the reader actions of BC-20;
+   the layouts of method bodies, exception regions, stack maps and the DEBUG section.
+5. The canonical form, and the limits of BC-21 with `Limits`; the `main` column and `.main`.
+6. The `.rfla` grammar, `.section` included.
 
 The check of each commit is the document test, run by `unit`.
 
@@ -368,10 +370,15 @@ checks.
 - The writer sorts the tables by their keys, assigns rows and tokens, deduplicates the heaps and
   lays out the code. LEB128 operands make the size of an instruction depend on offsets and
   tokens, so the layout repeats until no size changes; sizes only grow, so the loop ends. Then
-  the writer aligns the sections and computes the content hash (BC-02, BOOT-05).
-- The reader checks the magic, versions, directory, bounds, alignment and token ranges, and that
-  each branch target is the start of an instruction. Then it writes the model again, and it
-  accepts the module only if the bytes are equal (the canonical form of §7.2).
+  the writer aligns the sections and computes the content hash over the header's versions and
+  flags and the critical sections (BC-22, BOOT-05). Every offset it writes is relative to the
+  section it points into. Content over a limit of BC-21 gives a diagnostic, never a truncated
+  module.
+- The reader checks the magic, the format version and flags (BC-20), the directory, bounds,
+  alignment, row sizes, the limits (BC-21) and token ranges, and that each branch target is the
+  start of an instruction. Then it writes the model again, and it accepts the module only if the
+  bytes are equal (the canonical form of §7.2). An unknown ancillary section stays in the model
+  as opaque bytes, so the rewrite check holds for it too.
 - SHA-256 and the UTF-8 and UTF-16LE codecs are written in R0-shaped Java. Unit tests compare
   them with `MessageDigest` and `String.getBytes`.
 - A table arrives with the stage that first needs it. v0.0.2 covers `Module`, `ModuleRef`,
@@ -385,17 +392,22 @@ checks.
    random bytes.
 4. The UTF-8 and UTF-16LE codecs, tested with surrogate pairs and with unpaired surrogates, which
    BC-02 allows in LITERALS.
-5. The header and the section directory.
+5. The header and the section directory, with tests for another format version, an unknown flag
+   bit, an unknown critical section, and an unknown ancillary section that is written back byte
+   for byte (BC-20).
 6. The three heaps and their deduplication.
-7. The tables listed above.
+7. The tables listed above, in fixed-width rows.
 8. Signature blobs.
 9. The CODE section: instruction encoding and the layout loop, tested with branches across
    LEB128 size boundaries.
 10. Exception regions, and stack maps stored as given (Q50).
-11. The DEBUG section.
+11. The DEBUG section, keyed by method token, starting with the content hash and listing each
+    source file with its SHA-256. Tests: a stale DEBUG is treated as absent; removing DEBUG gives
+    a module that the reader accepts with the same content hash; moving a line changes DEBUG
+    only (BC-22).
 12. The canonical check in the reader, with one test per defect: a padded LEB128 value, unsorted
-    rows, an unreferenced heap entry, a wrong content hash, a branch into the middle of an
-    instruction.
+    rows, a wrong row size, an unreferenced heap entry, a wrong content hash, a branch into the
+    middle of an instruction, a value over a limit.
 
 **Exit check.** For every module that the unit tests build, write, read and write again gives
 identical bytes, and every defect is rejected with a message that names its offset. Tag
@@ -408,7 +420,7 @@ identical bytes, and every defect is rejected with a message that names its offs
 **Design.**
 
 - A lexer and a recursive-descent parser for the grammar of §7.2. Diagnostics carry a code
-  (`RFA0001` and up), a line and a column (§6.3).
+  (`RFA0001` and up), a line and a column (§6.3). Content over a limit of BC-21 is a diagnostic.
 - Names resolve to definitions in the module, or to `TypeRef` and `MemberRef` rows that are
   created at first use. Labels become offsets in the writer.
 - `.maxstack` is used when present. Otherwise the assembler computes the depth from the stack
@@ -420,7 +432,7 @@ identical bytes, and every defect is rejected with a message that names its offs
 **Commits.**
 
 1. The lexer.
-2. Module directives: `.module`, `.main`, `.requires`, `.exports`, `.opens`.
+2. Module directives: `.module`, `.main`, `.requires`, `.exports`, `.opens`, `.section`.
 3. `.class` with its kind, modifiers, `extends` and `implements`; `.field`.
 4. `.method` with its signature, and `.locals`.
 5. Instructions: without operands, with immediates, with references, with labels, and `switch`.
@@ -452,7 +464,7 @@ module.
 
 **Commits.**
 
-1. Module directives and type names.
+1. Module directives, `.section` for an unknown ancillary section included, and type names.
 2. Members and signatures.
 3. Code, labels, exception regions, stack maps and line numbers.
 4. The command `rfld`.
@@ -526,6 +538,12 @@ tests and class initialization.
   false for `null` (NUL-05).
 - Loading checks `final`, `sealed` and `permits`, and that every `Override` row names an
   existing method (BC-12, VM-13).
+- Final fields follow BC-23. When a `stfld` or `stsfld` links, VM0 checks that its method may
+  store to the field; when a `stfld` of a final runs, it checks that the target is the
+  constructor's `this`. A class constructor runs only on a new object. A violation is a
+  `TypeLoadError`.
+- `ceq.ref` compares identity, and two boxes by class and contents (DAT-09). Boxes arrive in
+  v0.0.7, which tests that path.
 - Tables added: `InterfaceImpl`, `Override`, `Constant`, and `TypeSpec` for nullable types
   (`NULLABLE`, BC-03).
 
@@ -538,7 +556,9 @@ tests and class initialization.
 5. `ldnull`, `brnull`, `brnonnull`, `ceq.ref`, `instanceof` and `castclass`, with the null
    rules.
 6. `ldconst` and the `Constant` table.
-7. The load-time checks.
+7. The load-time checks, and the final-field and constructor rules of BC-23, with one test per
+   violation: a store from another method, a store to another object, a store to a `const`, and
+   a constructor called on a finished object.
 
 **Exit check.** The programs in `run/objects/` pass. Tag `v0.0.6`.
 
@@ -552,10 +572,12 @@ boxing.
 - An array is a Java array together with its run-time array type, which holds the element type
   and its nullability (VM-02, NUL-01). Array types are `TypeSpec` rows with `ARRAY` signatures
   (BC-03).
-- `stelem` of a reference checks the element type and nullability (`ArrayStoreException`,
-  BC-14, NUL-05), and every index is checked (`IndexOutOfBoundsException`).
+- Arrays are invariant (NUL-07): a reference `stelem` checks only the index
+  (`IndexOutOfBoundsException`), and `castclass` and `instanceof` of an array type compare the
+  exact array type, nullability included.
 - `box` and `unbox` work for primitives and enums; an enum value is its backing integer on the
-  stack (DAT-05).
+  stack (DAT-05). Boxes have no identity (DAT-09): `ceq.ref` on two boxes compares their classes
+  and bit patterns, and `unbox` copies the value out.
 - String operations are natives of the stub `reflect.core`. The set grows with the tests that
   need it; v0.1 fixes it with the stdlib sources.
 - `main` receives its arguments as a `String[]`.
@@ -563,9 +585,10 @@ boxing.
 **Commits.**
 
 1. `newarr`, `ldlen`, and `ldelem` and `stelem` for primitive kinds.
-2. Reference arrays and their store checks.
+2. Reference arrays, and exact casts and type tests of array types (NUL-07).
 3. Index checks.
-4. `box` and `unbox`.
+4. `box` and `unbox`, and `ceq.ref` on boxes, with tests for two boxes of one value, an enum
+   and an `int` with the same backing value, `0.0` and `-0.0`, and NaN (DAT-09).
 5. String natives: length, characters, concatenation, comparison, and conversion of primitives
    to strings.
 6. `main` arguments and the `args` directive.
@@ -584,9 +607,9 @@ boxing.
   (BOOT-04).
 - VM0 raises the exceptions of EXC-05 that the R0 subset can produce: `NullPointerException`,
   `ArithmeticException`, `IndexOutOfBoundsException`, `ClassCastException`,
-  `ArrayStoreException`, `ExceptionInInitializerError` and `TypeLoadError`. The JVM's
-  `StackOverflowError` and `OutOfMemoryError` become the Reflect ones (BOOT-04). These
-  exceptions replace the stops of v0.0.5.
+  `ExceptionInInitializerError` and `TypeLoadError`. The JVM's `StackOverflowError` and
+  `OutOfMemoryError` become the Reflect ones (BOOT-04). These exceptions replace the stops of
+  v0.0.5.
 - The first use of a class whose static initializer fails throws `ExceptionInInitializerError`;
   every later use throws a new one with the same cause (VM-07, MEM-06).
 - A stack trace is recorded at construction as pairs of method and offset, and decoded through
@@ -604,7 +627,7 @@ boxing.
 5. The exceptions that VM0 raises, one test each.
 6. Stack overflow, tested with unbounded recursion.
 7. Initializer failure and `ExceptionInInitializerError`.
-8. Stack traces with line numbers.
+8. Stack traces with line numbers, and with offsets only when DEBUG is absent (VM-21).
 
 **Exit check.** The programs in `run/exceptions/` pass, and the `expect-throws` tests of earlier
 stages still pass. Tag `v0.0.8`.

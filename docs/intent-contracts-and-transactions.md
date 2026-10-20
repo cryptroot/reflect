@@ -138,7 +138,8 @@ checks use the replacement value; if cleanup throws, no postcondition runs.
   declarations are a compile-time error in this subset. Independently weakening preconditions
   or strengthening postconditions is deferred until implication and inheritance rules exist.
 - **IC-12 [Proposed]** Module metadata preserves contract identity, bound expressions, capture
-  types and source locations, so separate compilation, reflection and diagnostics agree.
+  types and source locations, so separate compilation, reflection and diagnostics agree. Source
+  locations go to the DEBUG section, since critical content holds none (BC-20).
   Access checks apply where the contract is declared; inherited checks do not require exposing
   private fields to callers. Proof consumers must understand the contract representation or
   retain checks, never interpret unknown metadata as a successful proof.
@@ -286,7 +287,9 @@ values, and never change during rollback.
   non-null field must not create a new type-safety hole. Until settled, disallow application
   allocation and first-time class initialization while a transaction is active, including
   dynamic calls; VM allocations needed for logs and exception reporting remain internal.
-  Class-initialization flags must never be rolled back as ordinary static fields.
+  Class-initialization flags must never be rolled back as ordinary static fields. Whatever is
+  decided, rollback never restores a final field: finals are stored only by constructors and
+  static initializers (BC-23), and the JIT may already have folded them.
 - **TXN-14 [Open]** Destructible-object header transitions, weak-reference processing, finalizer
   scheduling, hot reload/layer unloading during active scopes, and resource limits for retained
   undo data. The first subset must guard unsupported transitions, not claim they are reversible.

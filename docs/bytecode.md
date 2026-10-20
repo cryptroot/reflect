@@ -1,18 +1,19 @@
 # Bytecode and module files
 
 The `.rflc` module format, its metadata, the instruction set, verification, the `.rfla`
-assembly syntax and binary compatibility. The reader, writer, assembler, disassembler and
-verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`, emit and the VM
-(ARC-11). Conventions: [architecture.md](architecture.md) §0.
+assembly syntax, binary compatibility and the format's limits. The reader, writer, assembler,
+disassembler and verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
+emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 1. Overview
 
 - **BC-01 [Decided, Q08]** Bytecode is stack-based like CIL: compact, easy to emit and to verify.
   The VM translates each method into a register form on first execution (vm.md §6); that form is
   also the baseline JIT's input (jit-aot.md §4).
-- **BC-10 [Proposed]** Everything is little-endian. Integers in variable positions use LEB128
-  (unsigned) or SLEB128 (signed); fixed-width fields are noted. Format versions change freely
-  before v1.0; from v1.0 a minor version only adds.
+- **BC-10 [Proposed]** Everything is little-endian. Table columns have fixed widths (BC-11);
+  integers in blobs and code use LEB128 (unsigned) or SLEB128 (signed); other fixed-width fields
+  are noted. Format versions change freely before v1.0; from v1.0 a minor version only adds.
+  Which versions a reader accepts: BC-20.
 
 ## 2. File layout
 
@@ -23,24 +24,56 @@ verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
     magic         4   "RFLC"
     formatMajor   2
     formatMinor   2
-    flags         4   bit 0 unsafe, bit 1 delta
-    sectionCount  4
-    contentHash  32   SHA-256 of all sections, in directory order
+    flags         4   bit 0 unsafe, bit 1 delta; other bits zero (BC-20)
     reserved     16   zero
-  Section directory: sectionCount entries of { id u32, offset u32, length u32 }
-  Sections, each 8-byte aligned:
-    1 IDENTS    identifiers and namespace names, UTF-8, length-prefixed
-    2 LITERALS  string literals, UTF-16LE code units, length-prefixed (unpaired surrogates allowed)
-    3 BLOBS     signatures, constants, annotation values, length-prefixed
-    4 TABLES    table directory (row count per table), then the rows of each table
-    5 CODE      method bodies (§6)
-    6 DEBUG     source files, line tables, local names; optional
-    7 DELTA     base module hash and change list; only in delta modules (reflection.md §8)
+    sectionCount  4
+    contentHash  32   the module's identity (BC-22)
+  Section directory: sectionCount entries of { id u32, offset u32, length u32 }, sorted by id
+  Sections, each 8-byte aligned, in directory order; bit 31 of an id marks an ancillary section:
+    1           IDENTS    identifiers and namespace names, UTF-8, length-prefixed
+    2           LITERALS  string literals, UTF-16LE code units, length-prefixed
+                          (unpaired surrogates allowed)
+    3           BLOBS     signatures, constants, annotation values, length-prefixed
+    4           TABLES    table directory (table, row count, row size per present table),
+                          then the rows of each table
+    5           CODE      method bodies (§6)
+    6           DELTA     base module hash and change list; only in delta modules
+                          (reflection.md §8)
+    0x80000001  DEBUG     ancillary, optional: contentHash, the source files (relative path
+                          and SHA-256), then per method token its line table and local names
   ```
 
-  Heaps are referenced by byte offset; table rows by a **token** `(table << 24) | row`, rows
-  counted from 1, token 0 meaning none (CIL's scheme). The writer deduplicates heap entries in the
-  order of a canonical traversal, so equal inputs give equal bytes (BOOT-05).
+  Heaps are referenced by byte offset from the start of the heap (BC-22); table rows by a
+  **token** `(table << 24) | row`, rows counted from 1, token 0 meaning none (CIL's scheme). The
+  writer deduplicates heap entries in the order of a canonical traversal, so equal inputs give
+  equal bytes (BOOT-05). Ancillary sections sort last, so stripping them removes their directory
+  entries and the end of the file.
+
+- **BC-20 [Decided, Q57]** Unknown content. An ancillary section is one a reader may skip: the
+  module means the same without it. Every other section is critical. A reader:
+  1. rejects a format version it does not accept: before v1.0 (formatMajor 0), every formatMinor
+     other than its own; from v1.0, a newer formatMinor;
+  2. rejects an unknown critical section, an unknown table, and a flag bit it does not know, in
+     the header or in a flags column;
+  3. skips an unknown ancillary section and keeps its bytes, so tools write it back unchanged and
+     the round trip of BC-08 holds;
+  4. treats a known ancillary section that describes critical content as absent when the
+     contentHash at its start differs from the module's: it is a stale copy.
+
+  From v1.0 the writer stamps the lowest formatMinor its content needs; an ancillary section needs
+  no newer minor. Critical content holds no source positions: line tables, local names and source
+  files live in DEBUG, keyed by method token. Stripping DEBUG or moving a line therefore changes no
+  critical byte.
+
+- **BC-22 [Decided, Q58]** Identity. contentHash is the SHA-256 of header bytes 4 to 27
+  (formatMajor, formatMinor, flags and reserved), followed by each critical section as its id
+  (u32), its length (u32) and its bytes, in directory order. Every offset inside a section is
+  relative to the start of the section it points into, so stripping an ancillary section, which
+  shrinks the directory, changes no hashed byte; nor does moving a line (BC-20). Deltas name their
+  base by contentHash (REFL-07), incremental builds key on it (CMP-04), and a signature section
+  can sign it. Two builds that differ only in lines share one contentHash; the SHA-256 of each
+  source file in DEBUG tells a debugger which source a DEBUG matches. A signature over contentHash
+  does not cover DEBUG.
 
 ## 3. Metadata tables
 
@@ -70,6 +103,13 @@ verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
   | `Constant` (field) | field, value blob (primitives, strings, class references, read-only arrays) |
   | `Provenance` (member) | generated member, generator type (`generatedBy`, ex §6.7) |
   | `TupleNames` (owner) | signature owner, element names blob |
+
+  Columns have fixed widths, so any row is read in place without decoding the rows before it:
+  heap offsets, tokens and row numbers are u32, and bytecode.md states the width of every other
+  column. The row size follows from the table and the formatMinor; TABLES states it, and the
+  reader checks it. A later minor may append columns to a table. A reader treats the columns
+  appended since a module's minor as zero, and the zero value of an appended column means what
+  modules meant before it existed (a variance column's 0 is invariant).
 
 - **BC-12 [Proposed]** Overrides are explicit rows: the compiler records which slot each
   `override` fills, so the VM builds vtables and static dispatch tables without matching names at
@@ -113,12 +153,12 @@ verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
   | constants, stack (`00`-`0F`) | `nop`; `ldnull` → null; `ldc.i4 <imm>`, `ldc.i8`, `ldc.r4`, `ldc.r8` → value; `ldstr <n>` → `String`; `ldtype <tok>` → `Class<T>`; `ldconst <tok>` → constant of a `const` field; `dup`; `pop` |
   | locals (`10`-`1F`) | `ldarg <n>`, `starg <n>`, `ldarga <n>`, `ldloc <n>`, `stloc <n>`, `ldloca <n>` |
   | arithmetic (`20`-`4F`) | `add.t sub.t mul.t` (integers wrap); `div` and `rem` over `t` and `u` (integer division by zero throws); `neg.t`; `and or xor not` over `i32 i64`; `shl`, `shr` (arithmetic), `shr.un` (logical) over `i32 i64`, count masked; checked `add.ovf sub.ovf mul.ovf` over `i32 u32 i64 u64` and `neg.ovf` over `i32 i64` |
-  | comparison (`50`-`5F`) | `ceq clt cle cgt cge` over `t` and `u` → `i32` 0 or 1 (floats per IEEE); `ceq.ref` identity |
+  | comparison (`50`-`5F`) | `ceq clt cle cgt cge` over `t` and `u` → `i32` 0 or 1 (floats per IEEE); `ceq.ref` identity, or class and contents for two boxes (DAT-09) |
   | conversion (`60`-`7F`) | `conv.<from>.<to>` among `i8 u8 i16 u16 i32 u32 i64 u64 f32 f64` (wrapping, float to integer saturating); `conv.ovf.<from>.<to>` throws instead |
   | control (`80`-`8F`) | `br <off>`; `brtrue`, `brfalse`, `brnull`, `brnonnull` `<off>`; fused `beq bne blt ble bgt bge` over `t` and `u` `<off>`; `switch <count> <off>...`; `leave <off>`; `endfinally`; `ret` |
   | objects (`90`-`9F`) | `newobj <tok>` (args → object); `newobj.svirt <tok>` (class, args → object, virtual constructor of the class); `ldfld <tok>`; `stfld <tok>`; `ldflda <tok>`; `ldsfld`, `stsfld`, `ldsflda <tok>`; `getclass` (object → `Class<?>`); `instanceof <tok>` (false for null); `castclass <tok>`; `checkalive` (object → object, DAT-08) |
-  | value types (`A0`-`A7`) | `box <tok>`; `unbox <tok>`; `ldobj`, `stobj`, `cpobj`, `initobj <tok>`; `sizeof <tok>` → `i32` |
-  | arrays (`A8`-`AF`) | `newarr <tok>` (length → array); `ldlen`; `ldelem.k` or `ldelem <tok>` for structs; `stelem.k`, `stelem <tok>`; `ldelema <tok>` (exact element type check) |
+  | value types (`A0`-`A7`) | `box <tok>`; `unbox <tok>` (pushes a copy, never a reference into the box, DAT-09); `ldobj`, `stobj`, `cpobj`, `initobj <tok>`; `sizeof <tok>` → `i32` |
+  | arrays (`A8`-`AF`) | `newarr <tok>` (length → array); `ldlen`; `ldelem.k` or `ldelem <tok>` for structs; `stelem.k`, `stelem <tok>`; `ldelema <tok>` |
   | calls (`B0`-`BF`) | `call <tok>`; `call.recv <tok>`; `callvirt <tok>`; `call.svirt <tok>`; `call.constrained <tok> <tok>`; `ldrecv` → `Class<?>` |
   | exceptions (`C0`-`C7`) | `throw`; `rethrow` |
   | references (`C8`-`CF`) | `ldind.k`, `stind.k`, `ldind <tok>`, `stind <tok>` through `ref` values and pointers |
@@ -127,9 +167,9 @@ verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
 
 - **BC-14 [Proposed]** Checks performed by instructions: every dereference checks null
   (`NullPointerException`); `stfld`, `stsfld`, `stelem`, `stobj` and `stind` of references run
-  the write barrier (memory.md §5); reference `stelem` checks element type and nullability
-  (`ArrayStoreException`); `castclass` throws `ClassCastException`, or `NullPointerException`
-  for null to a non-null type (NUL-05); `checkalive` throws `ObjectDestroyedException`.
+  the write barrier (memory.md §5); a reference `stelem` checks no element type, since arrays are
+  invariant (NUL-07); `castclass` throws `ClassCastException`, or `NullPointerException` for null
+  to a non-null type (NUL-05); `checkalive` throws `ObjectDestroyedException`.
 - **BC-15 [Proposed]** A class handle on the stack is a `Class<T>` reference. Every run-time type
   owns its `Class<T>` object from creation, so `ldtype`, `getclass` and `ldrecv` never allocate.
 - **BC-05 [Proposed]** Receivers (SVD-09): `call C::m` on a static passes `C` as `R`;
@@ -160,8 +200,8 @@ verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
 ## 6. Method bodies
 
 - **BC-17 [Proposed]** A body in the CODE section holds: maximum stack depth, the local variable
-  signature (a blob), the instruction bytes, exception regions, stack maps, and an index into the
-  DEBUG line table.
+  signature (a blob), the instruction bytes, exception regions and stack maps. Its line table and
+  local names are in DEBUG, keyed by the method's token, so a body never refers to DEBUG (BC-20).
 - **BC-18 [Proposed]** An exception region is `(tryStart, tryEnd, handlerStart, handlerEnd, kind,
   type)` with kind `catch` or `finally`; multi-catch writes one region per type; the type token
   may be `VAR` or `MVAR`, resolved through the frame's type context (ex §11.2). Regions nest
@@ -176,9 +216,11 @@ verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
 - **BC-07 [Proposed]** The verifier (v0.7; until then dynamic code needs `unsafe;`) type-checks
   each method in one linear pass against its stack maps (Leroy; Rose's lightweight
   verification). It checks:
-  - stack and local types at every instruction, with exact generic types and type contexts;
+  - stack and local types at every instruction, with exact generic and array types and type
+    contexts;
   - that objects are initialized before use and constructors call a constructor of their class or
     its base;
+  - stores to final fields and calls of constructors (BC-23);
   - references: no `ref` stored in the heap, captured or returned beyond its frame; no write
     through `ref readonly`; no `mutating` call on a read-only reference;
   - ref structs never boxed, stored in heap objects or used as type arguments;
@@ -190,13 +232,31 @@ verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
   rule as on the JVM. Code that `rflc` writes always verifies; the VM verifies every module that is
   not part of a trusted release (the stdlib and the toolchain).
 
+- **BC-23 [Decided, Q60]** Final fields stay final:
+  - `stfld` of a final instance field occurs only in a constructor of the field's declaring type,
+    and its target is that constructor's `this`; `stsfld` of a static final occurs only in the
+    static initializer of its declaring type; no instruction stores a `const` field;
+  - a class constructor runs only on a new object: through `newobj`, `newobj.svirt`, or a call
+    from a constructor of the class or of a subclass on its own `this`;
+  - outside those initializers, `ldflda` and `ldsflda` of a final field give a `ref readonly`, so
+    no store and no `mutating` call changes a final struct in place (DAT-02);
+  - a violation is a link error, `TypeLoadError` at the use (VM-13): VM0 checks the method when
+    the instruction links and the target when it runs; the verifier checks both before the method
+    runs.
+
+  Once set, a final never changes: the JIT and AOT may fold a static final after its class is
+  initialized, and an instance final after its object's constructor returns (JIT-08). Reflection
+  and hot reload keep the rule (REFL-03, REFL-07).
+
 ## 8. Assembly syntax
 
 - **BC-08 [Proposed]** `.rfla` maps one-to-one to the binary, so `rfld` then `rfla` reproduces a
   module byte for byte (ex §12.2). Directives: `.module name version`, `.requires`, `.exports`,
   `.opens`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`, `.annotation`,
-  `.locals`, `.try`, `.catch`, `.finally`, `.stackmap`; labels end in `:`; type names use the
-  canonical spelling (GEN-12), with `!0` and `!!0` for type parameters.
+  `.locals`, `.try`, `.catch`, `.finally`, `.stackmap`, `.section`; labels end in `:`; type names
+  use the canonical spelling (GEN-12), with `!0` and `!!0` for type parameters. `rfld` prints a
+  section it cannot print as directives, such as an unknown ancillary section (BC-20), as
+  `.section <id> hex "..."`, so the round trip covers it too.
 
   ```text
   .module demo 0.1.0
@@ -223,4 +283,23 @@ verifier form one library, `reflect.bytecode`, shared by `rflc`, `rfla`, `rfld`,
   annotation. Breaking changes: removing or renaming members, changing signatures or nullability,
   adding a `static abstract` or an abstract member, sealing a class, removing an override that a
   subclass's `Override` row names, changing a struct's layout that unsafe code depends on.
+
+## 10. Limits
+
+- **BC-21 [Decided, Q59]** Limits of the format. The writer and `rfla` report a diagnostic
+  instead of writing a module that exceeds one, and every reader rejects such a module, so all
+  tools accept the same modules. A tier may still decline to compile a large method and leave it
+  to the interpreter.
+
+  | Item | Limit |
+  |---|---|
+  | rows per table | 2^24 − 1 (the row bits of a token) |
+  | size of a section, a heap or the file | 2^32 − 1 bytes (u32 offsets and lengths) |
+  | code of one method | 2^24 − 1 bytes |
+  | locals of one method | 65,535 |
+  | stack depth of one method | 65,535 |
+  | parameters of one method | 65,535 |
+  | exception regions of one method | 65,535 |
+  | nesting depth of a signature | 255 |
+  | length of an identifier | 65,535 UTF-8 bytes |
 

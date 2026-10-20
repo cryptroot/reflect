@@ -87,8 +87,7 @@ yet part of the baseline language below.
   class C<X> extends D<U>        =>  C<T> <: D<U[X := T]>    (likewise implements)
   T <: T?                        S <: T  =>  S? <: T?          (reference types)
   null <: T?                     T <: Object <: Object?       (T a non-null reference type)
-  S <: T, both reference types   =>  S[] <: T[]  and  S[] <: T?[]   (stores are checked)
-  T[] <: Array
+  T[] <: Array                   (arrays are otherwise invariant: S[] <: T[] only if S = T)
   A & B <: A,  A & B <: B        S <: A and S <: B  =>  S <: A & B
   T <: U  =>  C<T> <: C<? extends U>       L <: T  =>  C<T> <: C<? super L>       C<T> <: C<?>
   (int count, String label)  ≡  (int, String)
@@ -132,8 +131,9 @@ yet part of the baseline language below.
 ## 3. Null safety and arrays (NUL)
 
 - **NUL-01 [Decided, Q09]** Nullability is reified: for reference types `T` and `T?` are distinct
-  run-time types. `List<String>` and `List<String?>` are two classes sharing code, array stores
-  check element nullability, reflection reports it (ex §2.10, §3.5).
+  run-time types. `List<String>` and `List<String?>` are two classes sharing code, `String[]` and
+  `String?[]` are two array types that never convert to each other (NUL-07), and reflection
+  reports it (ex §2.10, §3.5).
 - **NUL-02 [Decided]** Types are non-null unless written `T?`. Operators: `a?.b` (short-circuits
   the rest of the chain; `nick?.length` is `int?`), `a?[i]`, `a ?? b` (the right side may be
   `throw`), `a ??= b`, postfix `a!` (throws `NullPointerException` on null), and `x == null`,
@@ -158,7 +158,7 @@ yet part of the baseline language below.
   - generic code: `(T) o` checks non-null when `T` is instantiated with a non-null type;
   - reflection rejects `null` for non-null fields and parameters with
     `IllegalArgumentException`; reflective results are typed `Object?`;
-  - storing `null` into a non-null element array throws `ArrayStoreException` (ex §2.10).
+  - array stores need no check: a `String[]` is never seen as a `String?[]` (NUL-07).
 - **NUL-06 [Proposed]** Generics and null:
   - an unconstrained `T` has the implicit bound `Object?` and may be instantiated with nullable
     types (`Box<String?>`), so members of a `T` value need narrowing; a non-null bound such as
@@ -166,16 +166,20 @@ yet part of the baseline language below.
   - `T extends class` admits only non-null reference types, `T extends struct` only non-null
     value types; `T?` is the nullable form of either (ex §3.1);
   - `default(T)` needs `T extends struct` (ex §3.3); `default(T?)` is `null`.
-- **NUL-07 [Decided, details Proposed]** Arrays:
+- **NUL-07 [Decided, Q62; details Proposed]** Arrays:
   - Type suffixes read left to right (grammar.md §3.5); `int[]?[]` is the jagged case of
     ex §2.10.
   - `new T[n]` needs a zero value: value types or nullable references. `new String[n]` and
     `new String[][n]` are errors; use an initializer, `Array.filled(n, v)` or a nullable element
     type.
-  - Reference arrays are covariant (`Square[] <: Shape[]`, `String[] <: String?[]`) and every
-    store checks the exact element type and nullability; value-type arrays are invariant.
-  - `Span<T>` over an array needs its exact element type, otherwise writes through the span would
-    bypass the store check; a mismatch throws `ArrayStoreException`.
+  - Arrays are invariant, nullability included: `S[]` converts to `T[]` only when `S` and `T` are
+    the same type, so `Square[]` is not a `Shape[]` and `String[]` is not a `String?[]`. A
+    reference store therefore needs no check, and casts and type tests of arrays compare the exact
+    array type. Covariant use goes through generic methods (`draw<T extends Shape>(T[] shapes)`),
+    the `Array` base class and, later, a read-only covariant view. Such a view is a new type, so
+    adding it changes no program; making arrays covariant again would change what existing array
+    casts and type tests return.
+  - `Span<T>` over a `T[]` needs no element type check, since the array's type is exact.
   - Lengths are `int`, indexes are checked (`IndexOutOfBoundsException`), there are no
     rectangular `int[,]` arrays in v1, and every array type extends `reflect.core.Array`.
 
@@ -183,6 +187,7 @@ yet part of the baseline language below.
 // rejected
 String[][] grid = new String[][3];         // error: elements would start as null; use new String[]?[3]
 static String show<T>(T x) { return x.toString(); }   // error: T's bound is Object?; narrow x or bound T
+Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invariant; use a generic method
 ```
 
 ## 4. Primitives, numerics, strings (NUM)
@@ -304,7 +309,9 @@ static String show<T>(T x) { return x.toString(); }   // error: T's bound is Obj
   of their enclosing types (ex §2.5).
 - **MEM-05 [Decided]** `final` fields are assigned once; `const` fields are compile-time
   constants and implicitly static (reflection.md §5); a static field has one storage per class,
-  or per instantiation for generic classes (§8).
+  or per instantiation for generic classes (§8). [Decided, Q60] In bytecode too, only the
+  declaring type's constructors, on their own `this`, and its static initializer store to its
+  finals, and reflection never does (BC-23).
 - **MEM-06 [Decided, details Proposed]** Constructors use Java's syntax and chaining:
   `this(...)` or `super(...)` comes first, an omitted call means `super()`, and a class without
   constructors gets a public parameterless one (or forwarders for inherited virtual constructors,
@@ -315,15 +322,17 @@ static String show<T>(T x) { return x.toString(); }   // error: T's bound is Obj
   `null` in a non-null static); the compiler warns about cycles it can see.
 - **MEM-07 [Decided, details Proposed]** `Object` declares virtual `equals(Object?)`,
   `hashCode()` and `toString()`, the final `getClass()` typed `Class<? extends T>` for a receiver
-  of static type `T`, and `static boolean referenceEquals(Object?, Object?)`. No `wait`, `notify`,
-  `clone` or `finalize`; finalizers are `~C()` (memory.md §6).
+  of static type `T`, and `static boolean referenceEquals(Object?, Object?)` (identity; boxes have
+  none, DAT-09). No `wait`, `notify`, `clone` or `finalize`; finalizers are `~C()` (memory.md §6).
 - **MEM-08 [Decided, Q11]** Construction order and its warnings: NUL-04.
 - **MEM-09 [Decided, Q21]** Extension methods are static methods whose first parameter says
   `this` (ex §2.10 `asSpan<T>(this T[] array, ...)`). They are in scope where their declaring
   class's namespace is imported or the class statically imported, and instance members always win.
 - **MEM-10 [Decided, Q22]** Variadic parameters use Java's syntax, `Object?... args`: last
   parameter only, typed as an array; the expanded form loses ties (TYP-04). They serve
-  `invoke(null, 2, 3)` (ex §10.5) and `List.of("a", 1, "b")`.
+  `invoke(null, 2, 3)` (ex §10.5) and `List.of("a", 1, "b")`. [Proposed] Arrays are invariant
+  (NUL-07), so a `String[]` passed to `Object?... args` becomes one element, not the argument
+  array; the compiler warns.
 - **MEM-11 [Proposed]** No default parameter values or named arguments in v1; annotations keep
   their named elements.
 
@@ -504,7 +513,8 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   | anything with `null` | null test |
 
   Operators are static, so static types choose: two strings typed `Object` compare by identity.
-  [Proposed] A `reflect.lint` analyzer flags `==` on `Object` or interface operands.
+  On `Object` and interface operands `==` is `ceq.ref`, so two boxes compare by class and contents
+  (DAT-09). [Proposed] A `reflect.lint` analyzer flags `==` on `Object` or interface operands.
 - **OPR-05 [Decided]** Compound assignment (ex §8.3): an instance `operator op=` updates in place;
   without one, `x op= y` means `x = x op y` with `x` evaluated once. An in-place struct operator is
   `mutating` and needs a variable (local, field, array element, `ref`), never a property result.
@@ -520,16 +530,18 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
 ## 11. Structs, ref safety, records, enums, sealed types, tuples, destructible objects (DAT)
 
 - **DAT-01 [Decided, details Proposed]** Structs are values (ex §9.1): copied on assignment, zeroed
-  by `default(S)` and in new arrays, boxed when converted to `Object` or an interface, never
-  extended (they may implement interfaces), never finalized. Reference-typed fields must be
-  nullable because zeroing makes them `null`. A constructor leaves unassigned fields at zero
-  (C# 11), and no parameterless constructor can be declared, so `new S()` equals `default(S)`.
+  by `default(S)` and in new arrays, boxed when converted to `Object` or an interface (a box has
+  no identity, DAT-09), never extended (they may implement interfaces), never finalized.
+  Reference-typed fields must be nullable because zeroing makes them `null`. A constructor leaves
+  unassigned fields at zero (C# 11), and no parameterless constructor can be declared, so
+  `new S()` equals `default(S)`.
 - **DAT-02 [Decided, Q24]** Struct methods are read-only unless marked `mutating` (Swift). A
   read-only method may not assign fields of `this` or call `mutating` methods on it; calling a
   `mutating` method on a read-only location (a `final` field, an `in` parameter, a property or
   method result) is an error, so no hidden copies exist. Constructors assign `this`; in-place
   operators must say `mutating`. The flag is metadata, and the verifier tracks read-only
-  references (bytecode.md §7).
+  references (bytecode.md §7). Boxes are immutable, so how `mutating` methods meet interfaces is
+  open until v0.4 (DAT-09).
 
   ```csharp
   public struct Tally {
@@ -602,6 +614,26 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
     declared in a `Destructible` subclass, and field accesses through a receiver other than
     `this`; exempt are `destroyed` and `Object`'s `equals`, `hashCode`, `toString`, `getClass`;
   - `Destructible.alive(x)` turns a destroyed object into `null` for `?.` and `??`.
+- **DAT-09 [Decided, Q61]** Boxes have no identity. A box is a value converted to `Object` or an
+  interface (DAT-01):
+  - `ceq.ref`, and so `==` on `Object` or interface operands and `Object.referenceEquals`, is
+    true for two boxes of the same class with the same contents: primitive fields by bit pattern
+    (JEP 401), so `(Object) 0.0 == (Object) -0.0` is false; struct fields recursively; reference
+    fields by `ceq.ref`;
+  - a box has no identity hash: `Object.hashCode()` of a box hashes its contents, consistently
+    with `ceq.ref`;
+  - `WeakReference` is declared `WeakReference<T extends class>`, and a box as its referent, or as
+    the key of a weak-keyed table, throws `IllegalArgumentException` (GC-05);
+  - boxes are immutable: `unbox` copies the value out, and reflection cannot set a box's fields
+    (REFL-03). [Open, by v0.4] Either a `mutating` method cannot implement an interface member,
+    or calling one through a box is an error (DAT-02). Either way C#'s mutable struct enumerator
+    behind an interface (`List<T>.Enumerator`) has no equivalent; struct iterators work through
+    the lookup by name of STM-04.
+
+  The VM may therefore cache boxes, share equal ones and remove them after escape analysis with
+  no visible change. The cost is a slow path in `ceq.ref` when two references differ and their
+  static types admit boxes (`Object`, interfaces, type parameters). `==` can also tell whether a
+  box's private fields equal those of a value the caller can build, such as `default(S)`.
 
 ## 12. Exceptions (EXC)
 
@@ -625,7 +657,6 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   | `ArithmeticException` | unchecked | integer division by zero, overflow under `checked` |
   | `IndexOutOfBoundsException` | unchecked | array and span indexes |
   | `ClassCastException` | unchecked | failed casts, undeclared enum values |
-  | `ArrayStoreException` | unchecked | covariant array stores, spans over covariant arrays |
   | `ObjectDestroyedException` | unchecked | guarded access to a destroyed object (DAT-08) |
   | `UndeclaredThrowableException` | unchecked | a proxy handler throws an undeclared checked exception |
   | `PhaseException` | unchecked | run-time-only reflection inside the compiler |
@@ -633,7 +664,7 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   | `InstantiationError` | error | a virtual constructor reached on an abstract class |
   | `AbstractMemberError` | error | an unimplemented static abstract reached through `R` |
   | `ExceptionInInitializerError` | error | a failing static initializer (MEM-06) |
-  | `TypeLoadError` | error | missing types, constraint violations, invalid instantiations |
+  | `TypeLoadError` | error | missing types, constraint violations, invalid instantiations, link errors (BC-12, BC-23) |
   | `StackOverflowError`, `OutOfMemoryError` | error | exhausted resources |
   | `InvocationTargetException` | checked | a reflectively called member threw |
   | `IllegalAccessException` | checked | reflective access denied (ex §10.3) |

@@ -106,7 +106,9 @@ Conventions: [architecture.md](architecture.md) §0.
 - **REFL-03 [Decided, details Proposed]** Access (ex §10.3): lookups find every member, private
   ones included; access is checked at use against the caller's module. Public members of exported
   namespaces are always accessible, everything in a namespace opened to the caller too; the rest
-  throws `IllegalAccessException`. There is no `setAccessible`-style override.
+  throws `IllegalAccessException`. There is no `setAccessible`-style override. `Field.set` on a
+  final field throws `IllegalAccessException` even where the namespace is open (BC-23), and on a
+  box it throws `IllegalArgumentException`, since boxes are immutable (DAT-09).
 - **REFL-09 [Proposed]** Caller-sensitive operations find the caller's module from its frame
   (Java's `@CallerSensitive`); the JIT records the caller when it inlines them.
 - **REFL-04 [Decided]** Static virtual members (ex §10.1): `Property.get(null)` and
@@ -260,10 +262,12 @@ Conventions: [architecture.md](architecture.md) §0.
 ## 8. Hot reload
 
 - **REFL-07 [Decided, details Proposed]** `rflc delta --base old.rflc module` writes a delta, a
-  module file flagged `delta` that names its base by content hash. `HotReload.apply` (ex §10.6)
-  accepts additions only in v0: new types, methods and fields (side storage for existing objects),
-  and replaced method bodies; running frames finish the old body. Removing members or changing a
-  signature, a base class or a layout is rejected. The VM's side of it: vm.md §11.
+  module file flagged `delta` that names its base by content hash, which leaves DEBUG out, so a
+  delta also applies to a stripped base (BC-22). `HotReload.apply` (ex §10.6) accepts additions
+  only in v0: new types, methods and fields (side storage for existing objects), and replaced
+  method bodies; running frames finish the old body. Removing members or changing a signature, a
+  base class or a layout is rejected. A delta never re-runs an initializer and never writes a
+  final field of an existing object or class (BC-23). The VM's side of it: vm.md §11.
 
 ## 9. Determinism and sandboxing
 

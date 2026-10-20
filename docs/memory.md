@@ -95,12 +95,14 @@ move objects, finalization, weak references and destructible objects. Object lay
 
 ## 7. Weak references
 
-- **GC-05 [Decided, Q23]** `reflect.core` provides `WeakReference<T>`, cleared when its referent is
-  only weakly reachable, before finalization runs (Java's order), and a weak-keyed table with
-  ephemeron semantics: a value stays alive only while its key is reachable, even when the value
-  refers back to the key. Marking settles ephemerons by iterating to a fixpoint. The VM uses them
-  for hot-reload field storage (vm.md §11), reflection caches and interned strings of unloadable
-  layers; the library builds the weak-listener wrapper on them (MEM-16).
+- **GC-05 [Decided, Q23]** `reflect.core` provides `WeakReference<T extends class>`, cleared when
+  its referent is only weakly reachable, before finalization runs (Java's order), and a weak-keyed
+  table with ephemeron semantics: a value stays alive only while its key is reachable, even when
+  the value refers back to the key. A box has no identity, so a box as referent or key throws
+  `IllegalArgumentException` (DAT-09, Q61). Marking settles ephemerons by iterating to a
+  fixpoint. The VM uses them for hot-reload field storage (vm.md §11), reflection caches and
+  interned strings of unloadable layers; the library builds the weak-listener wrapper on them
+  (MEM-16).
 
 ## 8. Destructible objects
 

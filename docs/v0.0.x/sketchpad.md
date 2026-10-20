@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux, PowerShell 7 and native Windows checks pass (D.3); tag pending |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
@@ -49,7 +49,7 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes | v0.0.1, v0.0.3 |
 | [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | v0.0.3 |
 | [examples.md](../examples.md) §11.1 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3) | with [../sketchpad.md](../sketchpad.md) A.6 |
-| [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | as Q57 to Q62 are answered |
+| [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | done 2026-10-20 (Q57 to Q62) |
 
 ### A.2 Inconsistencies found while planning
 
@@ -136,7 +136,7 @@ links, and that each cited rule ID has exactly one definition. Add it after the 
 [../sketchpad.md](../sketchpad.md) A.1 are fixed and LIB-03 and OPR-08 have one definition each
 (each has two today, A.2 item 8). **Answer:** 2026-10-19: Accepted as recommended; the `docs` job is added after those fixes.
 
-### B.2 Batch 6: headroom (asked 2026-10-19)
+### B.2 Batch 6: headroom (asked 2026-10-19, answered 2026-10-20)
 
 These come from [../headroom.md](../headroom.md) and bind in the stage named. An accepted answer
 changes the owning rules, and the HR entry records where it went.
@@ -148,14 +148,30 @@ the section ancillary. Readers reject a newer formatMinor, an unknown critical s
 unknown flag bit, and skip an unknown ancillary section; the model keeps it as opaque bytes, so
 the v0.0.2 rewrite check still holds. The writer stamps the lowest formatMinor its content
 needs. DEBUG becomes ancillary, and an ancillary section that describes critical content starts
-with that content's hash. Binding in v0.0.1 (commits 4 and 5). **Answer:**
+with that content's hash. Binding in v0.0.1 (commits 4 and 5). **Answer:** 2026-10-20: Accepted,
+with four additions found in review: (1) a body held an index into the DEBUG line table (BC-17),
+so a longer line table in one method shifted the indexes of later ones and changed CODE; DEBUG is
+now keyed by method token, and critical content holds no source positions; (2) before v1.0 a
+reader accepts only its own format `0.N`, since BC-10 let formats change freely but no rule said
+which versions the v0.0.2 reader checks; (3) `.rfla` gets `.section <id> hex "..."`, so the round
+trip covers unknown ancillary sections; (4) a DEBUG whose contentHash differs is treated as absent,
+not rejected. DELTA becomes section 6 and DEBUG `0x80000001`. Rules: BC-02, BC-08, BC-10, BC-17,
+BC-20, VM-21, IC-12.
 
 **Q58 (BC-02, REFL-07, CMP-04; HR-02). What the content hash covers.** BC-02 hashes all
 sections, so stripping DEBUG or moving a line changes the module's identity: a delta no longer
 finds its base (REFL-07), and the build key of every module that reads it changes (CMP-04).
 *Recommendation:* with Q57, the hash covers formatMajor, formatMinor, flags, and each critical
 section as (ID, length, bytes) in directory order. A stripped module keeps its identity, and a
-signature section can sign the hash. Binding in v0.0.2 (the writer). **Answer:**
+signature section can sign the hash. Binding in v0.0.2 (the writer). **Answer:** 2026-10-20:
+Accepted, with additions from review: (1) every offset inside a section is relative to the section
+it points into, since stripping DEBUG removes a directory entry and would move file offsets in
+TABLES (required); (2) `reserved` moves before `sectionCount`, so the hash covers header bytes 4 to
+27 and any later header field; (3) DEBUG lists each source file with its SHA-256, since two builds
+that differ only in lines now share one contentHash; (4) CMP-04 also keys on the whole-file hashes
+of the compiler, generators and analyzers, whose DEBUG reaches stack traces; CMP-04 did not list
+the compiler before. A signature over contentHash does not cover DEBUG. Rules: BC-02, BC-22,
+CMP-04, REFL-07.
 
 **Q59 (BC-02, BC-10, BC-11, VM-13; HR-03, HR-04). Fixed-width rows and stated limits.** BC-10
 doesn't say whether table columns are fixed-width or LEB128. LEB128 rows lose random access
@@ -166,7 +182,12 @@ follows from the table and the formatMinor, so the canonical form stays unique. 
 an earlier minor, a reader treats columns appended since as zero. LEB128 stays in blobs and
 code. bytecode.md lists every limit (rows, heap and section sizes, code length, locals, stack
 depth, parameters, exception regions), and the writer and `rfla` report a diagnostic instead of
-writing a truncated module. Binding in v0.0.1 (commits 3 and 4). **Answer:**
+writing a truncated module. Binding in v0.0.1 (commits 3 and 4). **Answer:** 2026-10-20: Accepted,
+with three notes from review: readers check the stated row size, which is redundant for them but
+lets tools skip tables; the zero value of an appended column means what modules meant before the
+column existed; the limits add signature nesting depth (255) and identifier length (65,535 bytes),
+and readers reject a module over a limit, so the limits bind every tool. Rules: BC-02, BC-10,
+BC-11, BC-21, VM-09, VM-13.
 
 **Q60 (VM-13, BC-07, REFL-03, REFL-07; HR-09). Final fields stay final.** No rule says which
 code may store to a final field, and reflection reaches the private members of an opened
@@ -176,7 +197,14 @@ trust instance finals by default, because reflection and deserialization may cha
 on a static final only in its static initializer. VM0 checks this at load (v0.0.6 commit 7), the
 verifier later (BC-07). `Field.set` on a final throws `IllegalAccessException` even with
 `opens`, and hot reload never changes a final (REFL-07). v1 has no `with` expressions and no
-`init` accessors; either would need its own rule. Binding in v0.0.6. **Answer:**
+`init` accessors; either would need its own rule. Binding in v0.0.6. **Answer:** 2026-10-20:
+Accepted, with four additions from review: the recommendation restricted where a store occurs but
+not which object it targets, so the target must be the constructor's own `this`; a class
+constructor runs only on a new object, so no bytecode re-runs one on a finished object;
+`ldflda` and `ldsflda` of a final outside its initializer give `ref readonly`; no instruction
+stores a `const` field. A violation is a link error (`TypeLoadError`). TXN-13 already keeps
+allocation and class initialization out of transactions, so rollback never restores a final.
+Rules: BC-07, BC-23, VM-16, MEM-05, REFL-03, REFL-07, EXC-05, JIT-08, TXN-13.
 
 **Q61 (OPR-04, BC-04, VM-02, DAT-01, DAT-02; HR-10). Boxes without identity.** `ceq.ref` and
 Object-typed `==` compare identity (OPR-04), so a program can tell two boxes of one value apart,
@@ -186,7 +214,14 @@ recursively); a box has no identity hash; constructing a `WeakReference` to a bo
 stay immutable: `unbox` copies, and reflection can't set a box's fields; how `mutating` methods
 meet interfaces (DAT-02) is settled by v0.4. The cost is a slow path when two references differ
 and their static types admit boxes; the comment "identity, always" in ex §8.5 changes. Binding
-in v0.0.6 (commit 5, `ceq.ref`) and v0.0.7 (commit 4, `box`). **Answer:**
+in v0.0.6 (commit 5, `ceq.ref`) and v0.0.7 (commit 4, `box`). **Answer:** 2026-10-20: Accepted,
+with one change from review: primitive fields compare by bit pattern, as JEP 401 does, not as
+`equals` does. `equals` canonicalizes NaN (NUM-04), so two NaNs with different bits would be equal,
+and sharing such boxes would change the bits a program reads. `WeakReference` is bounded
+`T extends class`, and a box as referent or weak-table key throws `IllegalArgumentException`, as
+does `Field.set` on a box. Consequence: C#'s mutable struct enumerator behind an interface has no
+equivalent; struct iterators work through STM-04. Rules: DAT-09, BC-04, OPR-04, MEM-07, DAT-01,
+DAT-02, VM-02, GC-05, REFL-03; ex §8.5.
 
 **Q62 (NUL-07, NUL-05, BC-14, EXC-05; HR-11). Invariant reference arrays.** This reopens a
 decided rule. Java made arrays covariant because it had no generics; Reflect has generics but
@@ -194,7 +229,15 @@ copies the covariance and its cost, a check of element type and nullability on e
 store. *Recommendation:* reference arrays are invariant; covariant use goes through generic
 methods, the `Array` base class and, later, a read-only covariant view. ex §2.10 and §7.8,
 NUL-05, NUL-07, BC-14 and EXC-05 change. Adding covariance later is compatible; removing it is
-not. Alternative: keep NUL-07 as decided. Binding in v0.0.7 (commit 2). **Answer:**
+not. Alternative: keep NUL-07 as decided. Binding in v0.0.7 (commit 2). **Answer:** 2026-10-20:
+Accepted; reference arrays are invariant, nullability included. The array-store part of Q09 becomes
+a static guarantee: a `String[]` is never seen as a `String?[]`. Review added the rules the
+recommendation did not list (TYP-02, NUL-01, MEM-10, BC-07) and two consequences: a `String[]`
+passed to `Object?...` becomes one element, and the compiler warns; and "adding covariance later
+is compatible" holds only for a read-only covariant view, a new type, since covariant arrays would
+change what existing array casts and type tests return (`o instanceof Shape[]` on a `Square[]`).
+Rules:
+NUL-07, TYP-02, NUL-01, NUL-05, MEM-10, EXC-05, BC-04, BC-07, BC-14; ex §2.10, §7.8.
 
 <!-- questions:end -->
 
@@ -203,10 +246,10 @@ not. Alternative: keep NUL-07 as decided. Binding in v0.0.7 (commit 2). **Answer
 | Roadmap content and instructions | Stages | Rules |
 |---|---|---|
 | these documents | every stage updates the sections it implements; A.1 | architecture.md §0 |
-| the `.rflc` format | v0.0.1, v0.0.2 | BC-02, BC-03, BC-04, BC-10, BC-11, BC-12, BC-17, BC-18, BC-19, BOOT-05 |
+| the `.rflc` format | v0.0.1, v0.0.2 | BC-02, BC-03, BC-04, BC-10, BC-11, BC-12, BC-17, BC-18, BC-19, BC-20, BC-21, BC-22, BOOT-05 |
 | the `reflect.bytecode` design | v0.0.2 to v0.0.4 | ARC-11, BC-08, Q47 |
 | the assembler | v0.0.3, v0.0.4 | BC-08, TST-09 |
-| VM0 in stage0 | v0.0.5 to v0.0.9 | BOOT-04, VM-03, VM-06, VM-07, VM-12, VM-13, VM-17, VM-20, VM-21, BC-05, BC-06, BC-14, BC-15, BC-16, NUL-01, NUL-05, GEN-02, GEN-04, GEN-09, EXC-05, EXC-06, EXC-07, UNS-03, LIB-03 |
+| VM0 in stage0 | v0.0.5 to v0.0.9 | BOOT-04, VM-03, VM-06, VM-07, VM-12, VM-13, VM-17, VM-20, VM-21, BC-05, BC-06, BC-14, BC-15, BC-16, BC-23, NUL-01, NUL-05, NUL-07, DAT-09, GEN-02, GEN-04, GEN-09, EXC-05, EXC-06, EXC-07, UNS-03, LIB-03 |
 | exit test | v0.0.4 (round trip), v0.0.5 (runs on VM0), v0.0.9 (the whole suite) | RM-03 |
 | Docker on Windows and Linux, Lean in Docker (instruction, 2026-10-19) | v0.0.0 | BLD-05, BLD-06, TST-05, LEAN-04 |
 | a branch per version and frequent small commits (instruction, 2026-10-19) | every stage | RM-04 |

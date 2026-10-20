@@ -24,10 +24,11 @@ VM guarantees.
 
 ## 2. Loading, linking and layers
 
-- **VM-13 [Proposed]** Loading is lazy: a module's tables are mapped read-only and decoded on
-  demand; a type is loaded when first named by executing code, reflection or another type's
-  layout. Loading a type checks its constraints, `final`, `sealed` and `permits`, computes its
-  layout (§3) and builds its dispatch tables (§5). A failure throws `TypeLoadError` at the use.
+- **VM-13 [Proposed]** Loading is lazy: a module's tables are mapped read-only and read in place,
+  since rows have fixed widths (BC-11); a type is loaded when first named by executing code,
+  reflection or another type's layout. Loading a type checks its constraints, `final`, `sealed`
+  and `permits`, computes its layout (§3) and builds its dispatch tables (§5). A failure throws
+  `TypeLoadError` at the use.
 - **VM-14 [Proposed]** Verification (bytecode.md §7) runs per method before its first execution,
   for modules outside the trusted release.
 - **VM-15 [Decided, Q35]** Layers (ARC-12): every run-time type, method body, compiled code
@@ -36,7 +37,8 @@ VM guarantees.
   reachable refers to it; parents never refer to children. Unloading itself may ship after v1.0,
   but no structure may assume types live forever.
 - **VM-16 [Proposed]** Tokens resolve on first execution of an instruction; the register form
-  (§6) caches the result, so later executions never consult the tables.
+  (§6) caches the result, so later executions never consult the tables. Resolution also applies
+  the checks that depend on the target, such as BC-23's for stores to final fields.
 
 ## 3. Object layout
 
@@ -53,7 +55,9 @@ VM guarantees.
   - Arrays: header, `int` length (padded to 8 bytes), elements; the array's run-time type carries
     the element type and its nullability.
   - Strings: header, length, a Latin-1 or UTF-16 flag, inline data (NUM-05).
-  - Boxes: header and value. A nullable wrapper boxes to `null` when it has no value.
+  - Boxes: header and value. A nullable wrapper boxes to `null` when it has no value. A box never
+    gets an identity hash, and `ceq.ref` compares its contents (DAT-09), so the VM may cache,
+    share and remove boxes.
 
 ## 4. Run-time types and dictionaries
 
@@ -137,9 +141,10 @@ VM guarantees.
   context (`VAR`, `MVAR`) are resolved through the frame's dictionary (BC-18). `finally` regions
   run on every exit.
 - **VM-21 [Proposed]** A stack trace is recorded at construction as pairs of method and code
-  offset (EXC-06) and decoded through the DEBUG line tables only when printed. The VM raises the
-  exceptions of type-system.md §12 as ordinary Reflect objects allocated on the heap;
-  `OutOfMemoryError` and `StackOverflowError` are preallocated.
+  offset (EXC-06) and decoded through the DEBUG line tables only when printed; without DEBUG, or
+  with a stale one (BC-20), it shows methods and offsets only. The VM raises the exceptions of
+  type-system.md §12 as ordinary Reflect objects allocated on the heap; `OutOfMemoryError` and
+  `StackOverflowError` are preallocated.
 
 ## 9. Natives and system calls
 
@@ -152,7 +157,7 @@ VM guarantees.
 
 ## 10. Reflection support
 
-- **VM-09 [Proposed]** Reflection reads the mapped metadata tables, decoded on demand; member
+- **VM-09 [Proposed]** Reflection reads the mapped metadata tables in place (VM-13); member
   mirrors are created on first request and cached per run-time type. Access checks use the caller
   frame's module (REFL-09). Reflective calls use per-signature stubs (REFL-08).
 

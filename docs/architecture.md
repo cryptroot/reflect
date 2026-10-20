@@ -136,8 +136,10 @@ flowchart LR
 - **CMP-03 [Proposed]** Single-threaded until threads exist (CON-01), but parsing and declaring
   work per file so they can run in parallel later.
 - **CMP-04 [Proposed]** Incremental builds skip a module whose inputs are unchanged: its sources,
-  the content hashes of the modules it reads, its options, and the files its generators read
-  (recorded in the depfile).
+  the content hashes of the modules it reads, its options, the files its generators read
+  (recorded in the depfile), and the whole-file hashes of the code that runs during its build: the
+  compiler, its generators and its analyzers. Their DEBUG reaches stack traces and so can reach
+  output, while contentHash leaves DEBUG out (BC-22, Q58).
 
 ## 5. Runtime structure
 

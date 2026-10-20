@@ -614,8 +614,8 @@ int v = switch (x) { default -> { yield 1; } };   // error: `yield` is reserved 
 
 ### 2.10 Arrays
 
-Reference arrays are covariant with run-time store checks that include nullability; value-type
-arrays are invariant.
+Arrays are invariant, nullability included, so a reference store needs no run-time check; generic
+methods take any array of a bound (§3.2 does the same for lists).
 
 ```csharp
 // file: demo/basics/ArrayDemo.rfl
@@ -625,6 +625,12 @@ import demo.shapes;
 import static reflect.io.Console;
 
 public final class ArrayDemo {
+    static double totalArea<T extends Shape>(T[] shapes) {  // any array of shapes, exact at run time
+        double sum = 0;
+        for (T s : shapes) { sum += s.area(); }
+        return sum;
+    }
+
     public static void main(String[] args) {
         int[] zeros = new int[4];                         // value-type elements start at zero
         int[] primes = { 2, 3, 5, 7 };                    // initializer in a declaration
@@ -636,16 +642,8 @@ public final class ArrayDemo {
         int[]?[] rows = new int[]?[2];                    // jagged: rows start as null, see type-system.md NUL-07
 
         Square[] squares = { new Square(1), new Square(2) };
-        Shape[] shapes = squares;                         // Square[] <: Shape[]
-        Object[] objects = words;
-        try {
-            objects[0] = 42;                              // throws: ArrayStoreException (boxed int into String[])
-        } catch (ArrayStoreException e) { println("store check"); }
-
-        String?[] loose = words;                          // String[] <: String?[]
-        try {
-            loose[0] = null;                              // throws: ArrayStoreException (element type is String)
-        } catch (ArrayStoreException e) { println("nullability is checked too"); }
+        println(totalArea(squares) == 5);                 // prints: true (T = Square; 1 + 4)
+        squares[0] = new Square(3);                       // no store check: the array is exactly Square[]
 
         println(primes.length);                           // prints: 4
         println(zeros[4]);                                // throws: IndexOutOfBoundsException
@@ -655,7 +653,9 @@ public final class ArrayDemo {
 
 ```csharp
 // rejected
-Object[] boxes = new int[3];               // error: value-type arrays are invariant
+Shape[] shapes = new Square[] { new Square(1) };   // error: arrays are invariant; use a generic method
+String?[] loose = new String[] { "a" };    // error: String[] is not String?[]
+Object[] boxes = new int[3];               // error: arrays are invariant
 long[] longs = new int[3];                 // error: no array conversion between element types
 ```
 
@@ -2498,14 +2498,12 @@ public final class Raised {
         String? none = null;
         int[] one = new int[1];
         Object boxed = 42;
-        Object[] objects = new String[1];
 
         expect("!", () -> none!.length);                     // NullPointerException
         expect("/", () -> 1 / one[0]);                       // ArithmeticException
         expect("checked", () -> checked(int.MAX_VALUE + one[0] + 1));   // ArithmeticException
         expect("index", () -> one[2]);                       // IndexOutOfBoundsException
         expect("cast", () -> (String) boxed);                // ClassCastException
-        expect("store", () -> { objects[0] = boxed; return null; });    // ArrayStoreException
         expect("create", () -> Kind.class.create(1));        // InstantiationError
         expect("abstract", () -> Polygon.summary());         // AbstractMemberError
         expect("init", () -> Broken.VALUE);                  // ExceptionInInitializerError
@@ -2737,7 +2735,10 @@ public final class Equality {
         String s1 = "ab";
         String s2 = new StringBuilder("a").append("b").toString();
         println(s1 == s2);                                   // prints: true (String overloads ==)
-        println(Object.referenceEquals(s1, s2));             // prints: false (identity, always)
+        println(Object.referenceEquals(s1, s2));             // prints: false (identity: strings are objects)
+        Object x = 42;
+        Object y = 42;
+        println(x == y);                                     // prints: true (boxes have no identity: class and value)
         println(new Pair(1, 2) == new Pair(1, 2));           // prints: true (records)
         println(new Vec2(1, 2) == new Vec2(1, 2));           // prints: true (declared on the struct)
         String? none = null;

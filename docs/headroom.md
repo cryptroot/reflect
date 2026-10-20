@@ -3,7 +3,7 @@
 Features and optimizations that early decisions could rule out by accident, each with a judgement
 and the cheap step that keeps it possible. Java added generics after its class files and
 libraries had shipped, so it erased them; Reflect has reified generics from the start. The same
-gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
+gap gave Java covariant arrays, which Reflect no longer copies (HR-11). Conventions:
 [architecture.md](architecture.md) §0.
 
 ## 0. Reading an entry
@@ -16,7 +16,8 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
 - *Decide by* is the first stage that builds on the choice. Formats change freely before v1.0;
   afterwards most changes break (BC-09, BC-10).
 - An entry never redefines another area's rule. Once an entry is accepted, the owning rule
-  changes and the entry records where it went.
+  changes and the entry records where it went (*Went to*); its *Today* then records the rules as
+  they were before the decision.
 - Q57 to Q62 are in Batch 6 of [v0.0.x/sketchpad.md](v0.0.x/sketchpad.md). The other entries
   wait for the stage that first needs them.
 
@@ -50,8 +51,11 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
 
 ## 2. Module format
 
-- **HR-01 [Proposed, Q57]** Unknown content: a later minor version can add sections and flags
+- **HR-01 [Decided, Q57]** Unknown content: a later minor version can add sections and flags
   without breaking older readers, and older readers can't misread them.
+  - *Went to:* BC-20 (reader actions, version acceptance, no source positions in critical
+    content), BC-02 (section numbers, DEBUG at `0x80000001`), BC-17 (no DEBUG index in a body),
+    BC-08 (`.section`), VM-21, IC-12; [v0.0.x/README.md](v0.0.x/README.md) §7.2 to §7.5.
   - *Today:* BC-02 defines seven sections, two flag bits and 16 reserved zero bytes; from v1.0 a
     minor version only adds (BC-10). No rule says what a reader does with a section or flag it
     doesn't know.
@@ -67,8 +71,11 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
     content's hash (HR-02), so a reader detects a stale copy and a side file finds its module.
   - Readers must reject unknown flags: if they ignored them, no later flag could carry a meaning
     that older readers must not miss.
-- **HR-02 [Proposed, Q58]** Identity that survives stripping: debug data can be removed or kept
+- **HR-02 [Decided, Q58]** Identity that survives stripping: debug data can be removed or kept
   apart, modules can be signed, and deltas and build caches stay valid.
+  - *Went to:* BC-22 (hash input, section-relative offsets, source hashes in DEBUG), BC-02
+    (`reserved` before `sectionCount`), CMP-04 (build code by whole-file hash), REFL-07;
+    [v0.0.x/README.md](v0.0.x/README.md) §7.3.
   - *Today:* contentHash is the "SHA-256 of all sections, in directory order" (BC-02). A delta
     names its base by it (REFL-07) and incremental builds key on it (CMP-04), so stripping DEBUG
     or moving a line changes the module's identity and the keys of every module that reads it.
@@ -78,8 +85,10 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
     length, bytes) in directory order. A stripped module keeps its identity, so deltas still
     apply; an edit that only moves lines keeps its dependents' caches; a signature section can
     sign the hash.
-- **HR-03 [Proposed, Q59]** Fixed-width rows: any row can be read without decoding the rows
+- **HR-03 [Decided, Q59]** Fixed-width rows: any row can be read without decoding the rows
   before it, and a later minor version can append columns.
+  - *Went to:* BC-10, BC-11 (widths, row sizes, appended columns), BC-02 (TABLES), VM-09,
+    VM-13; [v0.0.x/README.md](v0.0.x/README.md) §7.2 and §7.3.
   - *Today:* TABLES holds a row count per table, then the rows (BC-02); integers in variable
     positions use LEB128 (BC-10); tables are decoded on demand (VM-13).
   - *Precedent:* ECMA-335 tables have fixed-width rows (§II.24.2.6); ELF states its entry sizes
@@ -89,8 +98,10 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
     formatMinor, so the canonical form stays unique. In a module of an earlier minor, a reader
     treats the columns appended since as zero, for example a later variance column in
     GenericParam. LEB128 stays in blobs and code.
-- **HR-04 [Proposed, Q59]** Stated limits: generated code that is too large fails with a
+- **HR-04 [Decided, Q59]** Stated limits: generated code that is too large fails with a
   diagnostic, never with a truncated module.
+  - *Went to:* BC-21, which readers enforce too, with signature depth and identifier length
+    added; [v0.0.x/README.md](v0.0.x/README.md) §7.2 to §7.4.
   - *Today:* tokens hold 24-bit row numbers (BC-02); no rule states the other limits.
   - *Precedent:* the JVM limits a method to 64 KiB of code, a class to 65,535 constant-pool
     entries and a method to 255 parameter slots; generated code meets "code too large".
@@ -114,7 +125,7 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
     only with `--enable-preview` and only on the release that compiled them.
   - *Step:* flag bit 2 marks a module that uses an experimental feature. The VM loads it only
     with `--experimental` and only if the module's format version is the VM's own. Because
-    readers reject unknown flags (HR-01), the bit can come with v1.0.
+    readers reject unknown flags (HR-01, BC-20), the bit can come with v1.0.
 - **HR-07 [Proposed]** System calls by name: unsafe modules can run on other architectures.
   - *Today:* ex §11.4 declares `extern static ubyte* mmap(...)` without a number, which "becomes
     a wrapper over syscall 9" under the x86-64 convention (UNS-04); VM-22 has one wrapper per
@@ -147,8 +158,12 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
     the tier, against JIT-07 and TST-08. Without the freedom to run early, relaxed timing only
     moves checks: an instance method could run before its class is initialized, so its static
     accesses would need checks.
-- **HR-09 [Proposed, Q60]** Final fields stay final: once a final field is set, the JIT and AOT
+- **HR-09 [Decided, Q60]** Final fields stay final: once a final field is set, the JIT and AOT
   can treat its value as a constant.
+  - *Went to:* BC-23, which adds that the target is the constructor's own `this`, that a class
+    constructor runs only on a new object, that `ldflda` of a final gives `ref readonly`, and that
+    nothing stores a `const`; BC-07, VM-16, MEM-05, REFL-03, REFL-07, EXC-05, JIT-08, TXN-13;
+    [v0.0.x/README.md](v0.0.x/README.md) §7.7.
   - *Today:* loading checks `final` classes and methods (VM-13, v0.0.6 commit 7), but no rule
     says which code may store to a final field. Reflection reaches the private members of an
     opened namespace (REFL-03).
@@ -163,8 +178,12 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
     `opens` (v0.5), and hot reload never changes a final (REFL-07). Java's exception exists for
     deserialization, which Reflect doesn't build in. v1 has no `with` expressions and no `init`
     accessors (STM-05, MEM-12); either would need its own rule for writing finals.
-- **HR-10 [Proposed, Q61]** Boxes without identity: the VM can cache boxes, share equal ones and
+- **HR-10 [Decided, Q61]** Boxes without identity: the VM can cache boxes, share equal ones and
   remove them after escape analysis.
+  - *Went to:* DAT-09, which compares primitive fields by bit pattern rather than as `equals`
+    does, since `equals` treats NaNs with different bits as equal and sharing them would change
+    the bits a program reads; BC-04, OPR-04, MEM-07, DAT-01, DAT-02, VM-02, GC-05, REFL-03,
+    ex §8.5; [v0.0.x/README.md](v0.0.x/README.md) §7.7 and §7.8.
   - *Today:* a value type converted to `Object` or an interface is boxed (DAT-01), and a box is
     a header and the value (VM-02). `ceq.ref` and Object-typed `==` compare identity (BC-04,
     OPR-04), and ex §8.5 calls `referenceEquals` "identity, always". So a program can tell two
@@ -179,8 +198,14 @@ gap gave Java covariant arrays, which Reflect still copies (HR-11). Conventions:
     either a `mutating` method can't implement an interface member or calling one through a box
     is an error (decide by v0.4). The cost is a slow path when two references differ and their
     static types admit boxes. The comment "identity, always" in ex §8.5 changes.
-- **HR-11 [Proposed, Q62]** Invariant reference arrays: a reference store needs no type or
+- **HR-11 [Decided, Q62]** Invariant reference arrays: a reference store needs no type or
   nullability check.
+  - *Went to:* NUL-07, TYP-02, NUL-01, NUL-05, MEM-10 (an array passed to `Object?...` becomes
+    one element, with a warning), EXC-05, BC-04, BC-07, BC-14, ex §2.10 and §7.8;
+    [v0.0.x/README.md](v0.0.x/README.md) §7.8 and §7.9. Correction to the *Step*: a read-only
+    covariant view is a new type and changes no program, but making arrays covariant later would
+    change what existing array casts and type tests return (`o instanceof Shape[]` on a
+    `Square[]`), in compiled modules too.
   - *Today:* reference arrays are covariant, nullability included (NUL-07, ex §2.10), so a
     reference `stelem` checks the element type and nullability and throws
     `ArrayStoreException` (BC-14, NUL-05, EXC-05, ex §7.8). A span needs the exact element type
@@ -377,3 +402,6 @@ Decisions that close a door or carry a cost, kept on purpose.
 | no default parameters | MEM-11 | more overloads | HR-14, if they come |
 | no `invokedynamic` | FUN-06 | lowerings fixed at compile time | HR-13 |
 | stack traces at construction | EXC-06 | every exception walks the stack | - |
+| final means final | BC-23 (Q60) | no reflective writes to finals; frameworks build objects through constructors | - |
+| boxes without identity | DAT-09 (Q61) | a slow path in `ceq.ref`; no weak references to boxes | - |
+| invariant arrays | NUL-07 (Q62) | a `Square[]` is no `Shape[]`; an array passed to `Object?...` becomes one element | generic methods; a read-only covariant view (covariant arrays would change existing type tests) |

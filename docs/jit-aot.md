@@ -12,9 +12,9 @@ of time for the VM and applications and at run time by the VM's JIT. Conventions
 - **JIT-08 [Proposed]** Two code generators share the backend's assembler, frame layout and stack
   maps:
   - the **optimizing compiler**: register-form input converted to SSA, inlining (guided by
-    `@Inline` and `@ForceInline`, META-10), constant folding, null-check and bounds-check
-    elimination, linear-scan register allocation. AOT uses it from v0.6, since the VM itself must
-    be fast; after v1.0 it also serves as the JIT's second tier;
+    `@Inline` and `@ForceInline`, META-10), constant folding (final fields included, BC-23),
+    null-check and bounds-check elimination, linear-scan register allocation. AOT uses it from
+    v0.6, since the VM itself must be fast; after v1.0 it also serves as the JIT's second tier;
   - the **stencil compiler**: the baseline JIT's copy-and-patch generator (§4).
 
 ```mermaid
