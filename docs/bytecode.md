@@ -148,29 +148,38 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 5. Instruction set
 
-- **BC-04 [Proposed]** One-byte opcodes, with `0xFE` prefixing a second byte. Arithmetic is typed
-  like the JVM's, so the interpreter never inspects stack types; `byte`, `short` and `char` values
-  widen to `i32` on the stack and narrow with `conv` on store. Operands: `<tok>` is a ULEB128
-  token, `<n>` a ULEB128 index, `<imm>` an SLEB128 or fixed-width constant, `<off>` an SLEB128
-  branch offset from the next instruction. Suffix sets: `t` is one of `i32 i64 f32 f64`, `u` adds
-  `u32 u64`, `k` is a storage kind `i8 u8 i16 u16 i32 i64 f32 f64 ref`.
+- **BC-04 [Proposed; encoding Decided, Q67, Q68]** Opcodes are one byte; `0xFE` prefixes a
+  second byte. Arithmetic is typed like the JVM's, so the interpreter never inspects stack types;
+  `boolean`, `byte`, `short` and `char` values widen to `i32` on the stack and narrow with `conv`
+  on store, and unsigned values share the slots of their signed widths. An instruction exists
+  only where it changes the result: equality and stores ignore signedness (`ceq.i32` serves
+  `u32`, `stelem.i8` serves `u8`), and conversions exist only where bits change. Other pairs
+  compose: a `double` narrows to `byte` through `conv.f64.i32` then `conv.i32.i8`, which gives
+  Java's result, 44 for `(byte) 300.0` (NUM-03). Operands: `<tok>` is a ULEB128 token, `<n>` a
+  ULEB128 index, `<str>` a ULEB128 offset into LITERALS, `<i4>` and `<i8>` SLEB128 constants,
+  `<r4>` and `<r8>` IEEE 754 bit patterns of 4 and 8 bytes, `<off>` an SLEB128 branch offset from
+  the next instruction; `switch` takes a ULEB128 count, then that many `<off>`. Suffix sets: `t`
+  is one of `i32 i64 f32 f64`, `u` adds `u32 u64`, `k` is a storage kind,
+  `i8 u8 i16 u16 i32 i64 f32 f64 ref` for loads and `i8 i16 i32 i64 f32 f64 ref` for stores.
 
-  | Family (opcode range) | Instructions and stack effect |
-  |---|---|
-  | constants, stack (`00`-`0F`) | `nop`; `ldnull` → null; `ldc.i4 <imm>`, `ldc.i8`, `ldc.r4`, `ldc.r8` → value; `ldstr <n>` → `String`; `ldtype <tok>` → `Class<T>`; `ldconst <tok>` → constant of a `const` field; `dup`; `pop` |
-  | locals (`10`-`1F`) | `ldarg <n>`, `starg <n>`, `ldarga <n>`, `ldloc <n>`, `stloc <n>`, `ldloca <n>` |
-  | arithmetic (`20`-`4F`) | `add.t sub.t mul.t` (integers wrap); `div` and `rem` over `t` and `u` (integer division by zero throws); `neg.t`; `and or xor not` over `i32 i64`; `shl`, `shr` (arithmetic), `shr.un` (logical) over `i32 i64`, count masked; checked `add.ovf sub.ovf mul.ovf` over `i32 u32 i64 u64` and `neg.ovf` over `i32 i64` |
-  | comparison (`50`-`5F`) | `ceq clt cle cgt cge` over `t` and `u` → `i32` 0 or 1 (floats per IEEE); `ceq.ref` identity, or class and contents for two boxes without identity (DAT-09) |
-  | conversion (`60`-`7F`) | `conv.<from>.<to>` among `i8 u8 i16 u16 i32 u32 i64 u64 f32 f64` (wrapping, float to integer saturating); `conv.ovf.<from>.<to>` throws instead |
-  | control (`80`-`8F`) | `br <off>`; `brtrue`, `brfalse`, `brnull`, `brnonnull` `<off>`; fused `beq bne blt ble bgt bge` over `t` and `u` `<off>`; `switch <count> <off>...`; `leave <off>`; `endfinally`; `ret` |
-  | objects (`90`-`9F`) | `newobj <tok>` (args → object); `newobj.svirt <tok>` (class, args → object, virtual constructor of the class); `ldfld <tok>`; `stfld <tok>`; `ldflda <tok>`; `ldsfld`, `stsfld`, `ldsflda <tok>`; `getclass` (object → `Class<?>`); `instanceof <tok>` (false for null); `castclass <tok>`; `checkalive` (object → object, DAT-08) |
-  | value types (`A0`-`A7`) | `box <tok>`; `unbox <tok>` (pushes a copy, never a reference into the box, DAT-09); `ldobj`, `stobj`, `cpobj`, `initobj <tok>`; `sizeof <tok>` → `i32` |
-  | arrays (`A8`-`AF`) | `newarr <tok>` (length → array); `ldlen`; `ldelem.k` or `ldelem <tok>` for structs; `stelem.k`, `stelem <tok>`; `ldelema <tok>` |
-  | calls (`B0`-`BF`) | `call <tok>`; `call.recv <tok>`; `callvirt <tok>`; `call.svirt <tok>`; `call.constrained <tok> <tok>`; `ldrecv` → `Class<?>` |
-  | exceptions (`C0`-`C7`) | `throw`; `rethrow` |
-  | references (`C8`-`CF`) | `ldind.k`, `stind.k`, `ldind <tok>`, `stind <tok>` through `ref` values and pointers |
-  | unsafe only (`D0`-`DF`) | `localloc` (size → pointer); `ptradd <tok>`, `ptrdiff <tok>` (scaled by the element size); `conv.ptr.i64`, `conv.i64.ptr`; `syscall <n> <argc>` (UNS-04) |
-  | reserved | `FF` `breakpoint` for debuggers |
+  | Family | Opcodes | Instructions and stack effect |
+  |---|---|---|
+  | constants, stack | `00`-`0F` | `nop`; `ldnull` → null; `ldc.i4 <i4>`, `ldc.i8 <i8>`, `ldc.r4 <r4>`, `ldc.r8 <r8>` → value; `ldstr <str>` → `String`; `ldtype <tok>` → `Class<T>`; `ldconst <tok>` → constant of a `const` field; `dup`; `pop` |
+  | locals | `10`-`17` | `ldarg <n>`, `starg <n>`, `ldarga <n>`, `ldloc <n>`, `stloc <n>`, `ldloca <n>` |
+  | arithmetic | `18`-`47` | `add.t sub.t mul.t` (integers wrap); `div` and `rem` over `t` and `u` (integer division by zero throws); `neg.t`; `and or xor not` over `i32 i64`; `shl`, `shr` (arithmetic), `shr.un` (logical) over `i32 i64`, count masked |
+  | comparison | `48`-`67` | `ceq.t`; `clt cle cgt cge` over `t` and `u` → `i32` 0 or 1 (floats per IEEE); `ceq.ref` identity, or class and contents for two boxes without identity (DAT-09) |
+  | conversion | `68`-`87` | `conv.<from>.<to>` from `i32 u32 i64 u64 f32 f64` where bits change (wrapping, float to integer saturating) |
+  | control | `88`-`B7` | `br <off>`; `brtrue`, `brfalse`, `brnull`, `brnonnull` `<off>`; fused `beq.t bne.t`, and `blt ble bgt bge` over `t` and `u`, `<off>`; `switch <count> <off>...`; `leave <off>`; `endfinally`; `ret` |
+  | objects | `B8`-`C7` | `newobj <tok>` (args → object); `newobj.svirt <tok>` (class, args → object, virtual constructor of the class); `ldfld <tok>`; `stfld <tok>`; `ldflda <tok>`; `ldsfld`, `stsfld`, `ldsflda <tok>`; `getclass` (object → `Class<?>`); `instanceof <tok>` (false for null); `castclass <tok>`; `checkalive` (object → object, DAT-08) |
+  | value types | `C8`-`CF` | `box <tok>`; `unbox <tok>` (pushes a copy, never a reference into the box, DAT-09); `ldobj`, `stobj`, `cpobj`, `initobj <tok>`; `sizeof <tok>` → `i32` |
+  | arrays | `D0`-`E7` | `newarr <tok>` (length → array); `ldlen`; `ldelem.k`, or `ldelem <tok>` for structs and type parameters; `stelem.k`, `stelem <tok>`; `ldelema <tok>` |
+  | calls | `E8`-`EF` | `call <tok>`; `call.recv <tok>`; `callvirt <tok>`; `call.svirt <tok>`; `call.constrained <tok> <tok>`; `ldrecv` → `Class<?>` |
+  | exceptions | `F0`-`F3` | `throw`; `rethrow` |
+  | checked arithmetic | `FE 00`-`FE 1F` | `add.ovf sub.ovf mul.ovf` over `i32 i64 u32 u64`; `div.ovf` and `neg.ovf` over `i32 i64`; overflow throws `ArithmeticException` (NUM-03) |
+  | checked conversion | `FE 20`-`FE 3F` | `conv.ovf.<from>.<to>` where a value can fail to fit; throws `ArithmeticException` instead of wrapping or saturating |
+  | references | `FE 40`-`FE 5F` | `ldind.k`, `stind.k`, `ldind <tok>`, `stind <tok>` through `ref` values and pointers |
+  | unsafe only | `FE 60`-`FE 6F` | `localloc` (size → pointer); `ptradd <tok>`, `ptrdiff <tok>` (scaled by the element size); `conv.ptr.i64`, `conv.i64.ptr`; `syscall <n> <n>`, the call number and the argument count (UNS-04) |
+  | reserved | `FF` | `breakpoint` for debuggers |
 
 - **BC-14 [Proposed]** Checks performed by instructions: every dereference checks null
   (`NullPointerException`); `stfld`, `stsfld`, `stelem`, `stobj` and `stind` of references run

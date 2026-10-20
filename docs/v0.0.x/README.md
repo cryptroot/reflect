@@ -325,8 +325,8 @@ numbers.
 
 **Design.**
 
-- bytecode.md gets exact tables: opcode numbers for the whole instruction set, inside the ranges
-  of BC-04; signature codes (BC-03); table numbers and fixed column widths (BC-11) for the tables
+- bytecode.md gets exact tables: opcode numbers for the whole instruction set, inside the family
+  ranges of BC-04 (Q67); signature codes (BC-03); table numbers and fixed column widths (BC-11) for the tables
   that v0.0.x uses; section contents, the ancillary bit and the content hash (BC-02, BC-20,
   BC-22); method bodies (BC-17); exception regions (BC-18); stack maps (BC-19); the DEBUG
   section, keyed by method token; and the `.rfla` grammar in EBNF (BC-08).
@@ -657,7 +657,8 @@ generic code reads its exact type arguments.
   parameters; `(T) o` checks for null when `T` is instantiated with a non-null type (NUL-05).
 - A type test with wildcards checks each type argument (GEN-04).
 - `call.constrained` calls a member of a type parameter's bound without boxing (BC-16), for
-  example `compareTo` when `T` is `int`.
+  example `compareTo` when `T` is `int`. It takes a reference to the value, made by `ldarga` or
+  `ldloca` (Q68).
 - An integration test closes the stage. It has two modules: a library with a generic list and
   its iterator, and an application with a sealed hierarchy, virtual dispatch, string building
   and exceptions.
@@ -672,7 +673,7 @@ generic code reads its exact type arguments.
 5. `R` as the type context of static code.
 6. Type tests, casts and arrays over type parameters, with the null rules.
 7. Type tests with wildcards.
-8. `call.constrained`.
+8. `ldarga`, `ldloca` and `call.constrained`.
 9. The integration test.
 
 **Exit check.** The programs in `run/generics/` and the integration test pass, and the exit test

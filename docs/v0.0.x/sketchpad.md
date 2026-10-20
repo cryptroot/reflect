@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q66 asked and answered 2026-10-20 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q68 asked and answered 2026-10-20 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux, PowerShell 7 and native Windows checks pass (D.3); tag pending |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
@@ -59,7 +59,7 @@ These follow from the plan. Each is made in the stage named, or when its questio
 3. ex §11.1 still passes the receiver class as a hidden `$receiver` argument after `ldtype`.
    BC-05 replaced this with the implicit `R` of `call`, and with `call.recv` and `ldrecv`.
 4. BC-04 calls the operand of `ldstr` an index (`<n>`); BC-02 says heaps are referenced by byte
-   offset.
+   offset. Fixed 2026-10-20 with Q67: `ldstr <str>` takes an offset into LITERALS.
 5. The `Module` table of BC-11 has no column for the descriptor's `main` class, which VM-12
    reads. v0.0.1 adds the column and the `.main` directive.
 6. BOOT-11 speaks of "a Java port of the writer". Under Q47 there is one writer.
@@ -282,6 +282,32 @@ breaks a subclass in another module that overrides with a wider one); VM-13; ex 
 rejected); README v0.0.6 commits 3 and 7. FR-core follows FGJ: `OverrideOk` asks for a subtype,
 and `formal/Reflect/Core/Examples.lean` checks that a narrowing override is accepted and a
 widening one rejected; with the exact-type rule put back, that file fails to build.
+
+### B.4 Batch 8: the opcode space (asked and answered 2026-10-20)
+
+Found while the exact opcode table of v0.0.1 was written.
+
+**Q67 (BC-04; README §7.2). The family ranges are too small.** README §7.2 puts every opcode
+inside the ranges of BC-04. Counted with one opcode per typed variant, and with the refinements
+of Q68, the instructions need 58 arithmetic opcodes (range of 48), 29 comparison (16), 45
+conversion (32), 41 control (16), 21 array (8) and 18 reference opcodes (8). R0 alone needs 21
+comparison and 33 control opcodes. Ranges mirrored behind `0xFE` still leave control, arrays and
+references short. *Recommendation:* re-size the one-byte ranges, so that every unchecked
+instruction outside references and unsafe code has one byte (202 opcodes), and put checked
+arithmetic, checked conversions, `ldind`, `stind` and the unsafe instructions behind `0xFE`.
+Alternatives: keep the ranges and move the rest of each family behind `0xFE`, which makes R0
+instructions such as float comparisons two bytes long; or drop the fused branches other than
+`i32`, as the JVM does. **Answer:** 2026-10-20: Accepted as recommended. BC-04 gives the new
+ranges, and `ldstr` takes a `<str>` offset into LITERALS (A.2 item 4).
+
+**Q68 (BC-04, NUM-03, BC-16). Refinements of the instruction set.** *Recommendation:* (1) no
+instruction where signedness does not change the result: `ceq`, `beq` and `bne` exist over `t`
+only, and stores over `i8 i16 i32 i64 f32 f64 ref`; (2) conversions only where bits change, 25
+unchecked and 20 checked, and other pairs compose, which gives Java's result for a float
+narrowed to `byte` (NUM-03); (3) `div.ovf.i32` and `div.ovf.i64`, since NUM-03 makes
+`MIN_VALUE / -1` throw in checked code and BC-04 had no checked division; (4) `ldarga` and
+`ldloca` in R0, since `call.constrained` takes a reference to the value (BC-16). **Answer:**
+2026-10-20: All four accepted. BC-04 and README §7.10 apply them.
 
 <!-- questions:end -->
 
