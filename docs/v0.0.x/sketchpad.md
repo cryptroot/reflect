@@ -14,7 +14,7 @@ log is [../sketchpad.md](../sketchpad.md).
 | Stage | Content | Status |
 |---|---|---|
 | plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 |
-| v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux and PowerShell 7 checks pass; native Windows check and tag pending (D.3) |
+| v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux, PowerShell 7 and native Windows checks pass (D.3); tag pending |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
 | v0.0.3 | assembler; suite runner for rejected files | not started |
@@ -298,6 +298,17 @@ before v0.0.0:
 - PowerShell 7.4.7 on Linux ran `all` against Docker from a separate fresh clone with spaces in
   its path. The official Dev Container CLI 0.89.0 validated the configuration and built the
   editor image; `all` also passed as its non-root `reflect` user.
-- Native Windows / Windows PowerShell 5.1 was unavailable in this environment. Its fresh-clone
-  `docker/dev.ps1 all` check, image reuse and bind-mount timing remain to be run there.
-  No `v0.0.0` tag was created: the two-host exit gate still applies.
+- Native Windows PowerShell 5.1 (5.1.26100.9444) ran `docker/dev.ps1 all` against Docker Desktop
+  4.81.0 (engine 29.6.1) from a fresh clone in a path with spaces. The TLS-intercepting proxy on
+  this host presents a self-issued chain (`Self-Managed Root Certificate Authority - G2`), not
+  the root; `REFLECT_EXTRA_CA` needed that host-specific PEM, exported from
+  `Cert:\LocalMachine\Root`, to let the Lean download verify. With that CA, the first `all` run
+  built the image and passed in 181.0 s and produced the same tag, `reflect-build:a5bb09736f0c`,
+  as the Linux build (same Dockerfile hash). A second `all` run reused the image and passed in
+  8.4 s; the cached `lean` job alone took 5.8 s. `docker/dev.ps1` rejected an invalid job and a
+  case-mismatched job (`Lean`) with exit code 2 in both cases, matching the Linux wrapper.
+  `docker image inspect` on this host reports the image at 1,058,456,937 bytes, versus
+  4,777,768,003 bytes recorded for the Linux host, for the same tag and Dockerfile hash. This
+  size difference is unexplained; it has not been traced to a specific cause (for example, a
+  reporting difference between image stores versus an actual content difference) and should not
+  be treated as settled.
