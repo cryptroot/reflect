@@ -1,6 +1,6 @@
 package reflect.stage0.bytecode;
 
-/** The flags and kinds of table columns, as bytecode.md §3.1 lists them. */
+/** The flags and kinds of table columns and exception regions, as bytecode.md §3.1 and BC-18 list them. */
 public final class Flags {
     public static final int PUBLIC = 0x01;
     public static final int PROTECTED = 0x02;
@@ -50,6 +50,9 @@ public final class Flags {
     public static final int GENERIC_NONE = 0x00;
     public static final int GENERIC_CLASS = 0x01;
     public static final int GENERIC_STRUCT = 0x02;
+
+    public static final int REGION_CATCH = 0x00;
+    public static final int REGION_FINALLY = 0x01;
 
     private Flags() {
     }

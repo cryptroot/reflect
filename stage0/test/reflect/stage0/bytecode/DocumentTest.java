@@ -150,7 +150,7 @@ public final class DocumentTest {
     }
 
     @Test
-    public static void columnFlagsAndKinds() throws IOException {
+    public static void flagsAndKinds() throws IOException {
         Map<String, String> prefixes = Map.of("visibility", "", "`TypeDef` kind", "KIND_",
                 "`TypeDef` flags", "TYPE_", "`Field` flags", "FIELD_", "`Method` flags", "METHOD_",
                 "`Param` flags", "PARAM_", "`ModuleRef` flags", "REQUIRES_", "`Export` kind", "",
@@ -172,7 +172,19 @@ public final class DocumentTest {
                 row.check((value & visibility) == 0, "the flag overlaps a visibility flag");
             }
         }
+        checkCodes("| Region kind | Name | Meaning |", Flags.class, "REGION_", listed);
         checkAllListed(Flags.class, listed);
+    }
+
+    @Test
+    public static void verificationTypes() throws IOException {
+        var listed = new HashSet<String>();
+        var values = new HashSet<Integer>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Verification type | Name | Operand |")) {
+            int tag = checkCode(row, row.code(0), VerificationType.class, row.code(1), listed, values);
+            row.expect("token after " + row.code(1), row.cell(2).startsWith("`<tok>`"), VerificationType.hasToken(tag));
+        }
+        checkAllListed(VerificationType.class, listed);
     }
 
     @Test

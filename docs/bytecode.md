@@ -678,14 +678,91 @@ marks the instructions that R0 code needs (BOOT-02), which VM0 implements.
 - **BC-17 [Proposed]** A body in the CODE section holds: maximum stack depth, the local variable
   signature (a blob), the instruction bytes, exception regions and stack maps. Its line table and
   local names are in DEBUG, keyed by the method's token, so a body never refers to DEBUG (BC-20).
-- **BC-18 [Proposed]** An exception region is `(tryStart, tryEnd, handlerStart, handlerEnd, kind,
+  The bodies follow one another in the order of their `Method` rows, without padding, and
+  `Method.code` gives the offset of each:
+
+  | Body field | Encoding | Content |
+  |---|---|---|
+  | `maxStack` | ULEB128 | maximum stack depth |
+  | `locals` | ULEB128 | BLOBS offset of a `LOCALS` signature, or 0 for a method without locals |
+  | `codeSize` | ULEB128 | number of instruction bytes |
+  | `code` | `codeSize` bytes | the instructions (§5.1); every branch offset lands on the first byte of an instruction |
+  | `regionCount` | ULEB128 | number of exception regions |
+  | `regions` | | the regions (BC-18) |
+  | `frameCount` | ULEB128 | number of stack map frames |
+  | `frames` | | the frames (BC-19) |
+
+- **BC-18 [Proposed]** An exception region is `(kind, tryStart, tryEnd, handlerStart, handlerEnd,
   type)` with kind `catch` or `finally`; multi-catch writes one region per type; the type token
-  may be `VAR` or `MVAR`, resolved through the frame's type context (ex §11.2). Regions nest
-  properly and are ordered innermost first.
-- **BC-19 [Proposed]** Stack maps record the verification type of every local and stack slot at
-  each branch target and handler start (the JVM's `StackMapTable`). Verification types: `i32`,
-  `i64`, `f32`, `f64`, `null`, reference to `T`, uninitialized object of class `C` (before its
-  constructor runs), `ref T` and `ref readonly T` (DAT-02), pointer, struct `S`, `Class<T>`.
+  may name a `TypeSpec` of `VAR` or `MVAR`, resolved through the frame's type context (ex §11.2).
+  Regions nest properly and are ordered innermost first: by `tryEnd` ascending, then `tryStart`
+  descending, then `handlerStart` ascending. An exception goes to the first region whose `try`
+  holds the offset and whose type matches.
+
+  | Region field | Encoding | Content |
+  |---|---|---|
+  | `kind` | u8 | region kind |
+  | `tryStart` | ULEB128 | code offset of the first instruction of the `try` |
+  | `tryEnd` | ULEB128 | code offset after its last instruction |
+  | `handlerStart` | ULEB128 | code offset of the first instruction of the handler |
+  | `handlerEnd` | ULEB128 | code offset after its last instruction |
+  | `type` | ULEB128 | for `CATCH`, token of a `TypeDef`, `TypeRef` or `TypeSpec` row; for `FINALLY`, 0 |
+
+  | Region kind | Name | Meaning |
+  |---|---|---|
+  | `00` | `CATCH` | `catch` of `type` and its subtypes |
+  | `01` | `FINALLY` | `finally`, which runs on every exit (EXC-07) |
+
+- **BC-19 [Proposed]** Stack maps record the verification type of every argument, local and
+  stack slot at each branch target and handler start (the JVM's `StackMapTable`). Verification
+  types: `i32`, `i64`, `f32`, `f64`, `null`, reference to `T`, uninitialized object of class `C`
+  (before its constructor runs), `ref T` and `ref readonly T` (DAT-02), pointer, struct `S`,
+  `Class<T>`. A body has at most one frame per offset, in offset order:
+
+  | Frame field | Encoding | Content |
+  |---|---|---|
+  | `offset` | ULEB128 | code offset of a branch target or handler start |
+  | `slotCount` | ULEB128 | number of argument and local slots |
+  | `slots` | | verification types of the arguments, then of the locals |
+  | `stackCount` | ULEB128 | stack depth |
+  | `stack` | | verification types from the bottom of the stack |
+
+  A verification type is a tag byte. A tag that names a type is followed by a ULEB128 token of a
+  `TypeDef`, `TypeRef` or `TypeSpec` row:
+
+  | Verification type | Name | Operand |
+  |---|---|---|
+  | `01` | `I32` | |
+  | `02` | `I64` | |
+  | `03` | `F32` | |
+  | `04` | `F64` | |
+  | `05` | `NULL` | |
+  | `06` | `REF` | `<tok>`, the type |
+  | `07` | `UNINIT` | `<tok>`, the class whose constructor has not run |
+  | `08` | `BYREF` | `<tok>`, `T` of `ref T` |
+  | `09` | `BYREF_READONLY` | `<tok>`, `T` of `ref readonly T` |
+  | `0A` | `PTR` | |
+  | `0B` | `STRUCT` | `<tok>`, the struct |
+  | `0C` | `CLASS` | `<tok>`, `T` of `Class<T>` |
+
+### 6.1 DEBUG layout
+
+DEBUG (BC-02) holds no offset into another section, so a tool can strip it or keep it apart
+(BC-22):
+
+| DEBUG field | Encoding | Content |
+|---|---|---|
+| `contentHash` | 32 bytes | the module's contentHash; a DEBUG whose hash differs is stale (BC-20) |
+| `fileCount` | ULEB128 | number of source files |
+| `files` | | per file: its path relative to the module root, with `/` separators, as a ULEB128 length and UTF-8 bytes; then the SHA-256 of the file, 32 bytes |
+| `methodCount` | ULEB128 | number of methods |
+| `methods` | | per method, by increasing token: the token of its `Method` row (ULEB128), its lines and its locals |
+
+- Lines: a ULEB128 count, then per entry a code offset, the index of a file in `files` and a
+  line number counted from 1, each ULEB128, by increasing offset. An entry holds from its offset
+  to the offset of the next entry.
+- Locals: a ULEB128 count, then per local its index (ULEB128) and its name, as a ULEB128 length
+  and UTF-8 bytes, by increasing index.
 
 ## 7. Verification
 
