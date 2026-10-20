@@ -449,10 +449,11 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   throws `TypeLoadError` (ex §7.8).
 - **GEN-11 [Decided]** Exception classes may be generic and `catch` tests their type arguments
   (ex §7.3).
-- **GEN-12 [Proposed]** One canonical spelling of run-time type names serves reflection, errors
-  and `.rfla`: qualified names, arguments in angle brackets, `?` for nullability, intersections in
-  parentheses, primitives by struct name (ex §3.3 prints
-  `reflect.collections.List<reflect.core.Int32>`).
+- **GEN-12 [Proposed; nested types Decided, Q70]** One canonical spelling of run-time type names
+  serves reflection, errors and `.rfla`: qualified names, arguments in angle brackets, `?` for
+  nullability, intersections in parentheses, primitives by struct name (ex §3.3 prints
+  `reflect.collections.List<reflect.core.Int32>`). The last dotted segment names the top-level
+  type, and `/` starts each nested type, as in CIL: `demo.zoo.Enclosure/Tag`.
 
 ## 9. Properties, indexers, events (MEM, continued)
 

@@ -415,7 +415,7 @@ package-private (MOD-08).
       ldstr       "Kind: "
       ldrecv
       call.svirt  demo.kinds.Kind::get_value()
-      call        reflect.core.String::concat(reflect.core.String, reflect.core.String)
+      call        static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
       ret
   }
 

@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q68 asked and answered 2026-10-20 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux, PowerShell 7 and native Windows checks pass (D.3); tag pending |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
@@ -48,7 +48,7 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [bootstrapping.md](../bootstrapping.md) BOOT-11, BOOT-12 | one writer, written in stage0, instead of a Java port of a Reflect writer; the transliterator also prints `reflect.bytecode` | Q47 |
 | [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes | v0.0.1, v0.0.3 |
 | [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | v0.0.3 |
-| [examples.md](../examples.md) §11.1 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3) | with [../sketchpad.md](../sketchpad.md) A.6 |
+| [examples.md](../examples.md) §11.1, §11.2 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3); the `.try` blocks become regions in label form, and calls into other modules state their signatures (A.2 item 9) | with [../sketchpad.md](../sketchpad.md) A.6 |
 | [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | done 2026-10-20 (Q57 to Q62) |
 
 ### A.2 Inconsistencies found while planning
@@ -67,6 +67,9 @@ These follow from the plan. Each is made in the stage named, or when its questio
 8. Two rule IDs have two definitions. LIB-03 is stated in architecture.md §6 and restated in
    stdlib.md §1. OPR-08 is split: type-system.md §10 gives its timing, and grammar.md §5 its
    token rule (Q56).
+9. ex §11.1 and §11.2 call members of other modules in the short form, such as
+   `call reflect.io.Console::println(reflect.core.Object?)` (Q69), and ex §11.2 writes
+   exception regions as blocks (Q71). Found 2026-10-20 in v0.0.1.
 
 ## B. Questions and answers
 
@@ -308,6 +311,37 @@ narrowed to `byte` (NUM-03); (3) `div.ovf.i32` and `div.ovf.i64`, since NUM-03 m
 `MIN_VALUE / -1` throw in checked code and BC-04 had no checked division; (4) `ldarga` and
 `ldloca` in R0, since `call.constrained` takes a reference to the value (BC-16). **Answer:**
 2026-10-20: All four accepted. BC-04 and README §7.10 apply them.
+
+### B.5 Batch 9: the `.rfla` syntax (asked and answered 2026-10-20)
+
+Found while the `.rfla` grammar of v0.0.1 was written.
+
+**Q69 (BC-08, BC-03; README §6.3). What `.rfla` states about another module.** A `MemberRef`
+row holds the member's full signature, with the `STATIC` flag and the return type, and a
+signature says whether a named type is a value type (`CLASS` or `VALUETYPE`). README §6.3 wrote
+`call reflect.io.Console::println(reflect.core.Object?)`, which states neither, and `rfla` cannot
+tell an enum of another module from a class. *Recommendation:* the text states them, as CIL and
+the JVM assemblers do: `call static void reflect.io.Console::println(reflect.core.Object?)`, a
+field reference with its type, and `valuetype` before a value type. `rfla` accepts the short form
+for members and types of the module it assembles, `rfld` always prints the full form, and `rfla`
+reads no other module. Alternative: the short form everywhere, with `rfla` reading the referenced
+modules from a module path. **Answer:** 2026-10-20: Accepted as recommended. README §6.3 and the
+example of BC-05 use the full form (A.2 item 9).
+
+**Q70 (GEN-12, MOD-05). Nested type names.** GEN-12 spells run-time types by qualified name, but
+in `demo.zoo.Enclosure.Tag` nothing marks where the namespace ends, since MOD-05 only warns about
+a type name that starts with a lowercase letter. *Recommendation:* the last dotted segment names
+the top-level type, and `/` starts each nested type, as in CIL: `demo.zoo.Enclosure/Tag`. GEN-12
+adopts the spelling, so one spelling still serves reflection, errors and `.rfla`. Alternative:
+`/` in `.rfla` only. **Answer:** 2026-10-20: Accepted as recommended.
+
+**Q71 (BC-08, BC-18; ex §11.2). Exception regions in `.rfla`.** ex §11.2 writes
+`.try { ... } .catch !!1 { ... }`. Blocks force each handler to follow its `try`, so a module
+with its handlers elsewhere has no block form and could not round-trip. *Recommendation:* the
+label form only, one line per region: `.try L0 L1 .catch reflect.core.Exception L2 L3` and
+`.try L0 L1 .finally L2 L3`; ex §11.2 changes with A.6 of [../sketchpad.md](../sketchpad.md).
+Alternative: the label form and the block form. **Answer:** 2026-10-20: Accepted as recommended
+(A.2 item 9).
 
 <!-- questions:end -->
 

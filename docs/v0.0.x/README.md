@@ -248,7 +248,7 @@ Inside the container (job `shell`):
 .class public final hello.App {
     .method public static void main(reflect.core.String[] args) {
         ldstr    "Hello, world!"
-        call     reflect.io.Console::println(reflect.core.Object?)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
         ret
     }
 }
@@ -425,6 +425,9 @@ identical bytes, and every defect is rejected with a message that names its offs
   (`RFA0001` and up), a line and a column (§6.3). Content over a limit of BC-21 is a diagnostic.
 - Names resolve to definitions in the module, or to `TypeRef` and `MemberRef` rows that are
   created at first use. Labels become offsets in the writer.
+- A reference to a member or a value type of another module states its signature: `static`, the
+  return type or field type, and `valuetype` (Q69). `rfla` reads no other module; the short form
+  serves only the members and types of the module it assembles.
 - `.maxstack` is used when present. Otherwise the assembler computes the depth from the stack
   effect of each instruction, call signatures included.
 - `.stackmap` directives are stored as written (Q50).
