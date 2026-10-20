@@ -28,6 +28,7 @@ public final class DocumentTest {
     private static final Pattern OPCODE_RANGE = Pattern.compile(
             "`([0-9A-F]{2}(?: [0-9A-F]{2})?)`(?:-`([0-9A-F]{2}(?: [0-9A-F]{2})?)`)?");
     private static final Pattern TABLE_NAME = Pattern.compile("`([A-Za-z]+)`");
+    private static final Pattern LEADING_NUMBER = Pattern.compile("[0-9][0-9,]*");
 
     @Test
     public static void opcodeTable() throws IOException {
@@ -185,6 +186,37 @@ public final class DocumentTest {
             row.expect("token after " + row.code(1), row.cell(2).startsWith("`<tok>`"), VerificationType.hasToken(tag));
         }
         checkAllListed(VerificationType.class, listed);
+    }
+
+    @Test
+    public static void limits() throws IOException, IllegalAccessException {
+        Map<String, String> constants = Map.of("rows per table", "MAX_ROWS",
+                "size of a section, a heap or the file", "MAX_SIZE", "code of one method", "MAX_CODE_SIZE",
+                "locals of one method", "MAX_LOCALS", "stack depth of one method", "MAX_STACK",
+                "parameters of one method", "MAX_PARAMS", "exception regions of one method", "MAX_REGIONS",
+                "nesting depth of a signature", "MAX_SIGNATURE_DEPTH",
+                "length of an identifier", "MAX_IDENTIFIER_BYTES");
+        var listed = new HashSet<String>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Item | Limit |")) {
+            String name = constants.get(row.cell(0));
+            row.check(name != null, "unknown limit: " + row.cell(0));
+            Matcher number = LEADING_NUMBER.matcher(row.cell(1));
+            row.check(number.lookingAt(), "the limit does not start with a number: " + row.cell(1));
+            long limit = Long.parseLong(number.group().replace(",", ""));
+            Field field;
+            try {
+                field = Limits.class.getField(name);
+            } catch (NoSuchFieldException e) {
+                throw new AssertionError("Limits has no constant " + name, e);
+            }
+            row.expect("Limits." + name, limit, field.getLong(null));
+            row.check(listed.add(name), "lists " + name + " twice");
+        }
+        for (Field field : Limits.class.getDeclaredFields()) {
+            if (Modifier.isPublic(field.getModifiers()) && !listed.contains(field.getName())) {
+                throw new AssertionError("Limits." + field.getName() + " is missing from " + BYTECODE);
+            }
+        }
     }
 
     @Test

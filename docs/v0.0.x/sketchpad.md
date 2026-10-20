@@ -61,7 +61,7 @@ These follow from the plan. Each is made in the stage named, or when its questio
 4. BC-04 calls the operand of `ldstr` an index (`<n>`); BC-02 says heaps are referenced by byte
    offset. Fixed 2026-10-20 with Q67: `ldstr <str>` takes an offset into LITERALS.
 5. The `Module` table of BC-11 has no column for the descriptor's `main` class, which VM-12
-   reads. v0.0.1 adds the column and the `.main` directive.
+   reads. v0.0.1 adds the column and the `.main` directive. Fixed 2026-10-20 in v0.0.1.
 6. BOOT-11 speaks of "a Java port of the writer". Under Q47 there is one writer.
 7. TST-09 puts verifier rejections in hand-written `.rfla` files, but names no directory.
 8. Two rule IDs have two definitions. LIB-03 is stated in architecture.md §6 and restated in

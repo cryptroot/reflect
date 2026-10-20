@@ -86,6 +86,32 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   source file in DEBUG tells a debugger which source a DEBUG matches. A signature over contentHash
   does not cover DEBUG.
 
+- **BC-24 [Proposed]** Canonical form. Each valid module has exactly one encoding, so the round
+  trip of BC-08 is exact by construction. A module that breaks one of these rules is invalid, and
+  a reader rejects it:
+  1. LEB128 values are minimal and fit their field: no value has a redundant last byte, `<i8>`
+     fits 64 bits, and `<i4>` and every ULEB128 value fit 32 bits.
+  2. Padding, `reserved` and every flag that the format does not define are zero.
+  3. A section is present only when it has content, and the directory lists the sections by ID
+     with no ID twice (BC-02). IDENTS, LITERALS, BLOBS and TABLES are always present, and CODE
+     when a method has a body.
+  4. TABLES lists the present tables only, and each row has the size that its table and the
+     formatMinor give. `Module` has exactly one row.
+  5. A table with a key is sorted by it, and no two of its rows have equal keys; the other tables
+     keep the runs of §3.1, and their first-row columns follow from those runs.
+  6. Heap entries are unique, and every entry except the empty one at offset 0 is referenced from
+     a critical section. The entries come in the order of their first reference, met by visiting
+     the tables in ID order, their rows in order and their columns in order, a `Constant` value
+     before the LITERALS entry it holds, then the bodies in CODE in order, each with its `locals`
+     before the operands of its instructions.
+  7. Bodies follow BC-17, `Method.code` is 0 for a method without a body, and regions and frames
+     follow the orders of BC-18 and BC-19.
+  8. Signatures follow BC-03: a primitive is its code, and `GENERIC` is set exactly when a method
+     has type parameters.
+  9. DEBUG lists methods by token, line entries by offset and locals by index, and each file once,
+     in the order of first use.
+  10. contentHash holds the value of BC-22, and no value exceeds a limit of BC-21.
+
 ## 3. Metadata tables
 
 - **BC-11 [Proposed]** Tables, their IDs and their main columns, sorted by the key in
@@ -93,7 +119,7 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
   | ID | Table | Columns |
   |---|---|---|
-  | `01` | `Module` | name, version (BLD-01), flags |
+  | `01` | `Module` | name, version (BLD-01), flags, `main` class (VM-12) |
   | `02` | `ModuleRef` (name) | name, flags `transitive`, `static` |
   | `03` | `Export` (namespace, kind, target) | namespace, kind `exports`/`opens`, target module name; one row per target |
   | `04` | `Service` (service) | kind `provides`/`uses`, service type, provider types |
@@ -155,6 +181,7 @@ u32, in the order given:
 | `Module` | `minor` | version minor |
 | `Module` | `patch` | version patch |
 | `Module` | `flags` | no flag is defined yet |
+| `Module` | `main` | `TypeDef` row of the descriptor's `main` class (VM-12), or 0 |
 | `ModuleRef` | `name` | IDENTS offset of a required module |
 | `ModuleRef` | `flags` | `ModuleRef` flags |
 | `Export` | `namespace` | IDENTS offset |
@@ -804,12 +831,13 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 ## 8. Assembly syntax
 
 - **BC-08 [Proposed]** `.rfla` maps one-to-one to the binary, so `rfld` then `rfla` reproduces a
-  module byte for byte (ex §12.2). Directives: `.module name version`, `.requires`, `.exports`,
-  `.opens`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`, `.annotation`,
-  `.locals`, `.try`, `.catch`, `.finally`, `.stackmap`, `.section`; labels end in `:`; type names
-  use the canonical spelling (GEN-12), with `!0` and `!!0` for type parameters. `rfld` prints a
-  section it cannot print as directives, such as an unknown ancillary section (BC-20), as
-  `.section <id> hex "..."`, so the round trip covers it too.
+  module byte for byte (ex §12.2). Directives: `.module name version`, `.main`, `.requires`,
+  `.exports`, `.opens`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`,
+  `.annotation`, `.locals`, `.try`, `.catch`, `.finally`, `.stackmap`, `.section`; labels end in
+  `:`; type names use the canonical spelling (GEN-12), with `!0` and `!!0` for type parameters.
+  `.main` names the descriptor's `main` class (VM-12). `rfld` prints a section it cannot print as
+  directives, such as an unknown ancillary section (BC-20), as `.section <id> hex "..."`, so the
+  round trip covers it too.
 
   ```text
   .module demo 0.1.0
@@ -848,9 +876,9 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 
   | Item | Limit |
   |---|---|
-  | rows per table | 2^24 − 1 (the row bits of a token) |
-  | size of a section, a heap or the file | 2^32 − 1 bytes (u32 offsets and lengths) |
-  | code of one method | 2^24 − 1 bytes |
+  | rows per table | 16,777,215 (2^24 − 1, the row bits of a token) |
+  | size of a section, a heap or the file | 4,294,967,295 bytes (2^32 − 1, u32 offsets and lengths) |
+  | code of one method | 16,777,215 bytes (2^24 − 1) |
   | locals of one method | 65,535 |
   | stack depth of one method | 65,535 |
   | parameters of one method | 65,535 |

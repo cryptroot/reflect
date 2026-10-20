@@ -32,7 +32,7 @@ public final class TableId {
     /** The number of u32 columns of a table, or 0 when this format has no layout for it. */
     public static int columns(int table) {
         return switch (table) {
-            case MODULE -> 5;
+            case MODULE -> 6;
             case MODULE_REF -> 2;
             case EXPORT -> 3;
             case TYPE_DEF -> 10;
