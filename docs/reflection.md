@@ -94,8 +94,8 @@ Conventions: [architecture.md](architecture.md) §0.
   `isInstance`, `cast`, and `create(...)` for virtual constructors (SVD-06). Lookups return `null`
   when nothing matches (hence the `!` in ex §10). A name-only `getMethod(name)` throws
   `AmbiguousMatchException` (unchecked) when the name is overloaded (Q36), so ex §10.2 needs
-  `getMethod("add", Cube.class)`. Synthesized members (backing fields, lambda classes, `A$Impl`)
-  are listed only on request.
+  `getMethod("add", Cube.class)`. Synthesized members (backing fields, lambda classes, `A$Impl`,
+  bridges of MEM-02) are listed only on request.
 
 ## 2. Phases, implementations and access
 
@@ -108,7 +108,8 @@ Conventions: [architecture.md](architecture.md) §0.
   namespaces are always accessible, everything in a namespace opened to the caller too; the rest
   throws `IllegalAccessException`. There is no `setAccessible`-style override. `Field.set` on a
   final field throws `IllegalAccessException` even where the namespace is open (BC-23), and on a
-  box it throws `IllegalArgumentException`, since boxes are immutable (DAT-09).
+  box without identity it throws `IllegalArgumentException`, since such boxes are immutable
+  (DAT-09).
 - **REFL-09 [Proposed]** Caller-sensitive operations find the caller's module from its frame
   (Java's `@CallerSensitive`); the JIT records the caller when it inlines them.
 - **REFL-04 [Decided]** Static virtual members (ex §10.1): `Property.get(null)` and
@@ -267,7 +268,11 @@ Conventions: [architecture.md](architecture.md) §0.
   only in v0: new types, methods and fields (side storage for existing objects), and replaced
   method bodies; running frames finish the old body. Removing members or changing a signature, a
   base class or a layout is rejected. A delta never re-runs an initializer and never writes a
-  final field of an existing object or class (BC-23). The VM's side of it: vm.md §11.
+  final field of an existing object or class (BC-23). [Decided, Q64] Hot reload does not
+  guarantee null safety in v0: an added field starts at zero in objects created before the delta,
+  so an added non-null reference field reads `null` there. Dereferences still check null, so
+  memory safety holds. [Proposed] `rflc delta` warns about each such field. The VM's side of it:
+  vm.md §11.
 
 ## 9. Determinism and sandboxing
 

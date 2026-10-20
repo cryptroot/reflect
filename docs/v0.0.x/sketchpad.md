@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q65 asked and answered 2026-10-20 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux, PowerShell 7 and native Windows checks pass (D.3); tag pending |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
@@ -238,6 +238,34 @@ is compatible" holds only for a read-only covariant view, a new type, since cova
 change what existing array casts and type tests return (`o instanceof Shape[]` on a `Square[]`).
 Rules:
 NUL-07, TYP-02, NUL-01, NUL-05, MEM-10, EXC-05, BC-04, BC-07, BC-14; ex §2.10, §7.8.
+
+### B.3 Batch 7: findings from batch 6 (asked and answered 2026-10-20)
+
+These were found while batch 6 was applied.
+
+**Q63 (RM-04; README §4, §8). How a version branch reaches `main`.** README §4 and §8 still said
+"merge commit", but the answer to Q45 chose a squashed merge. **Answer:** 2026-10-20: `main` keeps
+one squashed commit per version, as Q45 says. README §4 and §8 and RM-04 now say so.
+
+**Q64 (REFL-07, VM-10). Hot reload and non-null fields.** A delta may add fields to existing
+objects, which start at zero, so an added non-null reference field reads `null` in objects made
+before the delta. **Answer:** 2026-10-20: Hot reload cannot guarantee null safety in v0; this is
+acceptable for now. REFL-07, VM-10, NUL-04 and ex §10.6 record the hole, and headroom.md §8 lists
+it with a way out (initial values carried in the delta). `rflc delta` warns about each such field
+[Proposed]. Memory safety holds, since every dereference checks null.
+
+**Q65 (LIB-04, MEM-02, MEM-03, DAT-02, DAT-09, STM-04). Default iterators.** LIB-04 gave
+`ArrayList` a struct iterator, but MEM-03 has no explicit interface implementation, so one
+`iterator()` could not return both a struct and an `Iterator<T>`. **Answer:** 2026-10-20: the
+default iterators are structs that implement `Iterator<T>`. To make that consistent: an override
+may return a value type that implements the base's return type, and `rflc` emits a bridge that
+boxes it (MEM-02, BC-12), so MEM-03 stands; an interface member may be declared `mutating`, and
+`Iterator<T>.next()` is, so generic code never mutates a read-only location (DAT-02, Swift's
+rule); the boxes of a struct that implements such a member with a `mutating` method are ordinary
+objects with identity, which `next()` updates in place (DAT-09, C#'s boxed enumerators), while
+every other box keeps the rules of Q61; struct iterators arrive with structs in v0.4 (BOOT-02).
+This replaces the consequence noted under Q61. Rules: LIB-04, MEM-02, BC-12, DAT-02, DAT-09,
+STM-04, BC-04, VM-02, VM-13, GC-05, REFL-03; grammar.md §3.4; ex §2.9.
 
 <!-- questions:end -->
 

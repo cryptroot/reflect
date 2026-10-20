@@ -184,6 +184,8 @@ Throws      = "throws" Types ;
   on the last parameter makes it variadic (MEM-10, Q22).
 - A compound-assignment operator (`void operator +=(T x)`) is an instance member; on a struct it
   must be `mutating` (DAT-02).
+- On an interface member, `mutating` lets a struct implement it with a `mutating` method (DAT-02,
+  `Iterator<T>.next()`).
 - `throws` precedes `where`: `void f<T>(T x) throws IOException where T extends Comparable<T>`.
 
 ### 3.5 Types

@@ -27,8 +27,9 @@ VM guarantees.
 - **VM-13 [Proposed]** Loading is lazy: a module's tables are mapped read-only and read in place,
   since rows have fixed widths (BC-11); a type is loaded when first named by executing code,
   reflection or another type's layout. Loading a type checks its constraints, `final`, `sealed`
-  and `permits`, computes its layout (§3) and builds its dispatch tables (§5). A failure throws
-  `TypeLoadError` at the use.
+  and `permits`, computes its layout (§3) and builds its dispatch tables (§5). A value type whose
+  `mutating` method fills the slot of a `mutating` interface member is marked box-mutable
+  (DAT-09). A failure throws `TypeLoadError` at the use.
 - **VM-14 [Proposed]** Verification (bytecode.md §7) runs per method before its first execution,
   for modules outside the trusted release.
 - **VM-15 [Decided, Q35]** Layers (ARC-12): every run-time type, method body, compiled code
@@ -55,9 +56,10 @@ VM guarantees.
   - Arrays: header, `int` length (padded to 8 bytes), elements; the array's run-time type carries
     the element type and its nullability.
   - Strings: header, length, a Latin-1 or UTF-16 flag, inline data (NUM-05).
-  - Boxes: header and value. A nullable wrapper boxes to `null` when it has no value. A box never
-    gets an identity hash, and `ceq.ref` compares its contents (DAT-09), so the VM may cache,
-    share and remove boxes.
+  - Boxes: header and value. A nullable wrapper boxes to `null` when it has no value. A box
+    without identity never gets an identity hash, and `ceq.ref` compares its contents (DAT-09),
+    so the VM may cache, share and remove such boxes. A box of a box-mutable type is an ordinary
+    object.
 
 ## 4. Run-time types and dictionaries
 
@@ -167,8 +169,9 @@ VM guarantees.
   reload applies a delta (reflection.md §8): it swaps the code pointer in each replaced method's
   descriptor (every call goes through the descriptor or a patchable stub), invalidates call-site
   caches and dependent compiled code, appends new methods to their types, and keeps added fields
-  of existing objects in a weak side table (memory.md §7). Frames already running the old body
-  finish it.
+  of existing objects in a weak side table (memory.md §7), where they start at zero, so an added
+  non-null reference field is `null` in those objects (REFL-07, Q64). Frames already running the
+  old body finish it.
 
 ## 12. Locks
 

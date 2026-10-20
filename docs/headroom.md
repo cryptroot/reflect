@@ -183,7 +183,9 @@ gap gave Java covariant arrays, which Reflect no longer copies (HR-11). Conventi
   - *Went to:* DAT-09, which compares primitive fields by bit pattern rather than as `equals`
     does, since `equals` treats NaNs with different bits as equal and sharing them would change
     the bits a program reads; BC-04, OPR-04, MEM-07, DAT-01, DAT-02, VM-02, GC-05, REFL-03,
-    ex §8.5; [v0.0.x/README.md](v0.0.x/README.md) §7.7 and §7.8.
+    ex §8.5; [v0.0.x/README.md](v0.0.x/README.md) §7.7 and §7.8. Q65 then exempted box-mutable
+    types, such as the struct iterators: their boxes are ordinary objects (DAT-09). Primitives,
+    enums, tuples and every other value type keep boxes without identity.
   - *Today:* a value type converted to `Object` or an interface is boxed (DAT-01), and a box is
     a header and the value (VM-02). `ceq.ref` and Object-typed `==` compare identity (BC-04,
     OPR-04), and ex §8.5 calls `referenceEquals` "identity, always". So a program can tell two
@@ -403,5 +405,6 @@ Decisions that close a door or carry a cost, kept on purpose.
 | no `invokedynamic` | FUN-06 | lowerings fixed at compile time | HR-13 |
 | stack traces at construction | EXC-06 | every exception walks the stack | - |
 | final means final | BC-23 (Q60) | no reflective writes to finals; frameworks build objects through constructors | - |
-| boxes without identity | DAT-09 (Q61) | a slow path in `ceq.ref`; no weak references to boxes | - |
+| hot reload without null safety | REFL-07 (Q64) | a non-null field added by a delta is `null` in older objects | initial values carried in the delta |
+| boxes without identity | DAT-09 (Q61) | a slow path in `ceq.ref`; no weak references to boxes; box-mutable types excepted (Q65) | - |
 | invariant arrays | NUL-07 (Q62) | a `Square[]` is no `Shape[]`; an array passed to `Object?...` becomes one element | generic methods; a read-only covariant view (covariant arrays would change existing type tests) |

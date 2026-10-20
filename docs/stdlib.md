@@ -86,8 +86,37 @@ Everything the language or the VM depends on (ARC-10), in namespace `reflect.cor
     `List.of(...)` where a `List<S>` is expected.
   - `map[key]` throws `NoSuchElementException` when the key is absent, since `V` may be non-null;
     `map.get(key)` returns `V?`.
-  - Iterators are fail-fast. `ArrayList` and arrays have struct iterators found by the enhanced
-    `for` (STM-04); `Iterator` adds `remove()` only on mutable collections.
+  - Iterators are fail-fast; `Iterator` adds `remove()` only on mutable collections.
+  - [Decided, Q65] The default iterators of the collections and of arrays are structs that
+    implement `Iterator<T>`, like C#'s enumerators. They arrive with structs in v0.4 (BOOT-02);
+    until then they are classes. `ArrayList<T>.iterator()` returns `ArrayListIterator<T>`, so an
+    enhanced `for` over an `ArrayList<T>` does not box (STM-04). Through `Iterable<T>` or
+    `List<T>`, a synthesized bridge boxes the struct once, into a box with identity that `next()`
+    updates in place (MEM-02, DAT-09). `next()` is `mutating`, so on an `ArrayList<T>`,
+    `list.iterator().next()` is an error, since a method result is read-only (DAT-02); store the
+    iterator in a local first.
+
+  ```csharp
+  // file: stdlib/reflect.core/Iterator.rfl (abridged)
+  public interface Iterator<T> {
+      boolean hasNext();
+      mutating T next();                   // a struct may implement it with a mutating method
+  }
+
+  // file: stdlib/reflect.collections/ArrayListIterator.rfl (abridged)
+  public struct ArrayListIterator<T> implements Iterator<T> {
+      private final ArrayList<T>? list;    // struct reference fields are nullable (DAT-01)
+      private int index;
+      ArrayListIterator(ArrayList<T> list) { this.list = list; }
+      public override boolean hasNext() { return list != null && index < list.size; }
+      public mutating override T next() { return list![index++]; }
+  }
+
+  // file: stdlib/reflect.collections/ArrayList.rfl (abridged)
+  public class ArrayList<T> implements List<T> {
+      public override ArrayListIterator<T> iterator() { return new ArrayListIterator<T>(this); }
+  }
+  ```
   - `ServiceLoader` (MOD-11) and `Comparator<T>` live here.
 
 ## 5. Text and input/output

@@ -114,6 +114,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 - **BC-12 [Proposed]** Overrides are explicit rows: the compiler records which slot each
   `override` fills, so the VM builds vtables and static dispatch tables without matching names at
   link time. A row whose overridden method no longer exists is a link error (`TypeLoadError`).
+  When an override returns a value type in place of the base's return type (MEM-02), its row
+  names the synthesized bridge that boxes the result, and that bridge fills the base slot; the
+  override keeps a slot of its own, which a subclass may override with the same value type.
 - **BC-13 [Proposed]** Annotations with retention `SOURCE` are not written; `CLASS` ones are
   written but invisible to run-time reflection; `RUNTIME` ones are visible (META-01).
 
@@ -153,7 +156,7 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   | constants, stack (`00`-`0F`) | `nop`; `ldnull` → null; `ldc.i4 <imm>`, `ldc.i8`, `ldc.r4`, `ldc.r8` → value; `ldstr <n>` → `String`; `ldtype <tok>` → `Class<T>`; `ldconst <tok>` → constant of a `const` field; `dup`; `pop` |
   | locals (`10`-`1F`) | `ldarg <n>`, `starg <n>`, `ldarga <n>`, `ldloc <n>`, `stloc <n>`, `ldloca <n>` |
   | arithmetic (`20`-`4F`) | `add.t sub.t mul.t` (integers wrap); `div` and `rem` over `t` and `u` (integer division by zero throws); `neg.t`; `and or xor not` over `i32 i64`; `shl`, `shr` (arithmetic), `shr.un` (logical) over `i32 i64`, count masked; checked `add.ovf sub.ovf mul.ovf` over `i32 u32 i64 u64` and `neg.ovf` over `i32 i64` |
-  | comparison (`50`-`5F`) | `ceq clt cle cgt cge` over `t` and `u` → `i32` 0 or 1 (floats per IEEE); `ceq.ref` identity, or class and contents for two boxes (DAT-09) |
+  | comparison (`50`-`5F`) | `ceq clt cle cgt cge` over `t` and `u` → `i32` 0 or 1 (floats per IEEE); `ceq.ref` identity, or class and contents for two boxes without identity (DAT-09) |
   | conversion (`60`-`7F`) | `conv.<from>.<to>` among `i8 u8 i16 u16 i32 u32 i64 u64 f32 f64` (wrapping, float to integer saturating); `conv.ovf.<from>.<to>` throws instead |
   | control (`80`-`8F`) | `br <off>`; `brtrue`, `brfalse`, `brnull`, `brnonnull` `<off>`; fused `beq bne blt ble bgt bge` over `t` and `u` `<off>`; `switch <count> <off>...`; `leave <off>`; `endfinally`; `ret` |
   | objects (`90`-`9F`) | `newobj <tok>` (args → object); `newobj.svirt <tok>` (class, args → object, virtual constructor of the class); `ldfld <tok>`; `stfld <tok>`; `ldflda <tok>`; `ldsfld`, `stsfld`, `ldsflda <tok>`; `getclass` (object → `Class<?>`); `instanceof <tok>` (false for null); `castclass <tok>`; `checkalive` (object → object, DAT-08) |

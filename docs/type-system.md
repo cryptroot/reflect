@@ -150,7 +150,8 @@ yet part of the baseline language below.
   auto-property (ex §2.8 `Person`). Warnings, not errors, flag the remaining holes: calling an
   overridable method on `this` in a constructor, and letting `this` escape before all non-null
   fields are assigned. A field read in such a case yields `null`; the next dereference throws,
-  and memory safety holds because the VM checks every dereference.
+  and memory safety holds because the VM checks every dereference. Hot reload adds a hole of the
+  same kind in v0: a non-null field added by a delta is `null` in older objects (REFL-07, Q64).
 - **NUL-05 [Proposed]** Run-time checks where static guarantees end:
   - casting `null` to a non-null type throws `NullPointerException`; to `T?` it succeeds;
   - `instanceof` is false for `null`, even against a nullable type, so pattern variables are
@@ -262,11 +263,14 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
      `boolean hasNext()` and `T next()`, matched by name, so struct iterators never box;
   3. `Iterable<T>`.
 
-  An iterator that implements `AutoCloseable` is closed when the loop exits.
+  An iterator that implements `AutoCloseable` is closed when the loop exits. The collections'
+  default iterators are structs (LIB-04, Q65): a loop over a class type such as `ArrayList<T>`
+  keeps the struct in a local and never boxes it; a loop over an interface type such as `List<T>`
+  gets the iterator boxed once, through the bridge of MEM-02.
 
   ```csharp
   // lowered: for (String s : list) { body }
-  var $it = list.iterator();
+  var $it = list.iterator();          // a local, so the struct's mutating next() may update it
   while ($it.hasNext()) {
       final String s = $it.next();    // fresh per iteration: what lambdas capture
       body
@@ -297,7 +301,11 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
   `virtual` or `abstract`; non-virtual calls compile to direct calls (ex §2.5). Overriding needs
   `override`, also when implementing an interface member (ex §2.6); `final override` stops
   overriding; a `final` class has no subclasses. [Proposed] Overrides may narrow the return type
-  of methods and get-only properties, instance and static (ex §4.2).
+  of methods and get-only properties, instance and static (ex §4.2). [Decided, Q65] An override
+  may also return a value type that implements the overridden return type: `rflc` then emits a
+  synthesized bridge that fills the base slot, calls the override and boxes the result (Java's
+  bridge methods). So `ArrayList<T>.iterator()` returns its struct iterator and still implements
+  `Iterable<T>.iterator()` without explicit interface implementation (MEM-03, LIB-04).
 - **MEM-03 [Decided]** Interfaces hold abstract methods, properties and events (implicitly
   `public abstract`), `default` methods, private methods, static methods, static abstract and
   static virtual members (§7) and [Proposed] `const` fields; never instance fields.
@@ -540,8 +548,12 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   `mutating` method on a read-only location (a `final` field, an `in` parameter, a property or
   method result) is an error, so no hidden copies exist. Constructors assign `this`; in-place
   operators must say `mutating`. The flag is metadata, and the verifier tracks read-only
-  references (bytecode.md §7). Boxes are immutable, so how `mutating` methods meet interfaces is
-  open until v0.4 (DAT-09).
+  references (bytecode.md §7). [Decided, Q65] An interface member may be declared `mutating`
+  (Swift's rule for protocols): only such a member can be implemented by a `mutating` struct
+  method, and a call to it on a type-parameter value needs a writable location, so generic code
+  makes no hidden copy either. A class implements it as an ordinary method. `Iterator<T>.next()`
+  is declared `mutating` (LIB-04); the boxes of a struct that implements such a member with a
+  `mutating` method have identity (DAT-09).
 
   ```csharp
   public struct Tally {
@@ -614,8 +626,8 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
     declared in a `Destructible` subclass, and field accesses through a receiver other than
     `this`; exempt are `destroyed` and `Object`'s `equals`, `hashCode`, `toString`, `getClass`;
   - `Destructible.alive(x)` turns a destroyed object into `null` for `?.` and `??`.
-- **DAT-09 [Decided, Q61]** Boxes have no identity. A box is a value converted to `Object` or an
-  interface (DAT-01):
+- **DAT-09 [Decided, Q61, Q65]** Boxes have no identity, except those of box-mutable types (last
+  item). A box is a value converted to `Object` or an interface (DAT-01):
   - `ceq.ref`, and so `==` on `Object` or interface operands and `Object.referenceEquals`, is
     true for two boxes of the same class with the same contents: primitive fields by bit pattern
     (JEP 401), so `(Object) 0.0 == (Object) -0.0` is false; struct fields recursively; reference
@@ -625,15 +637,18 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   - `WeakReference` is declared `WeakReference<T extends class>`, and a box as its referent, or as
     the key of a weak-keyed table, throws `IllegalArgumentException` (GC-05);
   - boxes are immutable: `unbox` copies the value out, and reflection cannot set a box's fields
-    (REFL-03). [Open, by v0.4] Either a `mutating` method cannot implement an interface member,
-    or calling one through a box is an error (DAT-02). Either way C#'s mutable struct enumerator
-    behind an interface (`List<T>.Enumerator`) has no equivalent; struct iterators work through
-    the lookup by name of STM-04.
+    (REFL-03);
+  - a value type is box-mutable when one of its `mutating` methods implements a `mutating`
+    interface member (DAT-02), as the collections' struct iterators do (LIB-04). Its boxes are
+    ordinary objects: they have identity, a mutating call through the interface updates the box
+    in place (C#'s boxed `List<T>.Enumerator`), and `ceq.ref`, hashing, weak references and
+    reflection treat them as objects. The VM marks such a type when it loads it (VM-13).
 
-  The VM may therefore cache boxes, share equal ones and remove them after escape analysis with
-  no visible change. The cost is a slow path in `ceq.ref` when two references differ and their
-  static types admit boxes (`Object`, interfaces, type parameters). `==` can also tell whether a
-  box's private fields equal those of a value the caller can build, such as `default(S)`.
+  The VM may therefore cache boxes without identity, share equal ones and remove them after
+  escape analysis with no visible change. The cost is a slow path in `ceq.ref` when two
+  references differ and their static types admit boxes (`Object`, interfaces, type parameters).
+  `==` can also tell whether a box's private fields equal those of a value the caller can build,
+  such as `default(S)`.
 
 ## 12. Exceptions (EXC)
 

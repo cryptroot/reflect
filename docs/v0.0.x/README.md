@@ -68,8 +68,9 @@ Out of scope, with the version that brings it:
   checked alone.
 
 1. **Branch.** `v0.0.x` starts from the integration branch (Q45). Every v0.0.x commit goes to
-   it. When the exit test passes (§8), merge it into the integration branch with a merge commit,
-   and stop committing to it.
+   it. When the exit test passes (§8), squash it into one commit on `main`, the integration
+   branch, and stop committing to it. `main` then holds one commit per version (Q45, Q63); the
+   branch and its stage tags keep the history of the stages.
 2. **Stages.** A stage is a group of commits with one exit check. When the check passes, put an
    annotated tag `v0.0.N` on the last commit of the stage. A tag marks a stage, not a release
    (RM-01). A stage that merges with another or drops gets no tag, and its number is not used
@@ -695,5 +696,5 @@ The roadmap's exit test is the case `run/core/hello.rfla` of item 2.3.
 When the exit test passes:
 
 1. The tag of the last remaining stage marks the commit (`v0.0.9` if that stage remains).
-2. `v0.0.x` merges into the integration branch with a merge commit (§4).
-3. `v0.1.x` starts from that merge commit.
+2. `v0.0.x` is squashed into one commit on `main` (§4).
+3. `v0.1.x` starts from that commit.

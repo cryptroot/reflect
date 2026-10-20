@@ -9,9 +9,10 @@ v1.0.0 is a draft). Conventions: [architecture.md](architecture.md) §0.
   proven; v0.9 shrinks or cuts what is not (LEAN-05).
 - **RM-03 [Proposed]** The milestones below; a milestone is done when its exit test passes in CI.
 - **RM-04 [Decided]** A version is developed on its own branch while work on it continues, in
-  small, frequent commits that can each be checked alone. [Proposed] The branch is named
-  `v0.N.x`; each finished stage is tagged `v0.N.P`; the branch merges into the integration
-  branch when the exit test passes (Q45, Q46).
+  small, frequent commits that can each be checked alone. [Decided, Q45, Q46, Q63] The branch is
+  named `v0.N.x`; each finished stage is tagged `v0.N.P`; when the exit test passes, the branch
+  is squashed into one commit on `main`, the integration branch, so `main` holds one commit per
+  version.
 - **RM-05 [Proposed]** Each version has a folder `docs/v0.N.x/`. Its `README.md` holds the
   version's description, engineering function and implementation plan; its `sketchpad.md` holds
   dated notes, questions and engineering issues, in the pattern of [sketchpad.md](sketchpad.md).

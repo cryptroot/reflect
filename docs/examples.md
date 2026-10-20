@@ -551,7 +551,9 @@ String page = """
 
 Java statements; `switch` has only the arrow form and never falls through.
 
-For performance, enhanced `for` loops (`foreach` in Java) will support struct iterators and enumerators (C#).
+For performance, the collections' default iterators are structs that implement `Iterator<T>`, as
+C#'s enumerators are (from v0.4): an enhanced `for` over an `ArrayList<T>` never boxes its
+iterator, and one over a `List<T>`, such as `rows` below, boxes it once (STM-04, LIB-04).
 
 ```csharp
 // file: demo/basics/Statements.rfl
@@ -3330,6 +3332,8 @@ public final class Greeting {
 ```
 
 A delta that removes `text()`, changes its signature, or changes the base class is rejected in v0.
+An added field starts at zero in objects created before the delta, so an added non-null reference
+field would read `null` there; v0 accepts this (REFL-07).
 
 ## 11. Under the hood: lowering and bytecode
 
