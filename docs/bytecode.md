@@ -161,6 +161,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   the next instruction; `switch` takes a ULEB128 count, then that many `<off>`. Suffix sets: `t`
   is one of `i32 i64 f32 f64`, `u` adds `u32 u64`, `k` is a storage kind,
   `i8 u8 i16 u16 i32 i64 f32 f64 ref` for loads and `i8 i16 i32 i64 f32 f64 ref` for stores.
+  The opcode table (§5.1) lists every instruction; an opcode it does not list is invalid, and the
+  free places in each range let the family grow. Debuggers write `breakpoint` into loaded code; a
+  module never contains it.
 
   | Family | Opcodes | Instructions and stack effect |
   |---|---|---|
@@ -212,6 +215,277 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 - **BC-16 [Proposed]** `call.constrained T m` calls a member of a type parameter's bound on a
   reference to a `T` value without boxing (the CLR's `constrained.` prefix as an instruction):
   value types call their implementation directly, reference types dereference and dispatch.
+
+### 5.1 Opcode table
+
+Every instruction of BC-04 with its opcode and operands. A two-byte opcode shows both bytes. `R0`
+marks the instructions that R0 code needs (BOOT-02), which VM0 implements.
+
+| Opcode | Instruction | Operands | R0 |
+|---|---|---|---|
+| `00` | `nop` | | R0 |
+| `01` | `ldnull` | | R0 |
+| `02` | `ldc.i4` | `<i4>` | R0 |
+| `03` | `ldc.i8` | `<i8>` | R0 |
+| `04` | `ldc.r4` | `<r4>` | R0 |
+| `05` | `ldc.r8` | `<r8>` | R0 |
+| `06` | `ldstr` | `<str>` | R0 |
+| `07` | `ldtype` | `<tok>` | R0 |
+| `08` | `ldconst` | `<tok>` | R0 |
+| `09` | `dup` | | R0 |
+| `0A` | `pop` | | R0 |
+| `10` | `ldarg` | `<n>` | R0 |
+| `11` | `starg` | `<n>` | R0 |
+| `12` | `ldarga` | `<n>` | R0 |
+| `13` | `ldloc` | `<n>` | R0 |
+| `14` | `stloc` | `<n>` | R0 |
+| `15` | `ldloca` | `<n>` | R0 |
+| `18` | `add.i32` | | R0 |
+| `19` | `add.i64` | | R0 |
+| `1A` | `add.f32` | | R0 |
+| `1B` | `add.f64` | | R0 |
+| `1C` | `sub.i32` | | R0 |
+| `1D` | `sub.i64` | | R0 |
+| `1E` | `sub.f32` | | R0 |
+| `1F` | `sub.f64` | | R0 |
+| `20` | `mul.i32` | | R0 |
+| `21` | `mul.i64` | | R0 |
+| `22` | `mul.f32` | | R0 |
+| `23` | `mul.f64` | | R0 |
+| `24` | `div.i32` | | R0 |
+| `25` | `div.i64` | | R0 |
+| `26` | `div.f32` | | R0 |
+| `27` | `div.f64` | | R0 |
+| `28` | `div.u32` | | |
+| `29` | `div.u64` | | |
+| `2A` | `rem.i32` | | R0 |
+| `2B` | `rem.i64` | | R0 |
+| `2C` | `rem.f32` | | R0 |
+| `2D` | `rem.f64` | | R0 |
+| `2E` | `rem.u32` | | |
+| `2F` | `rem.u64` | | |
+| `30` | `neg.i32` | | R0 |
+| `31` | `neg.i64` | | R0 |
+| `32` | `neg.f32` | | R0 |
+| `33` | `neg.f64` | | R0 |
+| `34` | `and.i32` | | R0 |
+| `35` | `and.i64` | | R0 |
+| `36` | `or.i32` | | R0 |
+| `37` | `or.i64` | | R0 |
+| `38` | `xor.i32` | | R0 |
+| `39` | `xor.i64` | | R0 |
+| `3A` | `not.i32` | | R0 |
+| `3B` | `not.i64` | | R0 |
+| `3C` | `shl.i32` | | R0 |
+| `3D` | `shl.i64` | | R0 |
+| `3E` | `shr.i32` | | R0 |
+| `3F` | `shr.i64` | | R0 |
+| `40` | `shr.un.i32` | | R0 |
+| `41` | `shr.un.i64` | | R0 |
+| `48` | `ceq.i32` | | R0 |
+| `49` | `ceq.i64` | | R0 |
+| `4A` | `ceq.f32` | | R0 |
+| `4B` | `ceq.f64` | | R0 |
+| `4C` | `clt.i32` | | R0 |
+| `4D` | `clt.i64` | | R0 |
+| `4E` | `clt.f32` | | R0 |
+| `4F` | `clt.f64` | | R0 |
+| `50` | `clt.u32` | | |
+| `51` | `clt.u64` | | |
+| `52` | `cle.i32` | | R0 |
+| `53` | `cle.i64` | | R0 |
+| `54` | `cle.f32` | | R0 |
+| `55` | `cle.f64` | | R0 |
+| `56` | `cle.u32` | | |
+| `57` | `cle.u64` | | |
+| `58` | `cgt.i32` | | R0 |
+| `59` | `cgt.i64` | | R0 |
+| `5A` | `cgt.f32` | | R0 |
+| `5B` | `cgt.f64` | | R0 |
+| `5C` | `cgt.u32` | | |
+| `5D` | `cgt.u64` | | |
+| `5E` | `cge.i32` | | R0 |
+| `5F` | `cge.i64` | | R0 |
+| `60` | `cge.f32` | | R0 |
+| `61` | `cge.f64` | | R0 |
+| `62` | `cge.u32` | | |
+| `63` | `cge.u64` | | |
+| `64` | `ceq.ref` | | R0 |
+| `68` | `conv.i32.i8` | | R0 |
+| `69` | `conv.i32.u8` | | |
+| `6A` | `conv.i32.i16` | | R0 |
+| `6B` | `conv.i32.u16` | | R0 |
+| `6C` | `conv.i32.i64` | | R0 |
+| `6D` | `conv.i32.f32` | | R0 |
+| `6E` | `conv.i32.f64` | | R0 |
+| `6F` | `conv.u32.i64` | | |
+| `70` | `conv.u32.f32` | | |
+| `71` | `conv.u32.f64` | | |
+| `72` | `conv.i64.i32` | | R0 |
+| `73` | `conv.i64.f32` | | R0 |
+| `74` | `conv.i64.f64` | | R0 |
+| `75` | `conv.u64.f32` | | |
+| `76` | `conv.u64.f64` | | |
+| `77` | `conv.f32.i32` | | R0 |
+| `78` | `conv.f32.u32` | | |
+| `79` | `conv.f32.i64` | | R0 |
+| `7A` | `conv.f32.u64` | | |
+| `7B` | `conv.f32.f64` | | R0 |
+| `7C` | `conv.f64.i32` | | R0 |
+| `7D` | `conv.f64.u32` | | |
+| `7E` | `conv.f64.i64` | | R0 |
+| `7F` | `conv.f64.u64` | | |
+| `80` | `conv.f64.f32` | | R0 |
+| `88` | `br` | `<off>` | R0 |
+| `89` | `brtrue` | `<off>` | R0 |
+| `8A` | `brfalse` | `<off>` | R0 |
+| `8B` | `brnull` | `<off>` | R0 |
+| `8C` | `brnonnull` | `<off>` | R0 |
+| `8D` | `beq.i32` | `<off>` | R0 |
+| `8E` | `beq.i64` | `<off>` | R0 |
+| `8F` | `beq.f32` | `<off>` | R0 |
+| `90` | `beq.f64` | `<off>` | R0 |
+| `91` | `bne.i32` | `<off>` | R0 |
+| `92` | `bne.i64` | `<off>` | R0 |
+| `93` | `bne.f32` | `<off>` | R0 |
+| `94` | `bne.f64` | `<off>` | R0 |
+| `95` | `blt.i32` | `<off>` | R0 |
+| `96` | `blt.i64` | `<off>` | R0 |
+| `97` | `blt.f32` | `<off>` | R0 |
+| `98` | `blt.f64` | `<off>` | R0 |
+| `99` | `blt.u32` | `<off>` | |
+| `9A` | `blt.u64` | `<off>` | |
+| `9B` | `ble.i32` | `<off>` | R0 |
+| `9C` | `ble.i64` | `<off>` | R0 |
+| `9D` | `ble.f32` | `<off>` | R0 |
+| `9E` | `ble.f64` | `<off>` | R0 |
+| `9F` | `ble.u32` | `<off>` | |
+| `A0` | `ble.u64` | `<off>` | |
+| `A1` | `bgt.i32` | `<off>` | R0 |
+| `A2` | `bgt.i64` | `<off>` | R0 |
+| `A3` | `bgt.f32` | `<off>` | R0 |
+| `A4` | `bgt.f64` | `<off>` | R0 |
+| `A5` | `bgt.u32` | `<off>` | |
+| `A6` | `bgt.u64` | `<off>` | |
+| `A7` | `bge.i32` | `<off>` | R0 |
+| `A8` | `bge.i64` | `<off>` | R0 |
+| `A9` | `bge.f32` | `<off>` | R0 |
+| `AA` | `bge.f64` | `<off>` | R0 |
+| `AB` | `bge.u32` | `<off>` | |
+| `AC` | `bge.u64` | `<off>` | |
+| `AD` | `switch` | `<count> <off>...` | R0 |
+| `AE` | `leave` | `<off>` | R0 |
+| `AF` | `endfinally` | | R0 |
+| `B0` | `ret` | | R0 |
+| `B8` | `newobj` | `<tok>` | R0 |
+| `B9` | `newobj.svirt` | `<tok>` | |
+| `BA` | `ldfld` | `<tok>` | R0 |
+| `BB` | `stfld` | `<tok>` | R0 |
+| `BC` | `ldflda` | `<tok>` | |
+| `BD` | `ldsfld` | `<tok>` | R0 |
+| `BE` | `stsfld` | `<tok>` | R0 |
+| `BF` | `ldsflda` | `<tok>` | |
+| `C0` | `getclass` | | R0 |
+| `C1` | `instanceof` | `<tok>` | R0 |
+| `C2` | `castclass` | `<tok>` | R0 |
+| `C3` | `checkalive` | | |
+| `C8` | `box` | `<tok>` | R0 |
+| `C9` | `unbox` | `<tok>` | R0 |
+| `CA` | `ldobj` | `<tok>` | |
+| `CB` | `stobj` | `<tok>` | |
+| `CC` | `cpobj` | `<tok>` | |
+| `CD` | `initobj` | `<tok>` | |
+| `CE` | `sizeof` | `<tok>` | |
+| `D0` | `newarr` | `<tok>` | R0 |
+| `D1` | `ldlen` | | R0 |
+| `D2` | `ldelem.i8` | | R0 |
+| `D3` | `ldelem.u8` | | R0 |
+| `D4` | `ldelem.i16` | | R0 |
+| `D5` | `ldelem.u16` | | R0 |
+| `D6` | `ldelem.i32` | | R0 |
+| `D7` | `ldelem.i64` | | R0 |
+| `D8` | `ldelem.f32` | | R0 |
+| `D9` | `ldelem.f64` | | R0 |
+| `DA` | `ldelem.ref` | | R0 |
+| `DB` | `ldelem` | `<tok>` | R0 |
+| `DC` | `stelem.i8` | | R0 |
+| `DD` | `stelem.i16` | | R0 |
+| `DE` | `stelem.i32` | | R0 |
+| `DF` | `stelem.i64` | | R0 |
+| `E0` | `stelem.f32` | | R0 |
+| `E1` | `stelem.f64` | | R0 |
+| `E2` | `stelem.ref` | | R0 |
+| `E3` | `stelem` | `<tok>` | R0 |
+| `E4` | `ldelema` | `<tok>` | |
+| `E8` | `call` | `<tok>` | R0 |
+| `E9` | `call.recv` | `<tok>` | |
+| `EA` | `callvirt` | `<tok>` | R0 |
+| `EB` | `call.svirt` | `<tok>` | |
+| `EC` | `call.constrained` | `<tok> <tok>` | R0 |
+| `ED` | `ldrecv` | | |
+| `F0` | `throw` | | R0 |
+| `F1` | `rethrow` | | R0 |
+| `FF` | `breakpoint` | | |
+| `FE 00` | `add.ovf.i32` | | |
+| `FE 01` | `add.ovf.i64` | | |
+| `FE 02` | `add.ovf.u32` | | |
+| `FE 03` | `add.ovf.u64` | | |
+| `FE 04` | `sub.ovf.i32` | | |
+| `FE 05` | `sub.ovf.i64` | | |
+| `FE 06` | `sub.ovf.u32` | | |
+| `FE 07` | `sub.ovf.u64` | | |
+| `FE 08` | `mul.ovf.i32` | | |
+| `FE 09` | `mul.ovf.i64` | | |
+| `FE 0A` | `mul.ovf.u32` | | |
+| `FE 0B` | `mul.ovf.u64` | | |
+| `FE 0C` | `div.ovf.i32` | | |
+| `FE 0D` | `div.ovf.i64` | | |
+| `FE 0E` | `neg.ovf.i32` | | |
+| `FE 0F` | `neg.ovf.i64` | | |
+| `FE 20` | `conv.ovf.i32.i8` | | |
+| `FE 21` | `conv.ovf.i32.u8` | | |
+| `FE 22` | `conv.ovf.i32.i16` | | |
+| `FE 23` | `conv.ovf.i32.u16` | | |
+| `FE 24` | `conv.ovf.i32.u32` | | |
+| `FE 25` | `conv.ovf.u32.i32` | | |
+| `FE 26` | `conv.ovf.i64.i32` | | |
+| `FE 27` | `conv.ovf.i64.u32` | | |
+| `FE 28` | `conv.ovf.i64.u64` | | |
+| `FE 29` | `conv.ovf.u64.i32` | | |
+| `FE 2A` | `conv.ovf.u64.u32` | | |
+| `FE 2B` | `conv.ovf.u64.i64` | | |
+| `FE 2C` | `conv.ovf.f32.i32` | | |
+| `FE 2D` | `conv.ovf.f32.u32` | | |
+| `FE 2E` | `conv.ovf.f32.i64` | | |
+| `FE 2F` | `conv.ovf.f32.u64` | | |
+| `FE 30` | `conv.ovf.f64.i32` | | |
+| `FE 31` | `conv.ovf.f64.u32` | | |
+| `FE 32` | `conv.ovf.f64.i64` | | |
+| `FE 33` | `conv.ovf.f64.u64` | | |
+| `FE 40` | `ldind.i8` | | |
+| `FE 41` | `ldind.u8` | | |
+| `FE 42` | `ldind.i16` | | |
+| `FE 43` | `ldind.u16` | | |
+| `FE 44` | `ldind.i32` | | |
+| `FE 45` | `ldind.i64` | | |
+| `FE 46` | `ldind.f32` | | |
+| `FE 47` | `ldind.f64` | | |
+| `FE 48` | `ldind.ref` | | |
+| `FE 49` | `ldind` | `<tok>` | |
+| `FE 4A` | `stind.i8` | | |
+| `FE 4B` | `stind.i16` | | |
+| `FE 4C` | `stind.i32` | | |
+| `FE 4D` | `stind.i64` | | |
+| `FE 4E` | `stind.f32` | | |
+| `FE 4F` | `stind.f64` | | |
+| `FE 50` | `stind.ref` | | |
+| `FE 51` | `stind` | `<tok>` | |
+| `FE 60` | `localloc` | | |
+| `FE 61` | `ptradd` | `<tok>` | |
+| `FE 62` | `ptrdiff` | `<tok>` | |
+| `FE 63` | `conv.ptr.i64` | | |
+| `FE 64` | `conv.i64.ptr` | | |
+| `FE 65` | `syscall` | `<n> <n>` | |
 
 ## 6. Method bodies
 
