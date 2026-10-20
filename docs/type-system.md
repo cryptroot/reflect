@@ -776,3 +776,8 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   - `Lock` is a ready-made final class implementing it, for private lock objects (ex §7.7);
   - an analyzer warns on `synchronized (this)` in public lockable types, because any holder of a
     reference can take that lock (Java's pitfall).
+
+The unscheduled [threads, atomics and lock-free semantics proposal](threading.md) expands the
+CON-02 direction, including publication, atomic cells and future flow-analysis requirements.
+It does not amend CON-01 or CON-04; weaker memory orders and static race checking remain
+separate decisions.

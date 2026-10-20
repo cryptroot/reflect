@@ -62,3 +62,9 @@ R0 or change the self-hosting milestones above.
 optimizing AOT backend. It is also unscheduled and does not expand R0 or change these milestones.
 Its initial sequential design preserves CON-01; SIMD and parallel scheduling require separate
 backend and concurrency work. Stabilization needs ECS-specific semantics, tests and proofs.
+
+[Threads, Atomics and Lock-free Semantics](threading.md) expands the post-v1.0 concurrency
+direction and headroom entries without scheduling implementation. It proposes OS threads,
+opt-in monitors, publication rules and sequentially consistent atomic cells first; weaker
+orders, certified lock-free implementations and static race checking have separate gates.
+It does not add threads or async to R0, v1.0 or the current proof track.

@@ -35,6 +35,7 @@ the decision log in sketchpad.md.
 | `HR` | features and optimizations to keep possible | [headroom.md](headroom.md) |
 | `IC`, `TXN` | proposed Intent Contracts and Transactions | [intent-contracts-and-transactions.md](intent-contracts-and-transactions.md) |
 | `ECS` | proposed first-class Entity-Component Systems | [entity-component-systems.md](entity-component-systems.md) |
+| `THR` | proposed threads, atomics and lock-free semantics | [threading.md](threading.md) |
 
 ## 1. Components
 
