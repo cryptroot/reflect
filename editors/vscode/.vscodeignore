@@ -1,0 +1,4 @@
+test/**
+package-lock.json
+*.vsix
+.vscodeignore

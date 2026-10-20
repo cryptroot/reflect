@@ -96,7 +96,7 @@ Everything the language or the VM depends on (ARC-10), in namespace `reflect.cor
     `list.iterator().next()` is an error, since a method result is read-only (DAT-02); store the
     iterator in a local first.
 
-  ```csharp
+  ```reflect
   // file: stdlib/reflect.core/Iterator.rfl (abridged)
   public interface Iterator<T> {
       boolean hasNext();

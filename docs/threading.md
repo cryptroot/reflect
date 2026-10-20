@@ -95,7 +95,7 @@ display; that display is shared mutable state, not an automatic atomic cell. Exi
 on capturing `ref` locals/parameters and ref structs remain. The initial unscoped thread API does
 not accept borrowed stack storage. A future scoped-thread API needs a lifetime proof of its own.
 
-```csharp
+```reflect
 // future: illustrative API, after v1.0
 int[] result = new int[] { 0 };
 var worker = Thread.start(() -> { result[0] = 42; });
@@ -298,7 +298,7 @@ combination. Its documented scope must include the mandatory barrier path, not j
 instruction. A blocking implementation may preserve atomic semantics but must report that fact;
 code requiring lock freedom needs an explicit capability check or a rejecting factory.
 
-```csharp
+```reflect
 // future: illustrative Atomic<int> API
 public final class Counter {
     private final Atomic<int> count = new Atomic<int>(0);

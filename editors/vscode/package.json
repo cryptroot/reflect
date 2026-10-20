@@ -1,0 +1,70 @@
+{
+  "name": "reflect-language",
+  "displayName": "Reflect Language",
+  "description": "Reflect syntax highlighting for source files, Markdown source fences and Markdown previews.",
+  "version": "0.0.3",
+  "publisher": "cryptroot",
+  "main": "./extension.cjs",
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cryptroot/reflect.git",
+    "directory": "editors/vscode"
+  },
+  "contributes": {
+    "markdown.markdownItPlugins": true,
+    "markdown.previewStyles": [
+      "./preview.css"
+    ],
+    "languages": [
+      {
+        "id": "reflect",
+        "aliases": [
+          "Reflect",
+          "reflect"
+        ],
+        "extensions": [
+          ".rfl"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "reflect",
+        "scopeName": "source.reflect",
+        "path": "./syntaxes/reflect.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.reflect.codeblock",
+        "path": "./syntaxes/markdown-reflect.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.reflect": "reflect"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --test test/*.test.cjs",
+    "package": "vsce package --skip-license"
+  },
+  "dependencies": {
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.2.0"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.6.2",
+    "markdown-it": "^14.1.0"
+  }
+}

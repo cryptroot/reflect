@@ -1,1 +1,3 @@
 /out/
+/editors/vscode/node_modules/
+/editors/vscode/*.vsix

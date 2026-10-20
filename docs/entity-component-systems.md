@@ -33,7 +33,7 @@ This does not replace ordinary structs, arrays, collections, classes or tracing 
 
 ### 2.1 Surface syntax
 
-```java
+```reflect
 public component Position {
     public float x;
     public float y;
@@ -90,7 +90,7 @@ accidental use of the interfaces in unrelated code.
 
 ### 2.2 Update signatures and queries
 
-```java
+```reflect
 public component Velocity {
     public float x;
     public float y;
@@ -149,7 +149,7 @@ type. A future array adapter would need explicit lengths, alignment and access v
 
 Illustrative host-side API, to be specified with the library:
 
-```java
+```reflect
 World world = new World();
 world.reserve<Position, Velocity>(4096);
 Entity player = world.create(new Position(), new Velocity());
@@ -165,7 +165,7 @@ Reservation for one component set is not reservation for every possible combinat
 
 An ordinary system can use objects without qualifying as an optimized kernel:
 
-```java
+```reflect
 public system RenderScene {
     private final Renderer renderer;
 

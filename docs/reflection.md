@@ -10,7 +10,7 @@ Conventions: [architecture.md](architecture.md) §0.
   `reflect.meta` inside module `reflect.core` (LIB-02), next to `Class<T>`. Collections of mirrors
   are `ReadOnlyList<T>` (stdlib.md §4). Abridged:
 
-  ```csharp
+  ```reflect
   // file: stdlib/reflect.core/meta/Mirrors.rfl (abridged)
   namespace reflect.meta;
 
@@ -135,7 +135,7 @@ Conventions: [architecture.md](architecture.md) §0.
   - options come from `-G name=value` or `option` in `workspace.rfl` (BLD-02) and reach the
     generator as `ctx.option("name")`; `--emit-generated DIR` writes one `X.g.rfl` per class.
 
-  ```csharp
+  ```reflect
   // file: stdlib/reflect.meta.compile/Generators.rfl (abridged)
   namespace reflect.meta.compile;
 

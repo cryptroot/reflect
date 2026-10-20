@@ -1,0 +1,314 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Reflect",
+  "scopeName": "source.reflect",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#template-splices" },
+    { "include": "#annotations" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#numbers" },
+    { "include": "#identifiers" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.documentation.reflect",
+          "begin": "///",
+          "end": "$",
+          "patterns": [
+            {
+              "name": "keyword.other.documentation.reflect",
+              "match": "@(?:param|return|throws|see)\\b"
+            }
+          ]
+        },
+        {
+          "name": "comment.line.double-slash.reflect",
+          "begin": "//",
+          "end": "$"
+        },
+        {
+          "name": "comment.block.reflect",
+          "begin": "/\\*",
+          "end": "\\*/"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.interpolated.reflect",
+          "begin": "\\$\"",
+          "end": "\"|(?=$)",
+          "patterns": [
+            { "include": "#string-escapes" },
+            {
+              "name": "constant.character.escape.reflect",
+              "match": "\\{\\{|\\}\\}"
+            },
+            {
+              "name": "meta.interpolation.reflect",
+              "contentName": "meta.embedded.inline.reflect",
+              "begin": "\\{",
+              "end": "\\}",
+              "beginCaptures": {
+                "0": { "name": "punctuation.section.interpolation.begin.reflect" }
+              },
+              "endCaptures": {
+                "0": { "name": "punctuation.section.interpolation.end.reflect" }
+              },
+              "patterns": [
+                { "include": "#expression-groups" },
+                {
+                  "name": "meta.interpolation.format.reflect",
+                  "contentName": "string.unquoted.format.reflect",
+                  "begin": ":",
+                  "end": "(?=\\})"
+                },
+                { "include": "$self" }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.double.reflect",
+          "begin": "\"",
+          "end": "\"|(?=$)",
+          "patterns": [
+            { "include": "#string-escapes" }
+          ]
+        },
+        {
+          "name": "string.quoted.single.reflect",
+          "begin": "'",
+          "end": "'|(?=$)",
+          "patterns": [
+            { "include": "#character-escapes" }
+          ]
+        }
+      ]
+    },
+    "character-escapes": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.reflect",
+          "match": "\\\\(?:[tnr0\\\\'\"]|u[0-9a-fA-F]{4})"
+        },
+        {
+          "name": "invalid.illegal.escape.reflect",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "string-escapes": {
+      "patterns": [
+        {
+          "name": "constant.character.escape.reflect",
+          "match": "\\\\u\\{[0-9a-fA-F]+\\}"
+        },
+        { "include": "#character-escapes" }
+      ]
+    },
+    "expression-groups": {
+      "patterns": [
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "patterns": [
+            { "include": "#expression-groups" },
+            { "include": "$self" }
+          ]
+        },
+        {
+          "begin": "\\(",
+          "end": "\\)",
+          "patterns": [
+            { "include": "#expression-groups" },
+            { "include": "$self" }
+          ]
+        },
+        {
+          "begin": "\\[",
+          "end": "\\]",
+          "patterns": [
+            { "include": "#expression-groups" },
+            { "include": "$self" }
+          ]
+        }
+      ]
+    },
+    "template-splices": {
+      "name": "meta.interpolation.template.reflect",
+      "begin": "\\$\\{",
+      "end": "\\}",
+      "patterns": [
+        { "include": "#expression-groups" },
+        { "include": "$self" }
+      ]
+    },
+    "annotations": {
+      "match": "(@)((?!interface\\b)[\\p{L}_][\\p{L}\\p{N}_]*(?:\\.[\\p{L}_][\\p{L}\\p{N}_]*)*)",
+      "captures": {
+        "1": { "name": "punctuation.definition.annotation.reflect" },
+        "2": { "name": "entity.name.type.annotation.reflect" }
+      }
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(namespace|import|module)\\s+(?:(static)\\s+)?([\\p{L}_][\\p{L}\\p{M}\\p{N}_]*(?:\\.[\\p{L}_][\\p{L}\\p{M}\\p{N}_]*)*)",
+          "captures": {
+            "1": { "name": "keyword.other.reflect" },
+            "2": { "name": "storage.modifier.reflect" },
+            "3": { "name": "entity.name.namespace.reflect" }
+          }
+        },
+        {
+          "match": "\\b(class|enum|interface|record|struct|component|system)\\s+([\\p{L}_][\\p{L}\\p{M}\\p{N}_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.reflect" },
+            "2": { "name": "entity.name.type.reflect" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "constant.language.reflect",
+          "match": "\\b(?:false|null|true)\\b"
+        },
+        {
+          "name": "variable.language.reflect",
+          "match": "\\b(?:super|this)\\b"
+        },
+        {
+          "name": "storage.type.primitive.reflect",
+          "match": "\\b(?:boolean|byte|char|double|float|int|long|short|ubyte|uint|ulong|ushort|void)\\b"
+        },
+        {
+          "name": "storage.modifier.reflect",
+          "match": "\\b(?:abstract|const|extern|final|native|override|private|protected|public|static|virtual)\\b"
+        },
+        {
+          "name": "keyword.control.reflect",
+          "match": "\\b(?:break|case|catch|continue|default|do|else|finally|for|if|return|switch|throw|try|while)\\b"
+        },
+        {
+          "name": "keyword.declaration.reflect",
+          "match": "\\b(?:class|enum|event|extends|implements|interface|namespace|struct)\\b"
+        },
+        {
+          "name": "keyword.other.reflect",
+          "match": "\\b(?:checked|explicit|import|in|instanceof|new|operator|out|ref|sizeof|stackalloc|throws|unsafe|using)\\b"
+        },
+        {
+          "name": "keyword.other.reserved.reflect",
+          "match": "\\b(?:async|await|fixed|goto|infix|postfix|precedence|prefix|synchronized|volatile|yield)\\b"
+        },
+        {
+          "name": "keyword.other.contextual.reflect",
+          "match": "\\b(?:add|expr|field|get|member|mutating|nameof|partial|permits|quote|record|remove|scoped|sealed|set|stmt|unsealed|value|var|when|where)\\b"
+        },
+        {
+          "name": "keyword.other.module.reflect",
+          "match": "\\b(?:exports|main|module|opens|provides|requires|to|transitive|uses|version|with)\\b"
+        },
+        {
+          "name": "keyword.other.workspace.reflect",
+          "match": "\\b(?:allowUnsafe|aot|error|modulePath|none|option|output|severity|warning|workspace)\\b"
+        },
+        {
+          "name": "keyword.other.proposed.reflect",
+          "match": "\\b(?:component|ensures|old|result|system|transaction)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.integer.hexadecimal.reflect",
+          "match": "\\b0x[0-9a-fA-F](?:_*[0-9a-fA-F])*(?:UL|uL|[uUL])?\\b"
+        },
+        {
+          "name": "constant.numeric.integer.binary.reflect",
+          "match": "\\b0b[01](?:_*[01])*(?:UL|uL|[uUL])?\\b"
+        },
+        {
+          "name": "constant.numeric.float.reflect",
+          "match": "\\b[0-9](?:_*[0-9])*(?:\\.[0-9](?:_*[0-9])*(?:[eE][+-]?[0-9](?:_*[0-9])*)?[fFdD]?|[eE][+-]?[0-9](?:_*[0-9])*[fFdD]?|[fFdD])\\b"
+        },
+        {
+          "name": "constant.numeric.integer.decimal.reflect",
+          "match": "\\b[0-9](?:_*[0-9])*(?:UL|uL|[uUL])?\\b"
+        }
+      ]
+    },
+    "identifiers": {
+      "patterns": [
+        {
+          "match": "(\\?\\.|\\.)\\s*([\\p{L}_][\\p{L}\\p{M}\\p{N}_]*)(?=\\s*(?:<[^;{}()\\n]*>)?\\s*\\()",
+          "captures": {
+            "1": { "name": "punctuation.accessor.reflect" },
+            "2": { "name": "entity.name.function.member.reflect" }
+          }
+        },
+        {
+          "match": "(\\?\\.|\\.)\\s*([\\p{Lu}_][\\p{Lu}\\p{N}_]+)(?![\\p{L}\\p{M}\\p{N}_])",
+          "captures": {
+            "1": { "name": "punctuation.accessor.reflect" },
+            "2": { "name": "constant.other.reflect" }
+          }
+        },
+        {
+          "match": "(\\?\\.|\\.)\\s*([\\p{L}_][\\p{L}\\p{M}\\p{N}_]*)",
+          "captures": {
+            "1": { "name": "punctuation.accessor.reflect" },
+            "2": { "name": "variable.other.member.reflect" }
+          }
+        },
+        {
+          "name": "variable.other.member.reflect",
+          "match": "[\\p{L}_][\\p{L}\\p{M}\\p{N}_]*(?=\\s*\\{\\s*(?:get|set|add|remove)\\b)"
+        },
+        {
+          "name": "constant.other.reflect",
+          "match": "\\b[\\p{Lu}_][\\p{Lu}\\p{N}_]+(?![\\p{L}\\p{M}\\p{N}_])"
+        },
+        {
+          "name": "entity.name.type.reflect",
+          "match": "\\b\\p{Lu}[\\p{L}\\p{M}\\p{N}_]*"
+        },
+        {
+          "name": "entity.name.function.reflect",
+          "match": "[\\p{L}_][\\p{L}\\p{M}\\p{N}_]*(?=\\s*(?:<[^;{}()\\n]*>)?\\s*\\()"
+        },
+        {
+          "name": "variable.other.reflect",
+          "match": "[\\p{L}_][\\p{L}\\p{M}\\p{N}_]*"
+        }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.reflect",
+          "match": "[-+*/%=&|^!<>?~:]+"
+        },
+        {
+          "name": "punctuation.separator.reflect",
+          "match": "[.,;]"
+        },
+        {
+          "name": "punctuation.section.brackets.reflect",
+          "match": "[{}\\[\\]()]"
+        }
+      ]
+    }
+  }
+}

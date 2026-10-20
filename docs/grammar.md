@@ -51,7 +51,7 @@ reserved by the baseline grammar below.
   467). `/** */` is an ordinary comment. There is no Unicode-escape preprocessing: `\u` means
   something only inside char and string literals.
 
-  ```csharp
+  ```reflect
   /// Returns the larger of `a` and `b`.
   /// @param a the first value
   /// @return `a` when the two compare equal

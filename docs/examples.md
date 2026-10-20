@@ -5,8 +5,10 @@ source that should compile once `rflc` exists, so it doubles as a review of the 
 
 ## 1. How to read the examples
 
-- `csharp` fences contain Reflect (the label only enables highlighting); `text` fences contain
-  bytecode assembly or console output; `java` fence contains stage0 input.
+- `reflect` fences contain Reflect; `text` fences contain bytecode assembly or console output;
+  the `java` fence contains actual stage0 Java input. The
+  [local VS Code extension](../editors/vscode/README.md) highlights Reflect fences in both the
+  Markdown source editor and the built-in preview; GitHub needs separate highlighter support.
 - A block starting with `// file: <path>` is a complete source file of the example module `demo`
   . Blocks without that line are fragments of the nearest file above.
 - Blocks starting with `// rejected` do not compile; each `// error:` line names the rule that
@@ -36,7 +38,7 @@ source that should compile once `rflc` exists, so it doubles as a review of the 
 
 One module is one `.rflc` file; the descriptor is Java's `module-info` plus `unsafe;` and `main`
 
-```csharp
+```reflect
 // file: demo/module-info.rfl
 module demo {
     version "0.1.0";
@@ -54,7 +56,7 @@ module demo {
 }
 ```
 
-```csharp
+```reflect
 // file: reflect.lint/module-info.rfl
 module reflect.lint {
     requires transitive reflect.meta.compile;   // the analyzers' public signatures use its types
@@ -64,7 +66,7 @@ module reflect.lint {
 }
 ```
 
-```csharp
+```reflect
 // file: plugins/module-info.rfl
 module plugins.host {
     requires demo;
@@ -72,7 +74,7 @@ module plugins.host {
 }
 ```
 
-```csharp
+```reflect
 // file: plugins/host/Gallery.rfl
 namespace plugins.host;
 
@@ -94,7 +96,7 @@ public final class Gallery {
 
 Namespaces are lowercase, file-scoped or block form, and hold types only.
 
-```csharp
+```reflect
 // file: demo/shapes/Catalog.rfl
 namespace demo.shapes;                   // file-scoped: applies to the whole file
 
@@ -117,7 +119,7 @@ public final class Catalog {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 namespace demo.bad;
 
@@ -135,7 +137,7 @@ final class Lookups {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/Blocks.rfl
 namespace demo {                         // block form; several blocks per file
     import static reflect.io.Console;     // also applies inside nested blocks
@@ -157,7 +159,7 @@ namespace demo.measure {
 final class Scratch { }                  // outside every block: global namespace, never exported
 ```
 
-```csharp
+```reflect
 // rejected
 namespace demo {
     final class Draft { }                // package-private: namespace demo only
@@ -170,7 +172,7 @@ namespace demo {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 namespace demo.bad;
 namespace demo.other { }                 // error: a file has one file-scoped namespace or else blocks
@@ -181,7 +183,7 @@ public static void helper() { }          // error: no top-level functions
 
 `public`, `protected`, package-private (no modifier) and `private`
 
-```csharp
+```reflect
 // file: demo/bank/Vault.rfl
 namespace demo.bank;                     // not exported: public types are module-internal
 
@@ -199,7 +201,7 @@ public class Vault {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 namespace demo.shop;
 
@@ -214,7 +216,7 @@ final class Teller {
 
 ### 2.4 Entry point
 
-```csharp
+```reflect
 // file: demo/App.rfl
 namespace demo;
 
@@ -236,7 +238,7 @@ Java declarations with C#'s dispatch defaults: non-virtual unless `virtual`/`abs
 `override` everywhere. An override may return a more specific type than the member it overrides
 (covariant returns, MEM-02).
 
-```csharp
+```reflect
 // file: demo/zoo/Animal.rfl
 namespace demo.zoo;
 
@@ -263,7 +265,7 @@ public abstract class Animal {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/zoo/Dog.rfl
 namespace demo.zoo;
 
@@ -288,7 +290,7 @@ public final class Dog extends Animal {          // final: cannot be extended
 }
 ```
 
-```csharp
+```reflect
 // file: demo/zoo/Enclosure.rfl
 namespace demo.zoo;
 
@@ -307,7 +309,7 @@ public final class Enclosure {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/zoo/Zoo.rfl
 namespace demo.zoo;
 
@@ -331,7 +333,7 @@ public final class Zoo {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 public class Cat extends Animal {
     public Cat() { super("Tom", 4); }
@@ -357,7 +359,7 @@ public final class Enclosure2 {
 
 Default methods, private helpers, properties, events and static abstract members.
 
-```csharp
+```reflect
 // file: demo/shapes/Shape.rfl
 namespace demo.shapes;
 
@@ -378,7 +380,7 @@ public interface Shape {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/shapes/Square.rfl
 namespace demo.shapes;
 
@@ -403,7 +405,7 @@ public final class Square implements Shape {
 
 Default-method conflicts follow Java: the class resolves them with its own `override`.
 
-```csharp
+```reflect
 // file: demo/shapes/Labels.rfl
 namespace demo.shapes;
 
@@ -427,7 +429,7 @@ public final class Fancy extends Plain implements Named {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 namespace demo.shapes;
 
@@ -440,7 +442,7 @@ public final class Either implements Named, Tagged {
 
 Java's primitives plus unsigned types; wrap-around by default, `checked` traps.
 
-```csharp
+```reflect
 // file: demo/basics/Literals.rfl
 namespace demo.basics;
 
@@ -492,7 +494,7 @@ public final class Literals {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 int big = 3_000_000_000;                 // error: does not fit int (write 3_000_000_000L)
 byte small = 200;                        // error: byte is signed; use ubyte or (byte) 200
@@ -504,7 +506,7 @@ int whole = 1.5;                         // error: no implicit narrowing
 
 Non-null by default, `T?`, flow-sensitive narrowing.
 
-```csharp
+```reflect
 // file: demo/basics/Nulls.rfl
 namespace demo.basics;
 
@@ -542,7 +544,7 @@ public final class Nulls {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 String? nick = null;
 int a = nick.length;                       // error: nick may be null
@@ -569,7 +571,7 @@ For performance, the collections' default iterators are structs that implement `
 C#'s enumerators are (from v0.4): an enhanced `for` over an `ArrayList<T>` never boxes its
 iterator, and one over a `List<T>`, such as `rows` below, boxes it once (STM-04, LIB-04).
 
-```csharp
+```reflect
 // file: demo/basics/Statements.rfl
 namespace demo.basics;
 
@@ -619,7 +621,7 @@ public final class Statements {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 switch (day) {
     case MONDAY: println("work");          // error: only the arrow form exists
@@ -633,7 +635,7 @@ int v = switch (x) { default -> { yield 1; } };   // error: `yield` is reserved 
 Arrays are invariant, nullability included, so a reference store needs no run-time check; generic
 methods take any array of a bound (§3.2 does the same for lists).
 
-```csharp
+```reflect
 // file: demo/basics/ArrayDemo.rfl
 namespace demo.basics;
 
@@ -667,7 +669,7 @@ public final class ArrayDemo {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 Shape[] shapes = new Square[] { new Square(1) };   // error: arrays are invariant; use a generic method
 String?[] loose = new String[] { "a" };    // error: String[] is not String?[]
@@ -675,7 +677,7 @@ Object[] boxes = new int[3];               // error: arrays are invariant
 long[] longs = new int[3];                 // error: no array conversion between element types
 ```
 
-```csharp
+```reflect
 // file: stdlib/reflect.core/Array.rfl
 namespace reflect.core;
 
@@ -693,7 +695,7 @@ public abstract class Array {                                 // every array typ
 Natives are declared in Reflect; only the stdlib has them in v0.
 Natives will be supported to extend functionality to outside libraries, such as OS-specific operations.
 
-```csharp
+```reflect
 // file: stdlib/reflect.core/Natives.rfl
 namespace reflect.core;
 
@@ -703,7 +705,7 @@ public final class Natives {
 }
 ```
 
-```csharp
+```reflect
 // file: stdlib/reflect.io/Console.rfl
 namespace reflect.io;
 
@@ -716,7 +718,7 @@ public final class Console {
 }
 ```
 
-```csharp
+```reflect
 // rejected only for v0
 namespace demo.basics;
 
@@ -732,7 +734,7 @@ final class Fast {
 Generic classes and methods with bounds, `where` clauses and kind constraints; statics exist per
 instantiation.
 
-```csharp
+```reflect
 // file: demo/generics/Box.rfl
 namespace demo.generics;
 
@@ -749,7 +751,7 @@ public class Box<T> {
 final class BoxStats { public static int instantiations; }
 ```
 
-```csharp
+```reflect
 // file: stdlib/reflect.core/Parsable.rfl
 namespace reflect.core;
 
@@ -759,7 +761,7 @@ public interface Parsable<T extends Parsable<T>> {                // implemented
 }
 ```
 
-```csharp
+```reflect
 // file: demo/generics/GenericsDemo.rfl
 namespace demo.generics;
 
@@ -798,7 +800,7 @@ public final class GenericsDemo {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/generics/Cache.rfl
 namespace demo.generics;
 
@@ -816,7 +818,7 @@ public class Cache<K extends class, V extends struct> {
 public class Sorted<T extends class & Comparable<T>> { }   // kind plus bound, kind first
 ```
 
-```csharp
+```reflect
 // rejected
 var c = new Cache<int, String>();          // error: int is not a class, String is not a struct
 Box<Span<int>> spans;                      // error: a ref struct is never a type argument
@@ -827,7 +829,7 @@ Box<Span<int>> spans;                      // error: a ref struct is never a typ
 
 Wildcards `? extends` / `? super` in static types only.
 
-```csharp
+```reflect
 // file: demo/generics/Variance.rfl
 namespace demo.generics;
 
@@ -857,7 +859,7 @@ public final class Variance {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 List<? extends Shape> shapes = new ArrayList<Square>();
 shapes.add(new Square(2));                 // error: no writes through `? extends`
@@ -870,7 +872,7 @@ List<Shape> fixed = new ArrayList<Square>();   // error: invariant without a wil
 Type arguments exist at run time, so every operation below is legal on a type parameter (all are
 illegal in Java).
 
-```csharp
+```reflect
 // file: demo/generics/Reified.rfl
 namespace demo.generics;
 
@@ -918,7 +920,7 @@ public final class Reified {
 
 ### 3.4 Generic definitions as values
 
-```csharp
+```reflect
 // file: demo/generics/Definitions.rfl
 namespace demo.generics;
 
@@ -941,7 +943,7 @@ public final class Definitions {
 Each instantiation is its own run-time class; nullability of type arguments is part of it, tuple
 element names are not. Code sharing is invisible to programs.
 
-```csharp
+```reflect
 // file: demo/generics/Identity.rfl
 namespace demo.generics;
 
@@ -972,7 +974,7 @@ public final class Identity {
 Inferred type arguments are reified, so inference picks a best common type, counting the target
 type, and never synthesizes one. The only exception is a `throws` type parameter.
 
-```csharp
+```reflect
 // file: demo/generics/Inference.rfl
 namespace demo.generics;
 
@@ -989,7 +991,7 @@ public final class Inference {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 var x = pick(cube, sphere);                // error: neither Cube nor Sphere converts to the other
 ```
@@ -999,7 +1001,7 @@ var x = pick(cube, sphere);                // error: neither Cube nor Sphere con
 Tate, Leung and Lerner's four restrictions plus Java's base rule keep subtyping decidable, in the
 compiler and in the VM.
 
-```csharp
+```reflect
 // file: demo/generics/Wildcards.rfl
 namespace demo.generics;
 
@@ -1039,7 +1041,7 @@ public final class Wildcards {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 class X implements List<? extends Shape> { }                    // error: wildcard as a direct supertype argument (Java)
 class C implements List<List<? super C>> { }                    // error: inheritance restriction (proof cycles)
@@ -1057,7 +1059,7 @@ Shapes<? extends Object> wide;                                  // error: equiva
 Intersections are run-time types: inferred only for `throws` type parameters, written only in
 type arguments, casts and `instanceof`.
 
-```csharp
+```reflect
 // file: demo/generics/Intersections.rfl
 namespace demo.generics;
 
@@ -1117,7 +1119,7 @@ public final class Intersections {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 Runnable & Retryable r = task;             // error: not a declaration type; use var or a pattern
 if (item instanceof Runnable & Retryable) { }   // error: parenthesize the intersection
@@ -1130,7 +1132,7 @@ List<IOException & Exception> causes;      // error: two class components, even 
 
 ### 4.1 Virtual and override everywhere
 
-```csharp
+```reflect
 // file: demo/kinds/Kind.rfl
 namespace demo.kinds;
 
@@ -1144,7 +1146,7 @@ public abstract class Kind {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/kinds/Cube.rfl
 namespace demo.kinds;
 
@@ -1160,7 +1162,7 @@ public class OtherObject<K extends Kind> {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/kinds/Demo.rfl
 namespace demo.kinds;
 
@@ -1190,7 +1192,7 @@ public final class Demo {
 
 `super` in a static override, covariant get-only overrides and `final static override`.
 
-```csharp
+```reflect
 // file: demo/kinds/Resolution.rfl
 namespace demo.kinds;
 
@@ -1230,7 +1232,7 @@ public final class Resolution {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 public class Hider extends Kind {
     public static String value { get; } = "X";               // error: no hiding; write `static override`
@@ -1253,7 +1255,7 @@ public class Later extends NamedToken {
 Each class declaring `static override` owns its storage; the others share the nearest
 overrider's. Generic instantiations own separate storage for every static.
 
-```csharp
+```reflect
 // file: demo/kinds/Storage.rfl
 namespace demo.kinds;
 
@@ -1279,7 +1281,7 @@ public final class Storage {
 
 Unqualified static references resolve through the receiver class; there is no syntax naming it.
 
-```csharp
+```reflect
 // file: demo/polygons/Polygon.rfl
 namespace demo.polygons;
 
@@ -1307,7 +1309,7 @@ public final class Polygons {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 println(Polygon.label);                    // error: abstract static through the class name
 public class Square4 extends Polygon { }   // error: must override the static abstract `label`
@@ -1320,7 +1322,7 @@ show<Polygon>();                           // error: Polygon leaves static abstr
 `Class<? extends Kind>` values dispatch statics; `new K(x)` and `k.create(x)` call virtual
 constructors. `Kind(int)` is declared in §4.1.
 
-```csharp
+```reflect
 // file: demo/kinds/Factory.rfl
 namespace demo.kinds;
 
@@ -1342,7 +1344,7 @@ public final class Factory {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 public class Pyramid extends Kind {
     public Pyramid() { super(1); }             // error: declares constructors but not the virtual Kind(int)
@@ -1353,7 +1355,7 @@ static T build<T>(int n) { return new T(n); } // error: T's bound declares no vi
 Name clashes with `Class<T>` : `k.x` finds members of `Class<T>` first, and the static that
 loses gets a warning at its declaration.
 
-```csharp
+```reflect
 // file: demo/plugins/Plugin.rfl
 namespace demo.plugins;
 
@@ -1388,7 +1390,7 @@ public final class Clash {
 Static abstract interface members, operators included, dispatch through the reified type
 argument. `Addable` belongs to the stdlib, so the numeric primitives implement it.
 
-```csharp
+```reflect
 // file: stdlib/reflect.core/Addable.rfl
 namespace reflect.core;
 
@@ -1399,7 +1401,7 @@ public interface Addable<T extends Addable<T>> {                  // implemented
 }
 ```
 
-```csharp
+```reflect
 // file: demo/math/Money.rfl
 namespace demo.math;
 
@@ -1413,7 +1415,7 @@ public struct Money implements Addable<Money> {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/math/Sums.rfl
 namespace demo.math;
 
@@ -1455,7 +1457,7 @@ public final class Sums {
 `==` on type-parameter operands needs a bound that declares it; `x == null` always works;
 identity is `Object.referenceEquals`.
 
-```csharp
+```reflect
 // file: stdlib/reflect.core/Equatable.rfl
 namespace reflect.core;
 
@@ -1465,7 +1467,7 @@ public interface Equatable<T extends Equatable<T>> {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/math/Search.rfl
 namespace demo.math;
 
@@ -1494,7 +1496,7 @@ public final class Search {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 public static boolean same<T extends class>(T a, T b) {
     return a == b;                             // error: the bound declares no `==`
@@ -1509,7 +1511,7 @@ boolean m = new Money(1) == new Money(1);      // error: struct without `operato
 
 C#-style properties with `field`; the setter parameter is always `value`; accessors may throw.
 
-```csharp
+```reflect
 // file: demo/bank/Account.rfl
 namespace demo.bank;
 
@@ -1536,7 +1538,7 @@ public class Account {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/props/Figure.rfl
 namespace demo.props;
 
@@ -1564,7 +1566,7 @@ public final class Gauge {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 static void bump(ref long x) { x++; }
 bump(ref account.balance);                 // error: a property is not a variable (no `ref`)
@@ -1576,7 +1578,7 @@ class Loud { String name { get; public set; } }   // error: an accessor is never
 
 C#-style events over functional interfaces.
 
-```csharp
+```reflect
 // file: demo/ui/Button.rfl
 namespace demo.ui;
 
@@ -1607,7 +1609,7 @@ public final class Throttled {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/ui/Saver.rfl
 namespace demo.ui;
 
@@ -1623,7 +1625,7 @@ public final class Saver {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/ui/Events.rfl
 namespace demo.ui;
 
@@ -1665,7 +1667,7 @@ public final class Events {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 ok.clicked(new ClickEvent(ok));            // error: only the declaring class raises an event
 ok.clicked = null;                         // error: outside the declaring class only += and -=
@@ -1677,7 +1679,7 @@ public event Object changed;               // error: the event type must be a fu
 `@Observable` on a field of a partial class. The proposal subscribed after assigning,
 so its first change would go unseen; here the listener comes first.
 
-```csharp
+```reflect
 // file: demo/model/Model.rfl
 namespace demo.model;
 
@@ -1696,7 +1698,7 @@ public partial class Model {             // partial: generators may add members
 }
 ```
 
-```csharp
+```reflect
 // file: demo/model/ModelDemo.rfl
 namespace demo.model;
 
@@ -1715,7 +1717,7 @@ public final class ModelDemo {
 
 `rflc --emit-generated` prints the members that `ObservableGenerator`  adds to `Model`. The `import` lines are an assumption, see [reflection §3, META-04](reflection.md#3-generators-and-templates).
 
-```csharp
+```reflect
 // file: demo/model/Model.g.rfl
 // <generated by reflect.observable.ObservableGenerator for demo.model.Model>
 namespace demo.model;
@@ -1751,7 +1753,7 @@ public partial class Model implements PropertyChangeSource {
 
 Run-time support types:
 
-```csharp
+```reflect
 // file: stdlib/reflect.observable/PropertyChange.rfl
 namespace reflect.observable;
 
@@ -1769,7 +1771,7 @@ public interface PropertyChangeSource {
 
 Every part says `partial`; a partial member is completed by exactly one generator.
 
-```csharp
+```reflect
 // file: demo/model/Settings.rfl
 namespace demo.model;
 
@@ -1781,7 +1783,7 @@ public partial class Settings {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/model/SettingsDefaults.rfl
 namespace demo.model;
 
@@ -1790,7 +1792,7 @@ public partial class Settings {                 // second part, in another file
 }
 ```
 
-```csharp
+```reflect
 // rejected
 public class Plain {
     @Observable public int x;                   // error: generator-bound annotation outside a partial class
@@ -1809,7 +1811,7 @@ Java `@interface` syntax, retention `RUNTIME` by default, bound to a generator w
 `@GeneratedBy`. Each annotation type has a generated implementation class, so reading
 annotations needs no `unsafe;`.
 
-```csharp
+```reflect
 // file: stdlib/reflect.observable/Observable.rfl
 namespace reflect.observable;
 
@@ -1822,7 +1824,7 @@ public @interface Observable {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/annotations/Route.rfl
 namespace demo.annotations;
 
@@ -1851,7 +1853,7 @@ public final class Items {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/model/Document.rfl
 namespace demo.model;
 
@@ -1876,7 +1878,7 @@ public partial class Document {
 
 A generator lives in a module compiled earlier and runs on the VM inside `rflc`.
 
-```csharp
+```reflect
 // file: stdlib/reflect.observable/module-info.rfl
 module reflect.observable {
     requires reflect.meta.compile;       // ClassGenerator, GeneratorContext, Template
@@ -1884,7 +1886,7 @@ module reflect.observable {
 }
 ```
 
-```csharp
+```reflect
 // file: tools/module-info.rfl
 module demo.tools {                      // a pure tooling module, compiled before demo
     requires reflect.meta.compile;
@@ -1893,7 +1895,7 @@ module demo.tools {                      // a pure tooling module, compiled befo
 }
 ```
 
-```csharp
+```reflect
 // rejected
 // inside module reflect.observable itself:
 public partial class Local {
@@ -1905,7 +1907,7 @@ public partial class Local {
 
 Quasi-quotes with typed splices [Proposed shape].
 
-```csharp
+```reflect
 // file: stdlib/reflect.observable/ObservableGenerator.rfl
 namespace reflect.observable;
 
@@ -1969,7 +1971,7 @@ public final class ObservableGenerator implements ClassGenerator<Observable> {
 Ordering : a generator that reads members produced by another names it in
 `@Generator(after = ...)`.
 
-```csharp
+```reflect
 // file: tools/AutoToString.rfl
 namespace demo.tools;
 
@@ -2005,7 +2007,7 @@ public final class ToStringGenerator implements ClassGenerator<AutoToString> {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/model/Point2.rfl
 namespace demo.model;
 
@@ -2025,7 +2027,7 @@ public partial class Point2 {
 Analyzers only report diagnostics; they may read a read-only view of bound bodies.
 They are registered with `provides` and enabled with `requires static`.
 
-```csharp
+```reflect
 // file: reflect.lint/MutablePublicFieldAnalyzer.rfl
 namespace reflect.lint;
 
@@ -2041,7 +2043,7 @@ public final class MutablePublicFieldAnalyzer implements Analyzer<Field> {
 }
 ```
 
-```csharp
+```reflect
 // file: reflect.lint/IgnoredResultAnalyzer.rfl
 namespace reflect.lint;
 
@@ -2065,7 +2067,7 @@ public final class IgnoredResultAnalyzer implements Analyzer<Method> {
 
 `const` methods and fields run inside the compiler; `static final` stays a run-time constant. A `const` enum's constants are constant expressions, and its `const` methods fold on a constant receiver, as `Planet.EARTH.surfaceGravity()` does below (DAT-05, META-07).
 
-```csharp
+```reflect
 // file: demo/consts/Tables.rfl
 namespace demo.consts;
 
@@ -2092,7 +2094,7 @@ public final class Tables {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 public const long NOW = Clock.nowMillis();          // error: const initializers call only const methods
 public static const int spin(int n) { return spin(n + 1); }
@@ -2110,7 +2112,7 @@ public const List<int> LIST = List.of(1, 2);        // error: not a constant-poo
 
 The same code runs over compiler symbols in a generator and over VM metadata in a program.
 
-```csharp
+```reflect
 // file: demo/meta/Introspect.rfl
 namespace demo.meta;
 
@@ -2147,7 +2149,7 @@ public final class Introspect {
 
 Lambdas and method references convert only to functional interfaces. The stdlib set:
 
-```csharp
+```reflect
 // file: stdlib/reflect.functions/Functions.rfl
 namespace reflect.functions;
 
@@ -2165,7 +2167,7 @@ namespace reflect.functions;
 @FunctionalInterface public interface ThrowingFunction<T, R, E extends Exception> { R apply(T t) throws E; }
 ```
 
-```csharp
+```reflect
 // file: demo/fn/Lambdas.rfl
 namespace demo.fn;
 
@@ -2200,7 +2202,7 @@ public final class Lambdas {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 Object o = () -> 1;                        // error: Object is not a functional interface
 var f = (int x) -> x + 1;                  // error: a lambda needs a target type
@@ -2211,7 +2213,7 @@ var f = (int x) -> x + 1;                  // error: a lambda needs a target typ
 Lambdas capture variables, not values; enhanced-`for` variables are fresh per iteration, classic
 `for` variables shared.
 
-```csharp
+```reflect
 // file: demo/fn/Captures.rfl
 namespace demo.fn;
 
@@ -2235,7 +2237,7 @@ public final class Captures {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 static void bump(ref int total) {
     Runnable r = () -> total++;            // error: no capture of `ref`/`in`/`out` parameters
@@ -2249,7 +2251,7 @@ static void peek(Span<int> xs) {
 
 Java's hierarchy and checking, plus generic `throws E` for exception transparency.
 
-```csharp
+```reflect
 // file: demo/errors/Loader.rfl
 namespace demo.errors;
 
@@ -2277,7 +2279,7 @@ public final class Loader {
 
 Exception transparency: `E` is inferred from the lambda and reified.
 
-```csharp
+```reflect
 // file: demo/errors/Throwing.rfl
 namespace demo.errors;
 
@@ -2301,7 +2303,7 @@ public final class Throwing {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/errors/Transparency.rfl
 namespace demo.errors;
 
@@ -2317,7 +2319,7 @@ public final class Transparency {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 static void quiet(List<Path> paths) {
     Throwing.map(paths, p -> Files.readString(p));   // error: unreported IOException
@@ -2327,7 +2329,7 @@ Function<Path, String> read = p -> Files.readString(p);   // error: Function.app
 
 Several checked exceptions infer an intersection for `E`: §3.8. Generic exception classes and catching by type argument:
 
-```csharp
+```reflect
 // file: demo/errors/ParseError.rfl
 namespace demo.errors;
 
@@ -2370,14 +2372,14 @@ public final class Parsing {
 
 Java's statement and translation; `close()` failures become suppressed exceptions.
 
-```csharp
+```reflect
 // file: stdlib/reflect.core/AutoCloseable.rfl
 namespace reflect.core;
 
 public interface AutoCloseable { void close() throws Exception; }
 ```
 
-```csharp
+```reflect
 // file: demo/errors/Copy.rfl
 namespace demo.errors;
 
@@ -2403,7 +2405,7 @@ public final class Copy {
 C#-style destructors as a safety net next to try-with-resources; the queue drains only at
 defined points.
 
-```csharp
+```reflect
 // file: demo/interop/NativeBuffer.rfl
 namespace demo.interop;
 
@@ -2425,7 +2427,7 @@ public final class NativeBuffer implements AutoCloseable {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/interop/Buffers.rfl
 namespace demo.interop;
 
@@ -2442,7 +2444,7 @@ public final class Buffers {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 public struct Handle {
     ~Handle() { }                          // error: structs have no finalizers
@@ -2451,7 +2453,7 @@ public struct Handle {
 
 ### 7.6 async/await
 
-```csharp
+```reflect
 // future: after the preview; `async` and `await` are reserved now
 public async Task<String> fetch(Uri uri) throws IOException {
     var response = await http.get(uri);
@@ -2467,7 +2469,7 @@ Threads are deferred until after v1.0 (CON-01). Lockability is opt-in through `L
 (CON-04); the [threads and atomics proposal](threading.md) covers the unscheduled memory model,
 atomic operations and possible lock-free semantics. This syntax remains reserved, not enabled.
 
-```csharp
+```reflect
 // future: after v1.0; `volatile` and `synchronized` are reserved now
 public final class Counter {
     private final Lock lock = new Lock();
@@ -2484,7 +2486,7 @@ public final class Counter {
 
 Which construct throws what. The VM raises ordinary Reflect exceptions; reflection wraps callee failures.
 
-```csharp
+```reflect
 // file: demo/errors/Raised.rfl
 namespace demo.errors;
 
@@ -2539,7 +2541,7 @@ Compile-time code adds the unchecked `PhaseException` and, under `--deterministi
 
 Operators are `public static` methods; conversions are explicit only.
 
-```csharp
+```reflect
 // file: demo/math/Vec2.rfl
 namespace demo.math;
 
@@ -2566,7 +2568,7 @@ public struct Vec2 {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/math/Vectors.rfl
 namespace demo.math;
 
@@ -2584,7 +2586,7 @@ public final class Vectors {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 Vec2 d = new Point(3, 4);                  // error: no implicit conversions
 public struct Bad {
@@ -2599,7 +2601,7 @@ public struct Bad {
 
 Bitwise and shift operators, `!`, `~`, increments and ordered comparisons.
 
-```csharp
+```reflect
 // file: demo/math/Bits.rfl
 namespace demo.math;
 
@@ -2647,7 +2649,7 @@ final class Releases {
 An instance `operator +=` works in place; without one, `x += y` means `x = x + y` with `x`
 evaluated once.
 
-```csharp
+```reflect
 // file: demo/math/Matrix.rfl
 namespace demo.math;
 
@@ -2684,7 +2686,7 @@ final class Compound {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 final class Holder { public Accumulator acc { get; set; } }
 holder.acc += 5;                           // error: in-place struct operator on a property result
@@ -2694,7 +2696,7 @@ holder.acc += 5;                           // error: in-place struct operator on
 
 `this[...]` with `get`/`set`, overloaded by parameter types, may throw.
 
-```csharp
+```reflect
 // file: demo/data/Grid.rfl
 namespace demo.data;
 
@@ -2736,7 +2738,7 @@ final class Board {
 
 Generic `==`: §4.7.
 
-```csharp
+```reflect
 // file: demo/data/Equality.rfl
 namespace demo.data;
 
@@ -2764,7 +2766,7 @@ public final class Equality {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 boolean same = new Point(1, 2) == new Point(1, 2);   // error: struct without `operator ==`
 ```
@@ -2773,7 +2775,7 @@ boolean same = new Point(1, 2) == new Point(1, 2);   // error: struct without `o
 
 Swift-style operator and precedence-group declarations; syntax and placement are open for discussion.
 
-```csharp
+```reflect
 // future: after v1; `infix`, `prefix`, `postfix`, `precedence` are reserved now
 precedence PipePrecedence { associativity left; lowerThan AdditivePrecedence; }
 infix operator |> : PipePrecedence;
@@ -2793,7 +2795,7 @@ User value types plus C# 11 ref safety instead of a borrow checker.
 
 An explicit set of `Borrow` types (treated differently by the compiler) might be added for extra safety in some circumstances, this is open to discussion.
 
-```csharp
+```reflect
 // file: demo/data/Point.rfl
 namespace demo.data;
 
@@ -2809,7 +2811,7 @@ public struct Pin {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/data/Structs.rfl
 namespace demo.data;
 
@@ -2829,7 +2831,7 @@ public final class Structs {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/data/Refs.rfl
 namespace demo.data;
 
@@ -2877,7 +2879,7 @@ public final class Refs {
 `Span<T>` is a well-known `ref struct` of `reflect.core`
 ([architecture §6](architecture.md#6-dependency-rules)).
 
-```csharp
+```reflect
 // rejected
 public struct Named { public String name; }        // error: reference-typed struct fields must be nullable
 final class Keeper { Span<int> kept; }              // error: a ref struct never reaches the heap
@@ -2890,7 +2892,7 @@ static Span<int> leak(scoped Span<int> xs) { return xs; }        // error: a sco
 
 Java record syntax for classes, C# `record struct` for values; both generate value equality.
 
-```csharp
+```reflect
 // file: demo/data/Records.rfl
 namespace demo.data;
 
@@ -2920,7 +2922,7 @@ public final class Records {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 p.x = 5;                                   // error: record components are get-only
 ```
@@ -2930,7 +2932,7 @@ p.x = 5;                                   // error: record components are get-o
 One value-type enum kind with an integral backing type, Java-style per-constant members and
 `@Flags`. Rules: [type-system §11, DAT-05](type-system.md#11-structs-ref-safety-records-enums-sealed-types-tuples-destructible-objects-dat).
 
-```csharp
+```reflect
 // file: demo/data/Enums.rfl
 namespace demo.data;
 
@@ -2986,7 +2988,7 @@ public final class Enums {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 Color mix = Color.RED | Color.BLUE;        // error: bit operators need @Flags
 int i = Color.RED;                         // error: conversions are explicit
@@ -3001,7 +3003,7 @@ enum Mode : int {
 Java 17 `sealed`/`permits`/`unsealed`, Java 21 patterns and guards. Stage0 supports type
 patterns only; deconstruction and guards come with `rflc`.
 
-```csharp
+```reflect
 // file: demo/data/Expr.rfl
 namespace demo.data;
 
@@ -3040,7 +3042,7 @@ public final class Evaluator {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 public record Pow(Expr base, int exp) implements Expr { }   // error: Pow is not in the permits list
 static int partial(Expr e) {
@@ -3052,7 +3054,7 @@ static int partial(Expr e) {
 
 Value tuples with optional element names that are not part of the type.
 
-```csharp
+```reflect
 // file: demo/data/Tuples.rfl
 namespace demo.data;
 
@@ -3092,7 +3094,7 @@ Order: the onDestroy() hook runs, then a destroying event is raised, then the fl
 
 Access to destruction may be permitted via a static method on `Object` such as Unity's `Object.Destroy()`. Open for discussion, a closed implementation is shown below.
 
-```csharp
+```reflect
 // file: stdlib/reflect.core/Destructible.rfl
 namespace reflect.core;
 
@@ -3105,7 +3107,7 @@ public abstract class Destructible {                  // VM-known root class; no
 }
 ```
 
-```csharp
+```reflect
 // file: demo/actors/Actor.rfl
 namespace demo.actors;
 
@@ -3121,7 +3123,7 @@ public class Actor extends Destructible {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/actors/Main.rfl
 namespace demo.actors;
 
@@ -3151,7 +3153,7 @@ missing member, hence the `!`.
 Static virtual members are first-class: a member remembers the class it was looked up through
 (`reflectedClass`), which becomes the receiver class of reflective static calls.
 
-```csharp
+```reflect
 // file: demo/meta/Inspect.rfl
 namespace demo.meta;
 
@@ -3185,7 +3187,7 @@ public final class Inspect {
 
 ### 10.2 Generic types at run time
 
-```csharp
+```reflect
 // file: demo/meta/Generic.rfl
 namespace demo.meta;
 
@@ -3211,7 +3213,7 @@ public final class Generic {
 Private members are reachable reflectively only through `opens`. Module `demo` opens
 `demo.bank` to `reflect.json` only; `Account.cents` is private.
 
-```csharp
+```reflect
 // file: reflect.json/JsonWriter.rfl
 namespace reflect.json;
 
@@ -3228,7 +3230,7 @@ public final class JsonWriter {
 }
 ```
 
-```csharp
+```reflect
 // file: plugins/Snoop.rfl
 namespace plugins;
 
@@ -3248,7 +3250,7 @@ Proxies arrive in v0.6, before the verifier, so the calling module declares `uns
 The handler may throw anything (`throws Throwable`); a checked exception that the proxied method
 does not declare reaches the caller as `UndeclaredThrowableException`.
 
-```csharp
+```reflect
 // file: demo/meta/Proxies.rfl
 namespace demo.meta;
 
@@ -3272,7 +3274,7 @@ public final class Proxies {
 }
 ```
 
-```csharp
+```reflect
 // rejected
 // in module plugins.host, which does not declare `unsafe;`
 Greeter g = Proxy.create<Greeter>((p, m, a) -> null);   // error: needs an unsafe module until the verifier
@@ -3282,7 +3284,7 @@ Greeter g = Proxy.create<Greeter>((p, m, a) -> null);   // error: needs an unsaf
 
 The emit API is the compiler's own bytecode writer [Proposed].
 
-```csharp
+```reflect
 // file: demo/meta/Emit.rfl
 namespace demo.meta;
 
@@ -3311,7 +3313,7 @@ Modeled on .NET Edit and Continue.
 
 Add-only changes in v0.
 
-```csharp
+```reflect
 // file: demo/meta/Reload.rfl
 namespace demo.meta;
 
@@ -3326,7 +3328,7 @@ public final class Reload {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/meta/Greeting.rfl (before)
 namespace demo.meta;
 
@@ -3335,7 +3337,7 @@ public final class Greeting {
 }
 ```
 
-```csharp
+```reflect
 // file: demo/meta/Greeting.rfl (after: a valid delta)
 namespace demo.meta;
 
@@ -3434,7 +3436,7 @@ Static methods of non-final or generic classes take the receiver class as a hidd
 
 Lowering recipes. `$` cannot appear in source identifiers, so compiler-made names use it.
 
-```csharp
+```reflect
 // lowered: Button.clicked from §5.2
 private ListenerList<Consumer<ClickEvent>>? clicked$listeners;   // allocated on first +=
 
@@ -3463,7 +3465,7 @@ private void raise_clicked(ClickEvent e) {
 }
 ```
 
-```csharp
+```reflect
 // lowered: Captures.main from §7.2 [P shape]
 final class main$Counter { int counter; }    // captured and mutated: moved to a heap display
 final class main$Loop { int i; }             // classic for: one display outside the loop
@@ -3474,7 +3476,7 @@ final class main$Each { int x; }             // enhanced for: a fresh display pe
 
 Any module may declare `unsafe;` and use pointers.
 
-```csharp
+```reflect
 // file: demo/interop/Raw.rfl
 namespace demo.interop;
 
@@ -3491,7 +3493,7 @@ public final class Raw {
 }
 ```
 
-```csharp
+```reflect
 // file: vm/src/gc/Pages.rfl
 // module reflect.vm declares `unsafe;`
 namespace reflect.vm.gc;
@@ -3535,7 +3537,7 @@ public final class Pages {
 
 Source tests carry their expectations in leading comments.
 
-```csharp
+```reflect
 // file: tests/lang/static-virtual/type-accessor.rfl
 // expect-output: CUBE_KIND
 // expect-output: NO_KIND
@@ -3557,7 +3559,7 @@ public final class Main {
 }
 ```
 
-```csharp
+```reflect
 // file: tests/lang/static-virtual/abstract-through-name.rfl
 // expect-error: RFL0412 @ 11:54
 // requires-feature: static-virtual
@@ -3574,7 +3576,7 @@ public final class Main {
 
 Reflect unit tests are found through reflection (JUnit syntax):
 
-```csharp
+```reflect
 // file: compiler/tests/LexerTests.rfl
 namespace reflect.compiler.tests;
 
@@ -3649,7 +3651,7 @@ final class CompactTokenList extends TokenList {
 }
 ```
 
-```csharp
+```reflect
 // file: compiler/reflect/compiler/syntax/TokenList.rfl
 namespace reflect.compiler.syntax; // package becomes namespace
 

@@ -37,7 +37,7 @@ fuzzing against the Lean model, and examples.md itself. Conventions:
   `tests/lang/<feature>/`; a directory containing `module-info.rfl` files is one multi-module test
   whose expectations sit in a `test.rfl` at its root.
 
-  ```csharp
+  ```reflect
   // file: tests/lang/nullability/cast-null.rfl
   // expect-throws: reflect.core.NullPointerException
   // requires-feature: nullability

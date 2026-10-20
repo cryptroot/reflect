@@ -205,7 +205,7 @@ into the CPU heap. Their reads/writes remain bounds checked. Restrict initial ta
 shared inputs and disjoint output/scratch ownership; reject overlapping bindings or require a
 validated partition descriptor. A method annotation alone supplies no no-alias proof.
 
-```csharp
+```reflect
 // future: illustrative Reflect-G API, not enabled syntax
 public final class Scale {
     @GpuEntry

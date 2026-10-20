@@ -1,0 +1,93 @@
+.reflect-code {
+  --reflect-keyword: #c792ea;
+  --reflect-type: #56d4dd;
+  --reflect-variable: #82b1ff;
+  --reflect-member: #ffad66;
+  --reflect-function: #ffe082;
+  --reflect-constant: #b4e88d;
+  --reflect-namespace: #b8b2ff;
+  --reflect-annotation: #ff8fcf;
+  --reflect-string: #f29b8f;
+  --reflect-number: #d4c88a;
+  --reflect-comment: #9aa5b1;
+  --reflect-escape: #83e7cf;
+  --reflect-operator: #c9d1d9;
+  --reflect-invalid: #ff657a;
+  color: var(--vscode-editor-foreground);
+}
+
+.vscode-light .reflect-code,
+.vscode-high-contrast-light .reflect-code {
+  --reflect-keyword: #7b21b0;
+  --reflect-type: #00636b;
+  --reflect-variable: #174fc4;
+  --reflect-member: #9b4300;
+  --reflect-function: #665500;
+  --reflect-constant: #286600;
+  --reflect-namespace: #4d48a8;
+  --reflect-annotation: #a41472;
+  --reflect-string: #a52a2a;
+  --reflect-number: #847038;
+  --reflect-comment: #59636e;
+  --reflect-escape: #287d52;
+  --reflect-operator: #39424e;
+  --reflect-invalid: #b80050;
+}
+
+.reflect-code .reflect-token-keyword {
+  color: var(--reflect-keyword);
+}
+
+.reflect-code .reflect-token-type {
+  color: var(--reflect-type);
+}
+
+.reflect-code .reflect-token-variable {
+  color: var(--reflect-variable);
+}
+
+.reflect-code .reflect-token-member {
+  color: var(--reflect-member);
+}
+
+.reflect-code .reflect-token-function {
+  color: var(--reflect-function);
+}
+
+.reflect-code .reflect-token-namespace {
+  color: var(--reflect-namespace);
+}
+
+.reflect-code .reflect-token-annotation {
+  color: var(--reflect-annotation);
+}
+
+.reflect-code .reflect-token-string {
+  color: var(--reflect-string);
+}
+
+.reflect-code .reflect-token-number {
+  color: var(--reflect-number);
+}
+
+.reflect-code .reflect-token-constant {
+  color: var(--reflect-constant);
+}
+
+.reflect-code .reflect-token-comment {
+  color: var(--reflect-comment);
+  font-style: italic;
+}
+
+.reflect-code .reflect-token-escape {
+  color: var(--reflect-escape);
+}
+
+.reflect-code .reflect-token-operator {
+  color: var(--reflect-operator);
+}
+
+.reflect-code .reflect-token-invalid {
+  color: var(--reflect-invalid);
+  text-decoration: underline wavy;
+}

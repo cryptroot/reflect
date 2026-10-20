@@ -25,7 +25,7 @@ separate design before they can be enabled.
 
 ### 2.1 Surface syntax
 
-```java
+```reflect
 int divide(int a, int b)
     requires b != 0
 {
@@ -148,7 +148,7 @@ checks use the replacement value; if cleanup throws, no postcondition runs.
 
 ### 3.1 Surface semantics
 
-```java
+```reflect
 void transfer(Account from, Account to, int amount) {
     transaction {
         from.balance -= amount;
@@ -261,7 +261,7 @@ unlogged store, or eliminate the only entry needed for rollback.
 Contracts do not implicitly open a transaction. A contract failure rolls back only if it escapes
 an active transaction. A caller can keep a callee's postcondition check inside its boundary:
 
-```java
+```reflect
 void transfer(Account from, Account to, int amount) {
     transaction {
         applyTransfer(from, to, amount);

@@ -188,7 +188,7 @@ are not yet part of the baseline type rules below.
   - Lengths are `int`, indexes are checked (`IndexOutOfBoundsException`), there are no
     rectangular `int[,]` arrays in v1, and every array type extends `reflect.core.Array`.
 
-```csharp
+```reflect
 // rejected
 String[][] grid = new String[][3];         // error: elements would start as null; use new String[]?[3]
 static String show<T>(T x) { return x.toString(); }   // error: T's bound is Object?; narrow x or bound T
@@ -272,7 +272,7 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
   keeps the struct in a local and never boxes it; a loop over an interface type such as `List<T>`
   gets the iterator boxed once, through the bridge of MEM-02.
 
-  ```csharp
+  ```reflect
   // lowered: for (String s : list) { body }
   var $it = list.iterator();          // a local, so the struct's mutating next() may update it
   while ($it.hasNext()) {
@@ -485,7 +485,7 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   - `-=` removes the last listener that `equals` the argument (FUN-05);
   - an event of a throwing functional interface raises under its `throws` clause (ex §5.2).
 
-  ```csharp
+  ```reflect
   // lowered: Button.clicked (ex §5.2)
   private ListenerList<Consumer<ClickEvent>>? clicked$listeners;   // allocated on the first +=
   public void add_clicked(Consumer<ClickEvent> l) { (clicked$listeners ??= new ListenerList<>()).add(l); }
@@ -565,7 +565,7 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   is declared `mutating` (LIB-04); the boxes of a struct that implements such a member with a
   `mutating` method have identity (DAT-09).
 
-  ```csharp
+  ```reflect
   public struct Tally {
       public int count;
       public mutating void increment() { count++; }
@@ -600,7 +600,7 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   - per-constant fields and bodies lower to static tables and a switch on the value, since the
     value is only the backing integer:
 
-    ```csharp
+    ```reflect
     // lowered: Planet.mass and Op.apply (ex §9.3)
     public struct Planet {
         private final int value$;

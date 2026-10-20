@@ -197,7 +197,7 @@ finalizers, hot reload, dynamic layers) are Reflect-S code inside the same binar
   into the module file (ex §11.1 `.module demo 0.1.0`). Versions are `major.minor.patch`; a
   module without one is `0.0.0` and cannot be published.
 
-  ```csharp
+  ```reflect
   // file: demo/module-info.rfl
   module demo {
       version "0.1.0";
@@ -209,7 +209,7 @@ finalizers, hot reload, dynamic layers) are Reflect-S code inside the same binar
 - **BLD-02 [Decided, Q40]** A declarative `workspace.rfl` at the repository root lists the member
   modules and build options. `rflc` parses it with its own parser; it contains no code.
 
-  ```csharp
+  ```reflect
   // file: workspace.rfl
   workspace reflect {
       modulePath "deps";                    // prebuilt modules, such as the previous release
