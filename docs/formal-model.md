@@ -43,9 +43,10 @@ stated with `sorry`, as gate obligations.
 | Module | Contents |
 |---|---|
 | `Syntax.lean` | `Ty` (class types), `Expr` (`var`, `field`, `callVirt`, `callDirect`, `new`, `cast`), `MethodDecl` (with `isVirtual`, `isOverride`), `ClassDecl`, `ClassTable`; the relations `Subclass`, `Fields` (inherited first) and `MethodIn` (own declaration, else inherited) |
-| `Typing.lean` | `IsSubtype`; mutual `HasType` and `ArgsTyped` with subsumption; `OverrideOk` (an inherited name must be overridden with `override`, the inherited method virtual, the signature identical; `override` needs an inherited method); `MethodOk`; `WellFormed` (built-in `Object`, distinct names, acyclic inheritance, defined superclasses, well-typed methods, distinct field and method names) |
+| `Typing.lean` | `IsSubtype`; mutual `HasType` and `ArgsTyped` with subsumption; `OverrideOk` (an inherited name must be overridden with `override`, the inherited method virtual, the parameter types identical and the result type a subtype of the inherited one, covariant returns as in FGJ (MEM-02); `override` needs an inherited method); `MethodOk`; `WellFormed` (built-in `Object`, distinct names, acyclic inheritance, defined superclasses, well-typed methods, distinct field and method names) |
 | `Semantics.lean` | `IsValue`, `AllValues`; substitution; small-step `Step` and `StepAll` (call by value, left to right; virtual calls use the run-time class, direct calls the named class); `FailedCast` for casts that fail |
 | `Soundness.lean` | proven: `Subclass.trans`, `IsSubtype.refl`, `IsSubtype.trans`; obligations: `preservation`, `progress` |
+| `Examples.lean` | checked class tables: an override that returns a subtype is accepted, one that widens its result type is rejected (Q66) |
 
 Simplifications in FR-core: one method per name (no overloading), calls already elaborated into
 virtual and direct forms, `Object` built in and empty, casts stuck instead of throwing.

@@ -27,7 +27,8 @@ VM guarantees.
 - **VM-13 [Proposed]** Loading is lazy: a module's tables are mapped read-only and read in place,
   since rows have fixed widths (BC-11); a type is loaded when first named by executing code,
   reflection or another type's layout. Loading a type checks its constraints, `final`, `sealed`
-  and `permits`, computes its layout (§3) and builds its dispatch tables (§5). A value type whose
+  and `permits`, computes its layout (§3) and builds its dispatch tables (§5), checking that each
+  override's return type converts to that of the method it replaces (BC-12). A value type whose
   `mutating` method fills the slot of a `mutating` interface member is marked box-mutable
   (DAT-09). A failure throws `TypeLoadError` at the use.
 - **VM-14 [Proposed]** Verification (bytecode.md §7) runs per method before its first execution,

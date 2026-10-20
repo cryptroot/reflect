@@ -537,8 +537,9 @@ tests and class initialization.
   before v0.4.
 - `castclass` to a non-null type throws `NullPointerException` for `null`, and `instanceof` is
   false for `null` (NUL-05).
-- Loading checks `final`, `sealed` and `permits`, and that every `Override` row names an
-  existing method (BC-12, VM-13).
+- Loading checks `final`, `sealed` and `permits`, that every `Override` row names an existing
+  method, and that the override's return type converts to that method's (BC-12, VM-13). An
+  override that returns a subtype fills the base slot itself (MEM-02).
 - Final fields follow BC-23. When a `stfld` or `stsfld` links, VM0 checks that its method may
   store to the field; when a `stfld` of a final runs, it checks that the target is the
   constructor's `this`. A class constructor runs only on a new object. A violation is a
@@ -552,14 +553,16 @@ tests and class initialization.
 
 1. Type loading and layout; `newobj`, constructors, `ldfld` and `stfld`.
 2. Static fields and class initialization, with tests of order, re-entry and failure.
-3. Non-virtual instance calls; `callvirt` and vtables.
+3. Non-virtual instance calls; `callvirt` and vtables, with an override that returns a subtype
+   of its base's return type (MEM-02).
 4. Interfaces, default methods and interface tables.
 5. `ldnull`, `brnull`, `brnonnull`, `ceq.ref`, `instanceof` and `castclass`, with the null
    rules.
 6. `ldconst` and the `Constant` table.
 7. The load-time checks, and the final-field and constructor rules of BC-23, with one test per
    violation: a store from another method, a store to another object, a store to a `const`, and
-   a constructor called on a finished object.
+   a constructor called on a finished object; and an override that widens its return type
+   (BC-12).
 
 **Exit check.** The programs in `run/objects/` pass. Tag `v0.0.6`.
 

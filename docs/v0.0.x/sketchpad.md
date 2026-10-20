@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q65 asked and answered 2026-10-20 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q66 asked and answered 2026-10-20 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux, PowerShell 7 and native Windows checks pass (D.3); tag pending |
 | v0.0.1 | encoding tables, constants, document test | not started |
 | v0.0.2 | model, writer, reader | not started |
@@ -239,9 +239,9 @@ change what existing array casts and type tests return (`o instanceof Shape[]` o
 Rules:
 NUL-07, TYP-02, NUL-01, NUL-05, MEM-10, EXC-05, BC-04, BC-07, BC-14; ex §2.10, §7.8.
 
-### B.3 Batch 7: findings from batch 6 (asked and answered 2026-10-20)
+### B.3 Batch 7: follow-ups to batch 6 (asked and answered 2026-10-20)
 
-These were found while batch 6 was applied.
+Q63 to Q65 were found while batch 6 was applied; Q66 follows from the answer to Q65.
 
 **Q63 (RM-04; README §4, §8). How a version branch reaches `main`.** README §4 and §8 still said
 "merge commit", but the answer to Q45 chose a squashed merge. **Answer:** 2026-10-20: `main` keeps
@@ -266,6 +266,22 @@ objects with identity, which `next()` updates in place (DAT-09, C#'s boxed enume
 every other box keeps the rules of Q61; struct iterators arrive with structs in v0.4 (BOOT-02).
 This replaces the consequence noted under Q61. Rules: LIB-04, MEM-02, BC-12, DAT-02, DAT-09,
 STM-04, BC-04, VM-02, VM-13, GC-05, REFL-03; grammar.md §3.4; ex §2.9.
+
+**Q66 (MEM-02, BC-12, SVD-05; LEAN-01). Covariant returns.** MEM-02 only proposed that overrides
+may narrow return types, Q65 added struct returns through a bridge, and FR-core's `OverrideOk`
+required the exact return type. **Answer:** 2026-10-20: cemented. An override implements the
+member it overrides, and its return type may be any type derived from the base's: a subtype, or a
+type that boxes or wraps into it. `virtual Object function()` can be overridden by
+`override MyClass function()`, so derived types specialize their returns instead of returning the
+base class. Applied as: MEM-02 [Decided] (parameters stay exact; get-only properties and indexers
+narrow too, settable ones keep the exact type); BC-12 (a reference subtype fills the base slot
+itself, since `Override` rows are explicit; boxing and wrapping use a bridge; loading checks the
+return type against the method replaced, the nearest base one); BC-09 (narrowing a return type
+breaks a subclass in another module that overrides with a wider one); VM-13; ex §2.5
+(`Dog.newborn` returns `Dog` where `Animal.newborn` returns `Animal?`, and a widening override is
+rejected); README v0.0.6 commits 3 and 7. FR-core follows FGJ: `OverrideOk` asks for a subtype,
+and `formal/Reflect/Core/Examples.lean` checks that a narrowing override is accepted and a
+widening one rejected; with the exact-type rule put back, that file fails to build.
 
 <!-- questions:end -->
 

@@ -50,12 +50,13 @@ inductive ArgsTyped (ct : ClassTable) : Env → List Expr → List Ty → Prop w
 end
 
 /-- Override rules for `md` declared in `cd` (MEM-02, TYP-07): a method whose name is inherited
-must say `override`, the inherited one must be virtual, and the signature must match exactly;
+must say `override`, the inherited one must be virtual, the parameter types must match exactly,
+and the result type may be a subtype of the inherited one (covariant returns, as in FGJ);
 `override` without an inherited method is an error. -/
 def OverrideOk (ct : ClassTable) (cd : ClassDecl) (md : MethodDecl) : Prop :=
   (∀ md', MethodIn ct cd.super md.name md' →
       md.isOverride = true ∧ md.isVirtual = true ∧ md'.isVirtual = true ∧
-      md'.params.map Prod.snd = md.params.map Prod.snd ∧ md'.ret = md.ret) ∧
+      md'.params.map Prod.snd = md.params.map Prod.snd ∧ IsSubtype ct md.ret md'.ret) ∧
   (md.isOverride = true → ∃ md', MethodIn ct cd.super md.name md')
 
 /-- A body has its declared result type with `this` and the parameters in scope. -/

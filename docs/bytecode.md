@@ -114,9 +114,13 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 - **BC-12 [Proposed]** Overrides are explicit rows: the compiler records which slot each
   `override` fills, so the VM builds vtables and static dispatch tables without matching names at
   link time. A row whose overridden method no longer exists is a link error (`TypeLoadError`).
-  When an override returns a value type in place of the base's return type (MEM-02), its row
-  names the synthesized bridge that boxes the result, and that bridge fills the base slot; the
-  override keeps a slot of its own, which a subclass may override with the same value type.
+  Return types are covariant (MEM-02). An override that returns a reference subtype of the base's
+  return type fills the base slot itself, so explicit rows need no bridge for it. When the return
+  type needs boxing or nullable wrapping, the row names the synthesized bridge that converts the
+  result, and that bridge fills the base slot; the override keeps a slot of its own, which a
+  subclass may override with the same type. Loading checks that an override's return type
+  converts to the return type of the method it replaces in the slot, the nearest one in its base
+  classes, so a module compiled against an older base cannot widen it; otherwise `TypeLoadError`.
 - **BC-13 [Proposed]** Annotations with retention `SOURCE` are not written; `CLASS` ones are
   written but invisible to run-time reflection; `RUNTIME` ones are visible (META-01).
 
@@ -285,7 +289,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   methods; making a class non-final (BC-05); making a method virtual (BC-06); adding an
   annotation. Breaking changes: removing or renaming members, changing signatures or nullability,
   adding a `static abstract` or an abstract member, sealing a class, removing an override that a
-  subclass's `Override` row names, changing a struct's layout that unsafe code depends on.
+  subclass's `Override` row names, narrowing the return type of a member that a subclass in
+  another module overrides with a wider one (BC-12), changing a struct's layout that unsafe code
+  depends on.
 
 ## 10. Limits
 

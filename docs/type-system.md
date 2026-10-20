@@ -300,11 +300,16 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
 - **MEM-02 [Decided]** Instance methods, properties, indexers and events are non-virtual unless
   `virtual` or `abstract`; non-virtual calls compile to direct calls (ex §2.5). Overriding needs
   `override`, also when implementing an interface member (ex §2.6); `final override` stops
-  overriding; a `final` class has no subclasses. [Proposed] Overrides may narrow the return type
-  of methods and get-only properties, instance and static (ex §4.2). [Decided, Q65] An override
-  may also return a value type that implements the overridden return type: `rflc` then emits a
-  synthesized bridge that fills the base slot, calls the override and boxes the result (Java's
-  bridge methods). So `ArrayList<T>.iterator()` returns its struct iterator and still implements
+  overriding; a `final` class has no subclasses. [Decided, Q65, Q66] Return types are
+  covariant: an override keeps the parameter types of the member it overrides, but may return
+  any type that converts to that member's return type by subtyping, boxing or nullable wrapping
+  (TYP-03). So `virtual Object function()` can be overridden by `override MyClass function()`,
+  and a caller through the subclass gets a `MyClass` without a cast (ex §2.5). An override never
+  widens a return type. Get-only properties and indexers narrow the same way, instance and static
+  (ex §4.2, SVD-05); settable ones keep the exact type, since their setter takes it. A reference
+  subtype fills the base slot itself. A type that needs boxing or wrapping gets a synthesized
+  bridge that fills the base slot, calls the override and converts the result (Java's bridge
+  methods, BC-12), so `ArrayList<T>.iterator()` returns its struct iterator and still implements
   `Iterable<T>.iterator()` without explicit interface implementation (MEM-03, LIB-04).
 - **MEM-03 [Decided]** Interfaces hold abstract methods, properties and events (implicitly
   `public abstract`), `default` methods, private methods, static methods, static abstract and
@@ -374,7 +379,7 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
 - **SVD-05 [Decided]** Restrictions (ex §4.2, §4.4):
   1. no hiding: a static named like an inherited one is a `static override` of a virtual or
      abstract static;
-  2. settable overrides keep the exact type; get-only ones may narrow it;
+  2. settable overrides keep the exact type; get-only ones may narrow it (MEM-02);
   3. `final static override` ends overriding;
   4. a concrete class implements every inherited `static abstract`;
   5. a `static abstract` read through a class name is a compile error; at run time an `R` lacking

@@ -233,7 +233,8 @@ public final class App {
 ### 2.5 Classes and members
 
 Java declarations with C#'s dispatch defaults: non-virtual unless `virtual`/`abstract`, and
-`override` everywhere.
+`override` everywhere. An override may return a more specific type than the member it overrides
+(covariant returns, MEM-02).
 
 ```csharp
 // file: demo/zoo/Animal.rfl
@@ -257,6 +258,7 @@ public abstract class Animal {
     public virtual String describe() {           // may be overridden
         return $"{name} says {sound()}";
     }
+    public virtual Animal? newborn(String name) { return null; }   // a kind of animal may say which
     public int legCount() { return legs; }       // non-virtual: compiled to a direct call
 }
 ```
@@ -278,6 +280,10 @@ public final class Dog extends Animal {          // final: cannot be extended
 
     public final override String describe() {    // final override: no further overriding
         return $"Dog ({breed}): " + super.describe();
+    }
+
+    public override Dog newborn(String name) {   // covariant return: Dog, not Animal?
+        return new Dog(name, breed);
     }
 }
 ```
@@ -318,6 +324,9 @@ public final class Zoo {
         pen.add(rex);
         var tag = new Enclosure.Tag("north");    // created without an Enclosure
         println(tag.countIn(pen));               // prints: 1
+
+        Dog pup = new Dog("Rex", "collie").newborn("Pip");   // no cast: Dog.newborn returns Dog
+        println(pup.describe());                 // prints: Dog (collie): Pip says woof
     }
 }
 ```
@@ -330,6 +339,11 @@ public class Cat extends Animal {
     public int describe;                         // error: one member namespace; `describe` is a method
 }
 public class Husky extends Dog { }               // error: Dog is final
+public final class Parrot extends Animal {
+    public Parrot() { super("Polly", 2); }
+    public override String sound() { return "squawk"; }
+    public override Object describe() { return "Polly"; }   // error: an override may narrow its return type, never widen it
+}
 
 public final class Enclosure2 {
     private int size;
