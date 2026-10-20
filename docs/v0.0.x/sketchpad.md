@@ -15,7 +15,7 @@ log is [../sketchpad.md](../sketchpad.md).
 |---|---|---|
 | plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
-| v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows (D.4); tag `v0.0.1`, 2026-10-20 |
+| v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | not started |
 | v0.0.3 | assembler; suite runner for rejected files | not started |
 | v0.0.4 | disassembler, round trip | not started |
@@ -488,8 +488,10 @@ before v0.0.0:
 - Twice, `docker image inspect` failed with "file has already been closed" on Docker Desktop's
   pipe. The wrapper then rebuilt `reflect-build:a5bb09736f0c` from its cache, with the same tag.
   Nothing needs to change unless it happens more often.
-- Exit check: the tables cover every instruction and every table that v0.0.x uses, and
-  `docker/dev.ps1 all` passes on Windows (Docker engine 29.6.1). No Linux run was possible: the
-  WSL distribution `Ubuntu-24.04` has no Docker Desktop integration, and enabling it changes the
-  host's settings. Q53 asks for `all` on both hosts before each tag, so `docker/dev.sh all` on
-  Linux is still due for `v0.0.1`.
+- Exit check: the tables cover every instruction and every table that v0.0.x uses. The Windows
+  run, `docker/dev.ps1 all` (Docker engine 29.6.1), came first; the WSL distribution
+  `Ubuntu-24.04` had no Docker Desktop integration, so no Linux run was possible then.
+- Linux exit check, 2026-10-20: `sh docker/dev.sh all` passes on Docker 29.8.2 (exit 0). It
+  reused image `reflect-build:a5bb09736f0c`, the tag the Windows host produced from the same
+  Dockerfile hash. The `unit` job ran 26 tests with 0 failures. `lake build` succeeded with the
+  two known `sorry` warnings in `Reflect/Core/Soundness.lean`. This meets Q53 for `v0.0.1`.
