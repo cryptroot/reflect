@@ -337,8 +337,9 @@ numbers.
   module then has exactly one encoding, so the round trip of BC-08 is exact by construction.
 - The `Module` table gets a column for the descriptor's `main` class, which VM-12 reads, and
   `.rfla` gets the `.main` directive.
-- `reflect.stage0.bytecode` declares the numbers as constants: `Opcode`, `SigCode`, `TableId`,
-  `SectionId` and the limits of BC-21, `Limits`.
+- `reflect.stage0.bytecode` declares the numbers as constants: `Opcode`, `SigCode`, `TableId`
+  with the column counts, `Flags` for the flags and kinds of columns, `SectionId` and the limits
+  of BC-21, `Limits`.
 - The opcode table marks the instructions of the R0 subset, which VM0 implements in v0.0.x.
 - A unit test reads the tables from bytecode.md and compares them with the constants.
 

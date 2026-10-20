@@ -77,39 +77,41 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 3. Metadata tables
 
-- **BC-11 [Proposed]** Tables and their main columns, sorted by the key in parentheses:
+- **BC-11 [Proposed]** Tables, their IDs and their main columns, sorted by the key in
+  parentheses; a table without a key keeps its rows in runs by owner (§3.1):
 
-  | Table | Columns |
-  |---|---|
-  | `Module` | name, version (BLD-01), flags |
-  | `ModuleRef` (name) | name, flags `transitive`, `static` |
-  | `Export` (namespace) | namespace, kind `exports`/`opens`, target module names |
-  | `Service` (service) | kind `provides`/`uses`, service type, provider types |
-  | `TypeDef` (namespace, name) | name, namespace, kind (class, interface, struct, ref struct, record, record struct, enum, annotation), modifiers, base type, enum backing type, enclosing type, first field, first method, first generic parameter |
-  | `TypeRef` (scope, namespace, name) | resolution scope (module reference or enclosing type reference), namespace, name |
-  | `TypeSpec` (signature) | signature blob: instantiations, arrays, nullability, wildcards, intersections, pointers, tuples |
-  | `Field` | flags (static, final, const, visibility, backing field), name, type signature |
-  | `Method` | flags (static, virtual, abstract, final, constructor, native, extern, unsafe, mutating, const, precompile, synthesized), name, method signature, code offset, first parameter, first generic parameter |
-  | `Param` | flags (`ref`, `in`, `out`, `scoped`, extension `this`, variadic), name |
-  | `GenericParam` (owner, index) | owner, index, name, kind (`class`, `struct`, none) |
-  | `GenericConstraint` (param) | parameter, bound type |
-  | `InterfaceImpl` (class) | class, interface type |
-  | `Override` (class) | class, implementing method, overridden method (instance, static or constructor slot) |
-  | `MemberRef` (parent, name) | parent type, name, signature |
-  | `MethodSpec` (method) | method, instantiation blob |
-  | `Property`, `Event` (owner, name) | owner, name, type, flags |
-  | `Accessor` (owner) | property, event or indexer; kind `get`/`set`/`add`/`remove`; method |
-  | `Annotation` (target) | target token, annotation type, value blob, retention |
-  | `Constant` (field) | field, value blob (primitives, strings, class references, read-only arrays) |
-  | `Provenance` (member) | generated member, generator type (`generatedBy`, ex §6.7) |
-  | `TupleNames` (owner) | signature owner, element names blob |
+  | ID | Table | Columns |
+  |---|---|---|
+  | `01` | `Module` | name, version (BLD-01), flags |
+  | `02` | `ModuleRef` (name) | name, flags `transitive`, `static` |
+  | `03` | `Export` (namespace, kind, target) | namespace, kind `exports`/`opens`, target module name; one row per target |
+  | `04` | `Service` (service) | kind `provides`/`uses`, service type, provider types |
+  | `05` | `TypeDef` (namespace, name, enclosing type) | name, namespace, kind (class, interface, struct, ref struct, record, record struct, enum, annotation), modifiers, base type, enum backing type, enclosing type, first field, first method, first generic parameter |
+  | `06` | `TypeRef` (scope, namespace, name) | resolution scope (module reference or enclosing type reference), namespace, name |
+  | `07` | `TypeSpec` (signature) | signature blob: instantiations, arrays, nullability, wildcards, intersections, pointers, tuples |
+  | `08` | `Field` | flags (visibility, static, final, const, backing field), name, type signature |
+  | `09` | `Method` | flags (visibility, static, virtual, abstract, final, constructor, native, extern, unsafe, mutating, const, precompile, synthesized), name, method signature, code offset, first parameter, first generic parameter |
+  | `0A` | `Param` | flags (`scoped`, extension `this`), name; `ref`, `in` and `out` are in the parameter's type, and variadic in the method signature (BC-03) |
+  | `0B` | `GenericParam` (owner, index) | owner, index, name, kind (`class`, `struct`, none) |
+  | `0C` | `GenericConstraint` (param, bound) | parameter, bound type |
+  | `0D` | `InterfaceImpl` (class, interface) | class, interface type |
+  | `0E` | `Override` (class, overridden method) | class, implementing method, overridden method (instance, static or constructor slot) |
+  | `0F` | `MemberRef` (parent, name, signature) | parent type, name, signature |
+  | `10` | `MethodSpec` (method, instantiation) | method, instantiation blob |
+  | `11` | `Property` (owner, name) | owner, name, type, flags |
+  | `12` | `Event` (owner, name) | owner, name, type, flags |
+  | `13` | `Accessor` (owner) | property, event or indexer; kind `get`/`set`/`add`/`remove`; method |
+  | `14` | `Annotation` (target) | target token, annotation type, value blob, retention |
+  | `15` | `Constant` (field) | field, value blob (primitives, strings, class references, read-only arrays) |
+  | `16` | `Provenance` (member) | generated member, generator type (`generatedBy`, ex §6.7) |
+  | `17` | `TupleNames` (owner) | signature owner, element names blob |
 
-  Columns have fixed widths, so any row is read in place without decoding the rows before it:
-  heap offsets, tokens and row numbers are u32, and bytecode.md states the width of every other
-  column. The row size follows from the table and the formatMinor; TABLES states it, and the
-  reader checks it. A later minor may append columns to a table. A reader treats the columns
-  appended since a module's minor as zero, and the zero value of an appended column means what
-  modules meant before it existed (a variance column's 0 is invariant).
+  Every column is a little-endian u32, so any row is read in place without decoding the rows
+  before it, and a row has four bytes per column. The row size follows from the table and the
+  formatMinor; TABLES states it, and the reader checks it. A later minor may append columns to a
+  table. A reader treats the columns appended since a module's minor as zero, and the zero value
+  of an appended column means what modules meant before it existed (a variance column's 0 is
+  invariant).
 
 - **BC-12 [Proposed]** Overrides are explicit rows: the compiler records which slot each
   `override` fills, so the VM builds vtables and static dispatch tables without matching names at
@@ -123,6 +125,139 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   classes, so a module compiled against an older base cannot widen it; otherwise `TypeLoadError`.
 - **BC-13 [Proposed]** Annotations with retention `SOURCE` are not written; `CLASS` ones are
   written but invisible to run-time reflection; `RUNTIME` ones are visible (META-01).
+
+### 3.1 Table layouts
+
+TABLES starts with its directory: the number of present tables, then for each present table,
+in ID order, its ID, its row count and its row size, all u32. The rows of each table follow in
+directory order without padding. A table is present when it has at least one row, and rows are
+numbered from 1.
+
+The layouts below cover the tables that v0.0.x uses. The other tables get theirs with the stage
+that first needs them; until then a reader rejects them as unknown (BC-20). Each column is a
+u32, in the order given:
+
+| Table | Column | Content |
+|---|---|---|
+| `Module` | `name` | IDENTS offset of the module name |
+| `Module` | `major` | version major (BLD-01) |
+| `Module` | `minor` | version minor |
+| `Module` | `patch` | version patch |
+| `Module` | `flags` | no flag is defined yet |
+| `ModuleRef` | `name` | IDENTS offset of a required module |
+| `ModuleRef` | `flags` | `ModuleRef` flags |
+| `Export` | `namespace` | IDENTS offset |
+| `Export` | `kind` | `Export` kind |
+| `Export` | `target` | IDENTS offset of the module it is qualified to, or 0 for every module |
+| `TypeDef` | `name` | IDENTS offset of the simple name |
+| `TypeDef` | `namespace` | IDENTS offset, 0 for a nested type |
+| `TypeDef` | `kind` | `TypeDef` kind |
+| `TypeDef` | `flags` | visibility and `TypeDef` flags |
+| `TypeDef` | `base` | token of a `TypeDef`, `TypeRef` or `TypeSpec` row, or 0 |
+| `TypeDef` | `backing` | the signature code of an enum's backing type, `I8` to `U64`, otherwise 0 |
+| `TypeDef` | `enclosing` | `TypeDef` row of the enclosing type, or 0 |
+| `TypeDef` | `fields` | first `Field` row |
+| `TypeDef` | `methods` | first `Method` row |
+| `TypeDef` | `typeParams` | first `GenericParam` row |
+| `TypeRef` | `scope` | token of a `ModuleRef` row, or of the `TypeRef` row of the enclosing type |
+| `TypeRef` | `namespace` | IDENTS offset, 0 for a nested type |
+| `TypeRef` | `name` | IDENTS offset |
+| `TypeSpec` | `signature` | BLOBS offset of a type |
+| `Field` | `flags` | visibility and `Field` flags |
+| `Field` | `name` | IDENTS offset |
+| `Field` | `signature` | BLOBS offset of a `FIELD` signature |
+| `Method` | `flags` | visibility and `Method` flags |
+| `Method` | `name` | IDENTS offset |
+| `Method` | `signature` | BLOBS offset of a `METHOD` signature |
+| `Method` | `code` | CODE offset of the body, or 0 for a method without one |
+| `Method` | `params` | first `Param` row |
+| `Method` | `typeParams` | first `GenericParam` row |
+| `Param` | `flags` | `Param` flags |
+| `Param` | `name` | IDENTS offset |
+| `GenericParam` | `owner` | token of the `TypeDef` or `Method` row that declares it |
+| `GenericParam` | `index` | position among the owner's type parameters, from 0 |
+| `GenericParam` | `name` | IDENTS offset |
+| `GenericParam` | `kind` | `GenericParam` kind |
+| `GenericConstraint` | `param` | `GenericParam` row |
+| `GenericConstraint` | `bound` | token of a `TypeDef`, `TypeRef` or `TypeSpec` row |
+| `InterfaceImpl` | `class` | `TypeDef` row |
+| `InterfaceImpl` | `interface` | token of a `TypeDef`, `TypeRef` or `TypeSpec` row |
+| `Override` | `class` | `TypeDef` row |
+| `Override` | `implementation` | `Method` row of the method, or of its bridge, that fills the slot |
+| `Override` | `overridden` | token of the `Method` or `MemberRef` row whose slot it fills |
+| `MemberRef` | `parent` | token of a `TypeRef` or `TypeSpec` row |
+| `MemberRef` | `name` | IDENTS offset |
+| `MemberRef` | `signature` | BLOBS offset of a `FIELD` or `METHOD` signature |
+| `MethodSpec` | `method` | token of a `Method` or `MemberRef` row |
+| `MethodSpec` | `instantiation` | BLOBS offset of an `INSTANTIATION` signature |
+| `Constant` | `field` | `Field` row |
+| `Constant` | `value` | BLOBS offset of the value |
+
+- IDENTS offset 0 holds the empty identifier. A type in the global namespace and a nested type
+  have namespace 0; a nested type takes its namespace from its outermost enclosing type.
+- `fields`, `methods`, `params` and `typeParams` give the first row of the owner's run of rows.
+  The run ends where the next owner's run starts, or at the end of the table. `GenericParam`
+  rows owned by types come before those owned by methods, so the run of the last type ends where
+  the run of the first method starts. `Field`, `Method` and `Param` keep each run in declaration
+  order, and the runs in the order of their owners.
+- Keys compare column by column: identifiers by their UTF-8 bytes, tokens and row numbers as
+  unsigned numbers, signatures by their bytes.
+- A constructor is named `new` and a static initializer `static`. Both have the `CONSTRUCTOR`
+  flag, and a static initializer also has `STATIC`. Both words are reserved in source, so no
+  method name can clash with them.
+- A method has a body unless it is `ABSTRACT`, `NATIVE` or `EXTERN`.
+- A `Constant` value blob holds the value in the encoding of the field's type: `BOOLEAN` as one
+  byte, 0 or 1; signed integers as SLEB128; unsigned integers and `CHAR` as ULEB128; `F32` and
+  `F64` as their IEEE 754 bit patterns; `reflect.core.String` as a ULEB128 offset into LITERALS;
+  an enum as its backing type. Class references and read-only arrays come with the stage that
+  first needs them.
+
+Flags and kinds of the columns follow. A flag that the table does not list is zero (BC-20).
+`TypeDef`, `Field` and `Method` flags hold at most one visibility flag; with none, the member is
+package-private (MOD-08).
+
+| Column | Value | Name | Meaning |
+|---|---|---|---|
+| visibility | `01` | `PUBLIC` | `public` |
+| visibility | `02` | `PROTECTED` | `protected` |
+| visibility | `04` | `PRIVATE` | `private` |
+| `TypeDef` kind | `00` | `CLASS` | class |
+| `TypeDef` kind | `01` | `INTERFACE` | interface |
+| `TypeDef` kind | `02` | `STRUCT` | struct |
+| `TypeDef` kind | `03` | `REF_STRUCT` | `ref struct` |
+| `TypeDef` kind | `04` | `RECORD` | class record |
+| `TypeDef` kind | `05` | `RECORD_STRUCT` | `record struct` |
+| `TypeDef` kind | `06` | `ENUM` | enum |
+| `TypeDef` kind | `07` | `ANNOTATION` | annotation type |
+| `TypeDef` flags | `08` | `ABSTRACT` | `abstract` |
+| `TypeDef` flags | `10` | `FINAL` | `final` |
+| `TypeDef` flags | `20` | `SEALED` | `sealed` |
+| `TypeDef` flags | `40` | `UNSEALED` | `unsealed` |
+| `Field` flags | `08` | `STATIC` | `static` |
+| `Field` flags | `10` | `FINAL` | `final` (BC-23) |
+| `Field` flags | `20` | `CONST` | `const`, which is also `STATIC` |
+| `Field` flags | `40` | `BACKING` | backing field of a property (MEM-13) |
+| `Method` flags | `0008` | `STATIC` | `static` |
+| `Method` flags | `0010` | `VIRTUAL` | `virtual` |
+| `Method` flags | `0020` | `ABSTRACT` | `abstract` |
+| `Method` flags | `0040` | `FINAL` | `final` |
+| `Method` flags | `0080` | `CONSTRUCTOR` | constructor or static initializer |
+| `Method` flags | `0100` | `NATIVE` | `native` (LIB-03) |
+| `Method` flags | `0200` | `EXTERN` | `extern` |
+| `Method` flags | `0400` | `UNSAFE` | `unsafe` |
+| `Method` flags | `0800` | `MUTATING` | `mutating` (DAT-02) |
+| `Method` flags | `1000` | `CONST` | `const` |
+| `Method` flags | `2000` | `PRECOMPILE` | `@Precompile` (JIT-03) |
+| `Method` flags | `4000` | `SYNTHESIZED` | made by the compiler |
+| `Param` flags | `01` | `SCOPED` | `scoped` |
+| `Param` flags | `02` | `THIS` | receiver of an extension method (MEM-09) |
+| `ModuleRef` flags | `01` | `TRANSITIVE` | `requires transitive` |
+| `ModuleRef` flags | `02` | `STATIC` | `requires static` |
+| `Export` kind | `00` | `EXPORTS` | `exports` |
+| `Export` kind | `01` | `OPENS` | `opens` |
+| `GenericParam` kind | `00` | `NONE` | no kind bound |
+| `GenericParam` kind | `01` | `CLASS` | `T extends class` |
+| `GenericParam` kind | `02` | `STRUCT` | `T extends struct` |
 
 ## 4. Signatures
 

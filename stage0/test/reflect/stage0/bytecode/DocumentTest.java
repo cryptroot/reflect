@@ -5,9 +5,12 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -21,6 +24,7 @@ public final class DocumentTest {
     private static final Path BYTECODE = Path.of("docs", "bytecode.md");
     private static final Pattern OPCODE_RANGE = Pattern.compile(
             "`([0-9A-F]{2}(?: [0-9A-F]{2})?)`(?:-`([0-9A-F]{2}(?: [0-9A-F]{2})?)`)?");
+    private static final Pattern TABLE_NAME = Pattern.compile("`([A-Za-z]+)`");
 
     @Test
     public static void opcodeTable() throws IOException {
@@ -39,7 +43,7 @@ public final class DocumentTest {
         }
         for (int code : possibleOpcodes()) {
             if (Opcode.isDefined(code) && !listed[code]) {
-                throw new AssertionError(BYTECODE + " §5.1 does not list " + Opcode.mnemonic(code));
+                throw new AssertionError(BYTECODE + " section 5.1 does not list " + Opcode.mnemonic(code));
             }
         }
     }
@@ -100,17 +104,103 @@ public final class DocumentTest {
         checkAllListed(SigCode.class, listed);
     }
 
+    @Test
+    public static void tableIds() throws IOException {
+        var listed = new HashSet<String>();
+        var values = new HashSet<Integer>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| ID | Table | Columns |")) {
+            Matcher table = TABLE_NAME.matcher(row.cell(1));
+            row.check(table.lookingAt(), "no table name: " + row.cell(1));
+            checkCode(row, row.code(0), TableId.class, constantName(table.group(1)), listed, values);
+        }
+        checkAllListed(TableId.class, listed);
+    }
+
+    @Test
+    public static void tableLayouts() throws IOException {
+        var firstRows = new LinkedHashMap<String, MarkdownTable.Row>();
+        var counts = new HashMap<String, Integer>();
+        String previous = "";
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Table | Column | Content |")) {
+            String table = row.code(0);
+            row.check(table.equals(previous) || !counts.containsKey(table), "the rows of " + table + " are apart");
+            firstRows.putIfAbsent(table, row);
+            counts.merge(table, 1, Integer::sum);
+            previous = table;
+        }
+        var documented = new HashSet<Integer>();
+        int previousId = 0;
+        for (MarkdownTable.Row row : firstRows.values()) {
+            String table = row.code(0);
+            int id = constant(row, TableId.class, constantName(table));
+            row.check(id > previousId, "the layouts are not in ID order");
+            row.expect("columns of " + table, counts.get(table), TableId.columns(id));
+            row.expect("row size of " + table, 4 * counts.get(table), TableId.rowSize(id));
+            documented.add(id);
+            previousId = id;
+        }
+        for (Field field : TableId.class.getDeclaredFields()) {
+            if (isIntConstant(field) && TableId.columns(getInt(field)) != 0 && !documented.contains(getInt(field))) {
+                throw new AssertionError(BYTECODE + " section 3.1 has no layout for " + field.getName());
+            }
+        }
+    }
+
+    @Test
+    public static void columnFlagsAndKinds() throws IOException {
+        Map<String, String> prefixes = Map.of("visibility", "", "`TypeDef` kind", "KIND_",
+                "`TypeDef` flags", "TYPE_", "`Field` flags", "FIELD_", "`Method` flags", "METHOD_",
+                "`Param` flags", "PARAM_", "`ModuleRef` flags", "REQUIRES_", "`Export` kind", "",
+                "`GenericParam` kind", "GENERIC_");
+        Set<String> withVisibility = Set.of("`TypeDef` flags", "`Field` flags", "`Method` flags");
+        int visibility = Flags.PUBLIC | Flags.PROTECTED | Flags.PRIVATE;
+        var listed = new HashSet<String>();
+        var values = new HashMap<String, Set<Integer>>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Column | Value | Name | Meaning |")) {
+            String column = row.cell(0);
+            String prefix = prefixes.get(column);
+            row.check(prefix != null, "unknown column: " + column);
+            int value = checkCode(row, row.code(1), Flags.class, prefix + row.code(2), listed,
+                    values.computeIfAbsent(column, key -> new HashSet<>()));
+            if (column.endsWith("flags") || column.equals("visibility")) {
+                row.check(Integer.bitCount(value) == 1, "a flag is one bit");
+            }
+            if (withVisibility.contains(column)) {
+                row.check((value & visibility) == 0, "the flag overlaps a visibility flag");
+            }
+        }
+        checkAllListed(Flags.class, listed);
+    }
+
     // The first two cells of each row are a hexadecimal value and the name of a constant after prefix.
     private static void checkCodes(String header, Class<?> type, String prefix, Set<String> listed)
             throws IOException {
         var values = new HashSet<Integer>();
         for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, header)) {
-            String name = prefix + row.code(1);
-            row.check(row.code(0).matches("[0-9A-F]+"), "not a hexadecimal value: " + row.cell(0));
-            int value = Integer.parseUnsignedInt(row.code(0), 16);
-            row.check(listed.add(name), "lists " + name + " twice");
-            row.check(values.add(value), "repeats the value " + row.cell(0));
-            row.expect(type.getSimpleName() + "." + name, value, constant(row, type, name));
+            checkCode(row, row.code(0), type, prefix + row.code(1), listed, values);
+        }
+    }
+
+    private static int checkCode(MarkdownTable.Row row, String hex, Class<?> type, String name, Set<String> listed,
+            Set<Integer> values) {
+        row.check(hex.matches("[0-9A-F]+"), "not a hexadecimal value: " + hex);
+        int value = Integer.parseUnsignedInt(hex, 16);
+        row.check(listed.add(name), "lists " + name + " twice");
+        row.check(values.add(value), "repeats the value " + hex);
+        row.expect(type.getSimpleName() + "." + name, value, constant(row, type, name));
+        return value;
+    }
+
+    // ModuleRef becomes MODULE_REF.
+    private static String constantName(String camelCase) {
+        return camelCase.replaceAll("([a-z])([A-Z])", "$1_$2").toUpperCase(Locale.ROOT);
+    }
+
+    private static int getInt(Field field) {
+        try {
+            return field.getInt(null);
+        } catch (IllegalAccessException e) {
+            throw new AssertionError(e);
         }
     }
 
