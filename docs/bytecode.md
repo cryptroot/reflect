@@ -126,25 +126,65 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 4. Signatures
 
-- **BC-03 [Proposed]** Type signatures are byte codes followed by operands:
+- **BC-03 [Proposed]** A type signature is a code byte followed by its operands. A signature in
+  BLOBS starts with its kind, `FIELD`, `METHOD`, `LOCALS` or `INSTANTIATION`; a `TypeSpec` blob
+  is a bare type. `<tok>` is a ULEB128 token of a `TypeDef` or `TypeRef` row; `<n>` and
+  `<count>` are ULEB128.
 
-  | Code | Meaning | Operands |
+  | Code | Name | Meaning | Operands |
+  |---|---|---|---|
+  | `01` | `VOID` | `void`, only as a return type | |
+  | `02` | `BOOLEAN` | `boolean` | |
+  | `03` | `I8` | `byte` | |
+  | `04` | `U8` | `ubyte` | |
+  | `05` | `I16` | `short` | |
+  | `06` | `U16` | `ushort` | |
+  | `07` | `CHAR` | `char` | |
+  | `08` | `I32` | `int` | |
+  | `09` | `U32` | `uint` | |
+  | `0A` | `I64` | `long` | |
+  | `0B` | `U64` | `ulong` | |
+  | `0C` | `F32` | `float` | |
+  | `0D` | `F64` | `double` | |
+  | `10` | `CLASS` | reference type by name | `<tok>` |
+  | `11` | `VALUETYPE` | value type by name | `<tok>` |
+  | `12` | `GENERICINST` | instantiation | a `CLASS` or `VALUETYPE` type, `<count>`, the type arguments |
+  | `13` | `VAR` | type parameter of the type (`!0`) | `<n>` |
+  | `14` | `MVAR` | type parameter of the method (`!!0`) | `<n>` |
+  | `15` | `NULLABLE` | nullable reference type `T?` | type |
+  | `16` | `ARRAY` | one-dimensional array | element type |
+  | `17` | `PTR` | pointer | element type |
+  | `18` | `BYREF` | `ref`, `in` or `out` reference | BYREF kind, type |
+  | `19` | `WILDCARD` | `?`, `? extends T`, `? super T` | WILDCARD kind, then the bound unless the kind is `ANY` |
+  | `1A` | `INTERSECTION` | canonical intersection | `<count>`, the components: the class first, then the interfaces by qualified name (GEN-06) |
+  | `20` | `FIELD` | field signature | type |
+  | `21` | `METHOD` | method signature | METHOD flags, `<count>` type parameters if `GENERIC`, `<count>` parameters, return type, parameter types |
+  | `22` | `LOCALS` | local variable signature | `<count>`, the types |
+  | `23` | `INSTANTIATION` | type arguments of a `MethodSpec` | `<count>`, the types |
+
+  | BYREF kind | Name | Meaning |
   |---|---|---|
-  | `VOID BOOLEAN I8 U8 I16 U16 CHAR I32 U32 I64 U64 F32 F64` | primitives | |
-  | `CLASS`, `VALUETYPE` | named type | token |
-  | `GENERICINST` | instantiation | base type, count, arguments |
-  | `VAR`, `MVAR` | class or method type parameter (`!0`, `!!0`) | index |
-  | `NULLABLE` | nullable reference type `T?` | element |
-  | `ARRAY` | one-dimensional array | element |
-  | `PTR` | pointer | element |
-  | `BYREF` | `ref`, `in` or `out` reference | kind, element |
-  | `WILDCARD` | `?`, `? extends T`, `? super T` | kind, bound |
-  | `INTERSECTION` | canonical intersection | count, components (class first, interfaces by name) |
+  | `00` | `REF` | `ref` |
+  | `01` | `IN` | `in`, a `ref readonly` |
+  | `02` | `OUT` | `out` |
 
-  A nullable value type is an instantiation of the nullable wrapper; a tuple is an instantiation
-  of `TupleN` with names in `TupleNames`. Method signatures hold flags (static, generic,
-  variadic), the generic parameter count, the parameter count, the return type and the parameter
-  types. `scoped` is a parameter flag and `ref struct` a type flag.
+  | WILDCARD kind | Name | Meaning |
+  |---|---|---|
+  | `00` | `ANY` | `?` |
+  | `01` | `EXTENDS` | `? extends T` |
+  | `02` | `SUPER` | `? super T` |
+
+  | METHOD flag | Name | Meaning |
+  |---|---|---|
+  | `01` | `STATIC` | no `this` argument |
+  | `02` | `GENERIC` | the method has type parameters, and their count follows |
+  | `04` | `VARIADIC` | the last parameter is variadic (MEM-10) |
+
+  A kind byte and the flags byte are one byte each. A primitive is always its code, never
+  `VALUETYPE` of its struct: `reflect.core.Int32` is `I32`. A nullable value type is an
+  instantiation of the nullable wrapper; a tuple is an instantiation of `TupleN` with names in
+  `TupleNames`. `WILDCARD` appears only as a type argument. `scoped` is a parameter flag and
+  `ref struct` a type flag.
 
 ## 5. Instruction set
 

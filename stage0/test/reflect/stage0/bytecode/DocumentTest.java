@@ -5,8 +5,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -86,6 +88,49 @@ public final class DocumentTest {
             }
         }
         assertEquals(defined, constants);
+    }
+
+    @Test
+    public static void signatureCodes() throws IOException {
+        var listed = new HashSet<String>();
+        checkCodes("| Code | Name | Meaning | Operands |", SigCode.class, "", listed);
+        checkCodes("| BYREF kind | Name | Meaning |", SigCode.class, "BYREF_", listed);
+        checkCodes("| WILDCARD kind | Name | Meaning |", SigCode.class, "WILDCARD_", listed);
+        checkCodes("| METHOD flag | Name | Meaning |", SigCode.class, "METHOD_", listed);
+        checkAllListed(SigCode.class, listed);
+    }
+
+    // The first two cells of each row are a hexadecimal value and the name of a constant after prefix.
+    private static void checkCodes(String header, Class<?> type, String prefix, Set<String> listed)
+            throws IOException {
+        var values = new HashSet<Integer>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, header)) {
+            String name = prefix + row.code(1);
+            row.check(row.code(0).matches("[0-9A-F]+"), "not a hexadecimal value: " + row.cell(0));
+            int value = Integer.parseUnsignedInt(row.code(0), 16);
+            row.check(listed.add(name), "lists " + name + " twice");
+            row.check(values.add(value), "repeats the value " + row.cell(0));
+            row.expect(type.getSimpleName() + "." + name, value, constant(row, type, name));
+        }
+    }
+
+    private static Integer constant(MarkdownTable.Row row, Class<?> type, String name) {
+        try {
+            Field field = type.getField(name);
+            row.check(isIntConstant(field), type.getSimpleName() + "." + name + " is not an int constant");
+            return field.getInt(null);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            row.check(false, type.getSimpleName() + " has no constant " + name);
+            return null;
+        }
+    }
+
+    private static void checkAllListed(Class<?> type, Set<String> listed) {
+        for (Field field : type.getDeclaredFields()) {
+            if (isIntConstant(field) && !listed.contains(field.getName())) {
+                throw new AssertionError(type.getSimpleName() + "." + field.getName() + " is missing from " + BYTECODE);
+            }
+        }
     }
 
     private static int opcode(MarkdownTable.Row row, String text) {
