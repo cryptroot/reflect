@@ -14,8 +14,8 @@ log is [../sketchpad.md](../sketchpad.md).
 | Stage | Content | Status |
 |---|---|---|
 | plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20 |
-| v0.0.0 | Docker environment, skeleton, Lean in Docker | implemented; Linux, PowerShell 7 and native Windows checks pass (D.3); tag pending |
-| v0.0.1 | encoding tables, constants, document test | not started |
+| v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
+| v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | not started |
 | v0.0.3 | assembler; suite runner for rejected files | not started |
 | v0.0.4 | disassembler, round trip | not started |
@@ -46,7 +46,7 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [architecture.md](../architecture.md) §3 | the layout gains `.gitattributes`, `docker/dev.ps1`, `docker/dev.sh`, `docker/ci.sh` and `tests/bytecode/` (README §6.1) | done in v0.0.0 |
 | [bootstrapping.md](../bootstrapping.md) BOOT-10 | the package list gains `reflect.stage0.bytecode` and `reflect.stage0.tools` | done in v0.0.0 (Q47) |
 | [bootstrapping.md](../bootstrapping.md) BOOT-11, BOOT-12 | one writer, written in stage0, instead of a Java port of a Reflect writer; the transliterator also prints `reflect.bytecode` | Q47 |
-| [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes | v0.0.1, v0.0.3 |
+| [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes | done in v0.0.1, except the `RFA` codes (v0.0.3) |
 | [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | v0.0.3 |
 | [examples.md](../examples.md) §11.1, §11.2 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3); the `.try` blocks become regions in label form, and calls into other modules state their signatures (A.2 item 9) | with [../sketchpad.md](../sketchpad.md) A.6 |
 | [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | done 2026-10-20 (Q57 to Q62) |
@@ -70,6 +70,9 @@ These follow from the plan. Each is made in the stage named, or when its questio
 9. ex §11.1 and §11.2 call members of other modules in the short form, such as
    `call reflect.io.Console::println(reflect.core.Object?)` (Q69), and ex §11.2 writes
    exception regions as blocks (Q71). Found 2026-10-20 in v0.0.1.
+10. README §7.7 makes VM0 check `permits` at load (v0.0.6), but BC-11 has no table that lists
+    the permitted subtypes of a sealed type (DAT-06). Settle before v0.0.6: a `Permits` table, or
+    a check that every subtype of a sealed type is in its module. Found 2026-10-20 in v0.0.1.
 
 ## B. Questions and answers
 
@@ -459,3 +462,34 @@ before v0.0.0:
   size difference is unexplained; it has not been traced to a specific cause (for example, a
   reporting difference between image stores versus an actual content difference) and should not
   be treated as settled.
+
+### D.4 v0.0.1 implementation (2026-10-20)
+
+- bytecode.md states format 0.1: 263 opcodes with 159 marked R0, the signature codes, the IDs of
+  23 tables with the layouts of the 16 that v0.0.x uses, the header, the sections and heaps, the
+  layouts of bodies, regions, frames and DEBUG, the canonical form (BC-24), the limits and the
+  `.rfla` grammar. `reflect.stage0.bytecode` declares the numbers in `Opcode`, `SigCode`,
+  `TableId`, `Flags`, `Header`, `SectionId`, `VerificationType` and `Limits`.
+- `DocumentTest` compares every table with the constants in both directions, checks the family
+  ranges of BC-04, and checks that each grammar rule is defined and reachable. The `unit` job runs
+  26 tests. For each commit, a changed number, row or constant made a document test fail with the
+  file and line in its message, and the change was then reverted.
+- The opcode rows and the `Opcode` entries were generated once from one temporary list, so that
+  the first versions agree; from then on, only the document test keeps them in step.
+- Details decided while the tables were written, all [Proposed]: every column is a u32; each heap
+  starts with its empty entry; visibility takes three flags, and none means package-private; keys
+  order every row, so `TypeDef` adds the enclosing type, a nested type has namespace 0, `Export`
+  has one row per target, and four tables sort by all their columns; `Param` flags keep only
+  `scoped` and `this`, since `ref`, `in`, `out` and variadic are in the signature; constructors
+  are named `new` and static initializers `static`; a `Constant` blob uses the encoding of the
+  field's type; a module never contains `breakpoint`; frames list the arguments before the
+  locals; DEBUG lines hold no column.
+- The container prints `§` as `?`, so the messages of `DocumentTest` use ASCII only.
+- Twice, `docker image inspect` failed with "file has already been closed" on Docker Desktop's
+  pipe. The wrapper then rebuilt `reflect-build:a5bb09736f0c` from its cache, with the same tag.
+  Nothing needs to change unless it happens more often.
+- Exit check: the tables cover every instruction and every table that v0.0.x uses, and
+  `docker/dev.ps1 all` passes on Windows (Docker engine 29.6.1). No Linux run was possible: the
+  WSL distribution `Ubuntu-24.04` has no Docker Desktop integration, and enabling it changes the
+  host's settings. Q53 asks for `all` on both hosts before each tag, so `docker/dev.sh all` on
+  Linux is still due for `v0.0.1`.
