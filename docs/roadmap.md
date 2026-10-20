@@ -56,3 +56,9 @@ preconditions, postconditions and entry-state captures with run-time fallback, p
 scoped managed-memory undo logs. Neither feature has an assigned milestone; both need their
 open semantics, conformance tests and proof layers before becoming stable. They do not expand
 R0 or change the self-hosting milestones above.
+
+[First-class Entity-Component Systems](entity-component-systems.md) proposes `component` structs,
+`system` classes, world-owned component tables and checked update kernels that can use the
+optimizing AOT backend. It is also unscheduled and does not expand R0 or change these milestones.
+Its initial sequential design preserves CON-01; SIMD and parallel scheduling require separate
+backend and concurrency work. Stabilization needs ECS-specific semantics, tests and proofs.

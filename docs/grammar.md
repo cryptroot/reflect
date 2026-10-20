@@ -7,6 +7,10 @@ Proposed method contracts and `transaction` blocks are described separately in
 [Intent Contracts and Transactions](intent-contracts-and-transactions.md); they are not yet part
 of the grammar below.
 
+Proposed `component` and `system` declarations are described separately in
+[First-class Entity-Component Systems](entity-component-systems.md); those keywords are not yet
+reserved by the baseline grammar below.
+
 ## 1. Source files
 
 - **LEX-01 [Proposed]** Source files are UTF-8 (a BOM is ignored) with extension `.rfl`. Each

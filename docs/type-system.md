@@ -8,6 +8,10 @@ Intent Contracts and managed-memory rollback scopes are proposed separately in
 [Intent Contracts and Transactions](intent-contracts-and-transactions.md). Their rules are not
 yet part of the baseline language below.
 
+[First-class Entity-Component Systems](entity-component-systems.md) separately proposes components
+as structs, systems as classes, checked batch access and an optimizable kernel subset. Those roles
+are not yet part of the baseline type rules below.
+
 ## 1. Modules, namespaces, visibility (MOD)
 
 - **MOD-01 [Decided]** A module is one `.rflc` file: the unit of compilation, versioning, access
