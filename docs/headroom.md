@@ -10,6 +10,10 @@ The unscheduled [threads, atomics and lock-free semantics proposal](threading.md
 concurrency hooks, particularly HR-19, HR-21, HR-22 and HR-23. It does not accept these entries
 or change CON-01's single-threaded baseline.
 
+The separate [GPU access and Reflect-G proposal](gpu.md) records seams for device resources,
+transfer layouts and a GPU-resident interpreter. It adds no accepted headroom entries, required
+backend or bootstrap dependency.
+
 ## 0. Reading an entry
 
 - An entry names what it keeps possible, then gives *Today* (what the rules say now),

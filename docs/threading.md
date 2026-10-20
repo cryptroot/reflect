@@ -11,6 +11,10 @@ as the baseline, and CON-04 has already decided opt-in `Lockable` objects. This 
 that direction and [headroom](headroom.md), not the self-hosting critical path. Async keeps its
 existing deferral under CON-03; a state-machine lowering is not a thread scheduler.
 
+The companion [GPU access and Reflect-G proposal](gpu.md) treats device queues, address spaces
+and synchronization separately. CPU atomics and publication rules do not automatically extend
+to device memory; GPU submission does not require a managed host thread per task.
+
 ## 1. Goals and boundaries
 
 - **THR-01 [Proposed]** Start with managed, shared-memory OS threads, monitors on `Lockable`

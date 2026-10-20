@@ -36,6 +36,7 @@ the decision log in sketchpad.md.
 | `IC`, `TXN` | proposed Intent Contracts and Transactions | [intent-contracts-and-transactions.md](intent-contracts-and-transactions.md) |
 | `ECS` | proposed first-class Entity-Component Systems | [entity-component-systems.md](entity-component-systems.md) |
 | `THR` | proposed threads, atomics and lock-free semantics | [threading.md](threading.md) |
+| `GPU` | proposed GPU access, Reflect-G and device interpretation | [gpu.md](gpu.md) |
 
 ## 1. Components
 

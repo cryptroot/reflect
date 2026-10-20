@@ -438,6 +438,10 @@ deferred structural commands and lifecycle events; migration tooling for layout 
 exact proof layer and milestone. A field-split representation, relaxed-math mode, GPU target or
 parallel scheduler each requires a separate explicit proposal.
 
+[GPU Access, Reflect-G and a GPU-resident Interpreter](gpu.md) supplies that separate GPU
+direction. It does not make an ECS `@Kernel` a GPU entry: offload still needs checked transfer
+layouts, explicit leases/dependencies and device-profile validation.
+
 The central commitment is smaller: keep OO objects where identity and ownership are useful,
 store component values densely where bulk processing is useful, and give Reflect enough checked
 information to optimize that processing safely, including ahead of time.
