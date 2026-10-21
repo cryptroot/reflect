@@ -168,6 +168,41 @@ public final class SignatureTest {
     }
 
     @Test
+    public static void anIntersectionListsItsClassFirstAndItsInterfacesByName() throws Exception {
+        String order = "the interfaces of an INTERSECTION follow by qualified name, each once (GEN-06)";
+        var types = new Types();
+        field(types, intersection(types.named("Object"), types.named("List"), types.named("Runnable")), null);
+        // The first component of another module may be a class, so its order is not checked.
+        types = new Types();
+        field(types, intersection(types.named("Runnable"), types.named("Object")), null);
+        types = new Types();
+        field(types, intersection(types.named("Object"), types.named("Runnable"), types.named("List")), order);
+        types = new Types();
+        field(types, intersection(types.named("Object"), types.list(types.named("String")),
+                types.list(types.named("Object"))), order);
+        types = new Types();
+        field(types, intersection(types.named("Runnable"), new TypeSig.Named(false, types.shapes)),
+                "the class of an INTERSECTION is its first component (GEN-06)");
+        types = new Types();
+        var mover = new TypeDef("app", "Mover", Flags.KIND_INTERFACE, 0, 0, null);
+        types.module.types().add(mover);
+        field(types, intersection(new TypeSig.Named(false, mover), types.named("Runnable")), null);
+        types = new Types();
+        var walker = new TypeDef("zoo", "Walker", Flags.KIND_INTERFACE, 0, 0, null);
+        types.module.types().add(walker);
+        field(types, intersection(new TypeSig.Named(false, walker), types.named("Runnable")), order);
+        // The reader: Object & List & Runnable, then the first bytes of the last two tokens swapped.
+        types = new Types();
+        types.shapes.fields().add(new FieldDef(0, "f", intersection(types.named("Object"), types.named("List"),
+                types.named("Runnable"))));
+        byte[] file = roundTrip(types.module);
+        assertEquals("20 1A 03 10 " + OBJECT + " 10 " + LIST + " 10 " + RUNNABLE,
+                Leb128Test.hex(blobBytes(file, TableId.FIELD, 1, 2)));
+        int at = blobOffset(file, TableId.FIELD, 1, 2);
+        rejected(patchByte(patchByte(file, at + 9, 0x84), at + 14, 0x82), at, order);
+    }
+
+    @Test
     public static void theReaderChecksMethodAndMemberRefSignatures() throws Exception {
         var types = new Types();
         types.shapes.methods().add(new MethodDef(Flags.METHOD_ABSTRACT, "m", new MethodSig(0, 0, VOID, list())));
@@ -276,6 +311,10 @@ public final class SignatureTest {
             return;
         }
         unwritable(types.module, "field app.Shapes::f: " + problem);
+    }
+
+    private static TypeSig intersection(TypeSig... components) {
+        return new TypeSig.Intersection(list(components));
     }
 
     // A module whose field app.Shapes::f has the type app.K of this kind, as CLASS or VALUETYPE.

@@ -364,8 +364,12 @@ package-private (MOD-08).
   - `CLASS` names a reference type: a class, an interface, a record or an annotation type.
     `VALUETYPE` names a value type: a struct, a ref struct, a record struct or an enum (TYP-01).
   - `GENERICINST` has at least one type argument, and for a type that the module defines, one per
-    type parameter. `INTERSECTION` has at least two components, each `CLASS` or a `GENERICINST`
-    of `CLASS`.
+    type parameter.
+  - `INTERSECTION` has at least two components, each `CLASS` or a `GENERICINST` of `CLASS`. The
+    class comes first. The interfaces follow by qualified name, compared as UTF-8 bytes, and no
+    name appears twice, since two instantiations of one interface have no common type (GEN-06,
+    ex §3.7). A reader knows the kind only of a type that the module defines, so it checks the
+    first component against the second only when the first is an interface of the module.
   - `NULLABLE` wraps `CLASS`, a `GENERICINST` of `CLASS`, `ARRAY`, `VAR` or `MVAR`. Value types,
     pointers, references, wildcards and intersections have no nullable form (TYP-01).
   - `VAR` names a type parameter of the type that declares the member, and `MVAR` one of the

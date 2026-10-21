@@ -145,11 +145,12 @@ final class Signatures {
             }
             return bound == null ? null : problem(bound, OTHER, scope, module, depth + 1);
         }
-        var intersection = (TypeSig.Intersection) type;
-        if (intersection.components().size() < 2) {
+        List<TypeSig> components = ((TypeSig.Intersection) type).components();
+        if (components.size() < 2) {
             return "INTERSECTION has at least two components (BC-03)";
         }
-        for (TypeSig component : intersection.components()) {
+        for (int i = 0; i < components.size(); i++) {
+            TypeSig component = components.get(i);
             boolean named = component instanceof TypeSig.Named n && !n.valueType()
                     || component instanceof TypeSig.GenericInst g && !g.type().valueType();
             if (!named) {
@@ -159,8 +160,31 @@ final class Signatures {
             if (problem != null) {
                 return problem;
             }
+            if (i > 0 && ofKind(component, Flags.KIND_CLASS, Flags.KIND_RECORD)) {
+                return "the class of an INTERSECTION is its first component (GEN-06)";
+            }
+        }
+        // The kind of a type of another module is unknown, so the first component is ordered with
+        // the second only when it is an interface of this module.
+        for (int i = 1; i < components.size(); i++) {
+            boolean ordered = i > 1 || ofKind(components.get(0), Flags.KIND_INTERFACE, Flags.KIND_ANNOTATION);
+            String previous = componentType(components.get(i - 1)).qualifiedName();
+            if (ordered && Utf8.compare(previous, componentType(components.get(i)).qualifiedName()) >= 0) {
+                return "the interfaces of an INTERSECTION follow by qualified name, each once (GEN-06)";
+            }
         }
         return null;
+    }
+
+    // Whether a component of INTERSECTION is a type of this module of one of the two kinds.
+    private static boolean ofKind(TypeSig component, int kind, int other) {
+        return componentType(component) instanceof TypeDef def && (def.kind() == kind || def.kind() == other);
+    }
+
+    // The named type of a component of INTERSECTION, without its type arguments.
+    private static TypeHandle componentType(TypeSig component) {
+        return component instanceof TypeSig.GenericInst generic ? generic.type().type()
+                : ((TypeSig.Named) component).type();
     }
 
     // A type that NULLABLE may wrap: a named reference type, a type parameter or an array. Value
