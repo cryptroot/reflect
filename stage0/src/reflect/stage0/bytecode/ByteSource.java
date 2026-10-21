@@ -66,6 +66,11 @@ public final class ByteSource {
         return (u32() & 0xFFFFFFFFL) | ((long) u32() << 32);
     }
 
+    public void skip(int count) throws ModuleFormatException {
+        need(count);
+        position += count;
+    }
+
     public byte[] bytes(int count) throws ModuleFormatException {
         need(count);
         byte[] copy = new byte[count];

@@ -43,6 +43,7 @@ public final class ModuleWriter {
     private final Map<FieldDef, Integer> fieldRows = new HashMap<>();
     private final List<MethodDef> methods = new ArrayList<>();
     private final Map<MethodDef, Integer> methodRows = new HashMap<>();
+    private final List<String> methodOwners = new ArrayList<>();
     private final List<ParamDef> params = new ArrayList<>();
     private final Map<ParamDef, Integer> paramRows = new HashMap<>();
     private final Map<TypeDef, Integer> firstFields = new HashMap<>();
@@ -230,8 +231,10 @@ public final class ModuleWriter {
                 }
                 checkMethod(method, owner);
                 checkSignature(method, owner);
+                checkBody(method, owner);
                 methods.add(method);
                 methodRows.put(method, methods.size());
+                methodOwners.add(owner);
                 firstParams.put(method, params.size() + 1);
                 for (ParamDef param : method.params()) {
                     if (paramRows.containsKey(param)) {
@@ -305,6 +308,18 @@ public final class ModuleWriter {
         if (signature.params().size() != method.params().size()) {
             throw new ModuleFormatException(owner + ": the signature has " + signature.params().size()
                     + " parameters, but the method has " + method.params().size() + " Param rows (BC-11)");
+        }
+    }
+
+    // A method has a body exactly when it is not ABSTRACT, NATIVE or EXTERN (§3.1).
+    private void checkBody(MethodDef method, String owner) throws ModuleFormatException {
+        MethodBody body = method.body();
+        if (Code.hasBody(method.flags()) != (body != null)) {
+            throw new ModuleFormatException(owner + (body == null ? " has no body" : " has a body")
+                    + "; a method has one exactly when it is not ABSTRACT, NATIVE or EXTERN (BC-11)");
+        }
+        if (body != null) {
+            check(Code.problem(body, Code.arguments(method.signature()), module.name()), owner);
         }
     }
 
@@ -387,11 +402,16 @@ public final class ModuleWriter {
                 tables.u32(blobs.blob(Signatures.field(field.type(), this::signatureToken)));
             }
         }
+        // The heap entries of the bodies follow those of every table (BC-24), so the code columns are
+        // filled in once the bodies are laid out.
+        int[] codeColumns = new int[methods.size()];
         if (tables.begin(TableId.METHOD, methods.size())) {
-            for (MethodDef method : methods) {
+            for (int i = 0; i < methods.size(); i++) {
+                MethodDef method = methods.get(i);
                 tables.u32(method.flags());
                 tables.u32(idents.ident(method.name()));
                 tables.u32(blobs.blob(Signatures.method(method.signature(), this::signatureToken)));
+                codeColumns[i] = tables.position();
                 tables.u32(0);
                 tables.u32(firstParams.getOrDefault(method, 0));
                 tables.u32(1);
@@ -410,11 +430,24 @@ public final class ModuleWriter {
                 tables.u32(blobs.blob(memberRefSignatures.getOrDefault(ref, new byte[0])));
             }
         }
+        // The bodies follow one another in the order of their Method rows (BC-17).
+        var code = new ByteSink();
+        for (int i = 0; i < methods.size(); i++) {
+            MethodDef method = methods.get(i);
+            MethodBody body = method.body();
+            if (body != null) {
+                tables.set(codeColumns[i], code.size());
+                code.bytes(Code.body(body, blobs, literals, this::signatureToken, methodOwners.get(i)));
+            }
+        }
         var sections = new ArrayList<Section>();
         sections.add(new Section(SectionId.IDENTS, idents.toByteArray()));
         sections.add(new Section(SectionId.LITERALS, literals.toByteArray()));
         sections.add(new Section(SectionId.BLOBS, blobs.toByteArray()));
         sections.add(new Section(SectionId.TABLES, tables.toByteArray()));
+        if (code.size() > 0) {
+            sections.add(new Section(SectionId.CODE, code.toByteArray()));
+        }
         for (Section section : module.ancillary()) {
             if (!SectionId.isAncillary(section.id())) {
                 throw new ModuleFormatException("section " + ModuleFormatException.hex(section.id() & 0xFFFFFFFFL)

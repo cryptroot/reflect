@@ -39,6 +39,16 @@ public final class ByteSink {
         u32((int) (value >>> 32));
     }
 
+    /** Replaces the four bytes at the position, which the sink has written, with a u32 value. */
+    public void setU32(int position, int value) {
+        if (position < 0 || position > size - 4) {
+            throw new IllegalArgumentException("Position " + position + " is outside the written bytes");
+        }
+        for (int i = 0; i < 4; i++) {
+            data[position + i] = (byte) (value >>> (8 * i));
+        }
+    }
+
     public void bytes(byte[] source) {
         for (byte b : source) {
             u8(b);

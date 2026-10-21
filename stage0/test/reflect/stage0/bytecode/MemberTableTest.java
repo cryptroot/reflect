@@ -106,7 +106,7 @@ public final class MemberTableTest {
         // Method 2 is C::new; without CONSTRUCTOR its name is wrong.
         rejected(patch(file, TableId.METHOD, 2, 0, Flags.METHOD_NATIVE), columnOffset(file, TableId.METHOD, 2, 1),
                 "only constructors and static initializers are named new and static (BC-11)");
-        reject(file, TableId.METHOD, 1, 3, 8, "this reader does not support method bodies yet");
+        reject(file, TableId.METHOD, 1, 3, 8, "an ABSTRACT, NATIVE or EXTERN method has no body, so its code is 0 (BC-11)");
         reject(file, TableId.PARAM, 1, 0, 0x04, "Param flags 0x4 are not defined (BC-20)");
         rejected(patch(file, TableId.METHOD, 1, 0, Flags.PUBLIC | Flags.METHOD_ABSTRACT | Flags.METHOD_STATIC),
                 blobOffset(file, TableId.METHOD, 1, 2), "the signature has STATIC exactly when the method has (BC-11)");

@@ -6,8 +6,9 @@ import reflect.stage0.lib.Nullable;
 
 /**
  * Reads a module (README §7.3) and checks it: the container (ModuleFile), the heaps, the TABLES
- * directory, and each row, column by column. It resolves the heap references in the canonical
- * order of BC-24, so a heap out of that order is rejected. Every error names its file offset.
+ * directory, each row, column by column, and the bodies in CODE. It resolves the heap references
+ * in the canonical order of BC-24, so a heap out of that order is rejected. Every error names its
+ * file offset.
  */
 public final class ModuleReader {
     private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.TYPE_DEF, TableId.TYPE_REF,
@@ -68,6 +69,7 @@ public final class ModuleReader {
         for (MemberRef ref : readMemberRefs()) {
             module.memberRefs().add(ref);
         }
+        readBodies(methods);
         for (int row = 1; row <= typeDefRows.size(); row++) {
             TypeDef type = typeDefs.get(row - 1);
             int base = typeDefRows.get(row - 1).base();
@@ -95,11 +97,6 @@ public final class ModuleReader {
         }
         for (TypeRef ref : typeRefs) {
             module.typeRefs().add(ref);
-        }
-        int code = file.find(SectionId.CODE);
-        if (code >= 0) {
-            throw new ModuleFormatException(directoryEntry(code), "the module has a CODE section, but no method"
-                    + " has a body (BC-24)");
         }
         idents.checkAllReferenced();
         literals.checkAllReferenced();
@@ -233,9 +230,9 @@ public final class ModuleReader {
             if ((signature.flags() & SigCode.METHOD_GENERIC) != 0) {
                 throw new ModuleFormatException(at, "the signature is GENERIC, but the method has no GenericParam rows (BC-24)");
             }
-            if (value(TableId.METHOD, row, 3) != 0) {
-                throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 3), "this reader does not support"
-                        + " method bodies yet");
+            if (!Code.hasBody(flags) && value(TableId.METHOD, row, 3) != 0) {
+                throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 3), "an ABSTRACT, NATIVE or EXTERN"
+                        + " method has no body, so its code is 0 (BC-11)");
             }
             int count = paramRuns[row + 1] - paramRuns[row];
             if (count > Limits.MAX_PARAMS) {
@@ -293,6 +290,47 @@ public final class ModuleReader {
             refs.add(new MemberRef(typeHandle(parent), name, signature));
         }
         return refs;
+    }
+
+    // The bodies follow one another from CODE offset 0 in the order of their Method rows (BC-17).
+    // They are read after every table, since their heap entries come last (BC-24).
+    private void readBodies(List<MethodDef> methods) throws ModuleFormatException {
+        int first = 0;
+        for (int row = methods.size(); row >= 1; row--) {
+            if (Code.hasBody(methods.get(row - 1).flags())) {
+                first = row;
+            }
+        }
+        int index = file.find(SectionId.CODE);
+        if (index < 0 || first == 0) {
+            if (first != 0) {
+                throw new ModuleFormatException(tables.offset(TableId.METHOD, first, 3), "the method has a body, but"
+                        + " the module has no CODE section (BC-24)");
+            }
+            if (index >= 0) {
+                throw new ModuleFormatException(directoryEntry(index), "the module has a CODE section, but no method"
+                        + " has a body (BC-24)");
+            }
+            return;
+        }
+        ByteSource code = file.open(index);
+        int start = code.position();
+        for (int row = first; row <= methods.size(); row++) {
+            MethodDef method = methods.get(row - 1);
+            if (!Code.hasBody(method.flags())) {
+                continue;
+            }
+            int offset = code.position() - start;
+            if (value(TableId.METHOD, row, 3) != offset) {
+                throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 3), "the body of the method starts"
+                        + " at CODE offset " + hex(offset) + " (BC-17)");
+            }
+            method.setBody(Code.body(code, blobs, literals, this::handleOf, Code.arguments(method.signature()),
+                    moduleName));
+        }
+        if (!code.atEnd()) {
+            throw new ModuleFormatException(code.position(), "CODE continues after the last body (BC-17)");
+        }
     }
 
     /**

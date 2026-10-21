@@ -33,6 +33,16 @@ final class TablesWriter {
         rows.u32(value);
     }
 
+    /** The position of the next column, which set can fill in later. */
+    int position() {
+        return rows.size();
+    }
+
+    /** Replaces a column written at the position. */
+    void set(int position, int value) {
+        rows.setU32(position, value);
+    }
+
     byte[] toByteArray() {
         if (rows.size() != tableEnd) {
             throw new IllegalStateException("The last table is not complete");

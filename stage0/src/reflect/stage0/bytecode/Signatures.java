@@ -75,6 +75,23 @@ final class Signatures {
         return problem(type, position, scope, module, 1);
     }
 
+    /** The first rule that the types of a LOCALS signature break, or null. */
+    static @Nullable String localsProblem(List<TypeSig> types, Scope scope, String module) {
+        if (types.isEmpty()) {
+            return "a LOCALS signature lists at least one type; a body without locals has locals 0 (BC-17)";
+        }
+        if (types.size() > Limits.MAX_LOCALS) {
+            return "the body has " + types.size() + " locals, more than the limit of " + Limits.MAX_LOCALS + " (BC-21)";
+        }
+        String problem = null;
+        for (TypeSig type : types) {
+            if (problem == null) {
+                problem = problem(type, OTHER, scope, module);
+            }
+        }
+        return problem;
+    }
+
     private static @Nullable String problem(TypeSig type, int position, Scope scope, String module, int depth) {
         if (depth > Limits.MAX_SIGNATURE_DEPTH) {
             return "the signature nests types deeper than " + Limits.MAX_SIGNATURE_DEPTH + " (BC-21)";
@@ -261,6 +278,16 @@ final class Signatures {
         return out.toByteArray();
     }
 
+    static byte[] locals(List<TypeSig> types, Tokens tokens) throws ModuleFormatException {
+        var out = new ByteSink();
+        out.u8(SigCode.LOCALS);
+        out.uleb(types.size());
+        for (TypeSig type : types) {
+            encode(type, out, tokens);
+        }
+        return out.toByteArray();
+    }
+
     static byte[] member(MemberSig signature, Tokens tokens) throws ModuleFormatException {
         if (signature instanceof FieldSig field) {
             return field(field.type(), tokens);
@@ -326,6 +353,18 @@ final class Signatures {
     static MethodSig method(ByteSource in, Handles handles) throws ModuleFormatException {
         kind(in, SigCode.METHOD, "a method signature starts with METHOD (BC-03)");
         return methodAfterKind(in, handles);
+    }
+
+    /** Decodes a LOCALS signature that fills the source. */
+    static List<TypeSig> locals(ByteSource in, Handles handles) throws ModuleFormatException {
+        kind(in, SigCode.LOCALS, "a locals signature starts with LOCALS (BC-03)");
+        int count = count(in);
+        var types = new ArrayList<TypeSig>();
+        for (int i = 0; i < count; i++) {
+            types.add(type(in, handles, 1));
+        }
+        end(in);
+        return types;
     }
 
     /** Decodes the FIELD or METHOD signature of a MemberRef row. */
