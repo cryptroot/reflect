@@ -44,6 +44,8 @@ public final class ModuleWriter {
     private final Map<TypeDef, Integer> firstFields = new HashMap<>();
     private final Map<TypeDef, Integer> firstMethods = new HashMap<>();
     private final Map<MethodDef, Integer> firstParams = new HashMap<>();
+    private final List<MemberRef> memberRefs = new ArrayList<>();
+    private final Map<MemberRef, Integer> memberRefRows = new HashMap<>();
 
     private ModuleWriter(ModuleDef module) {
         this.module = module;
@@ -55,6 +57,7 @@ public final class ModuleWriter {
         writer.numberTypeDefs();
         writer.numberTypeRefs();
         writer.numberMembers();
+        writer.numberMemberRefs();
         return writer.file();
     }
 
@@ -235,6 +238,43 @@ public final class ModuleWriter {
         }
     }
 
+    private void numberMemberRefs() throws ModuleFormatException {
+        for (MemberRef ref : module.memberRefs()) {
+            String owner = "MemberRef " + ref.parent().qualifiedName() + "::" + ref.name();
+            if (memberRefRows.containsKey(ref)) {
+                throw new ModuleFormatException("the module lists the " + owner + " twice");
+            }
+            if (!(ref.parent() instanceof TypeRef parent)) {
+                throw new ModuleFormatException(owner + " has a TypeDef as parent; a MemberRef names a member of a"
+                        + " TypeRef or TypeSpec (BC-11)");
+            }
+            if (!typeRefRows.containsKey(parent)) {
+                throw new ModuleFormatException(owner + " has a parent that the module does not list");
+            }
+            memberRefRows.put(ref, 0);
+            memberRefs.add(ref);
+        }
+        memberRefs.sort(this::compareMemberRefs);
+        for (int i = 0; i < memberRefs.size(); i++) {
+            if (i > 0 && compareMemberRefs(memberRefs.get(i - 1), memberRefs.get(i)) == 0) {
+                MemberRef ref = memberRefs.get(i);
+                throw new ModuleFormatException("two MemberRef rows have the key of " + ref.parent().qualifiedName()
+                        + "::" + ref.name() + " (BC-24)");
+            }
+            memberRefRows.put(memberRefs.get(i), i + 1);
+        }
+    }
+
+    // The key of BC-11: parent token, name, then the bytes of the signature.
+    private int compareMemberRefs(MemberRef left, MemberRef right) {
+        int order = compareRows(typeRefRows.getOrDefault((TypeRef) left.parent(), 0),
+                typeRefRows.getOrDefault((TypeRef) right.parent(), 0));
+        if (order == 0) {
+            order = Utf8.compare(left.name(), right.name());
+        }
+        return order != 0 ? order : Blob.compare(left.signature().toByteArray(), right.signature().toByteArray());
+    }
+
     private static void checkMethod(MethodDef method, String owner) throws ModuleFormatException {
         checkFlags(method.flags(), METHOD_FLAGS, owner);
         checkVisibility(method.flags(), owner);
@@ -318,6 +358,13 @@ public final class ModuleWriter {
             for (ParamDef param : params) {
                 tables.u32(param.flags());
                 tables.u32(idents.ident(param.name()));
+            }
+        }
+        if (tables.begin(TableId.MEMBER_REF, memberRefs.size())) {
+            for (MemberRef ref : memberRefs) {
+                tables.u32(typeToken(ref.parent(), "the parent of a MemberRef"));
+                tables.u32(idents.ident(ref.name()));
+                tables.u32(blobs.blob(ref.signature().toByteArray()));
             }
         }
         var sections = new ArrayList<Section>();

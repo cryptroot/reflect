@@ -18,6 +18,7 @@ public final class ModuleDef {
     private final List<ModuleRef> requires = new ArrayList<>();
     private final List<TypeDef> types = new ArrayList<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
+    private final List<MemberRef> memberRefs = new ArrayList<>();
     private final List<Section> ancillary = new ArrayList<>();
 
     /** The version components are u32 values (BLD-01). */
@@ -75,6 +76,11 @@ public final class ModuleDef {
     /** The TypeRef rows, in any order. */
     public List<TypeRef> typeRefs() {
         return typeRefs;
+    }
+
+    /** The MemberRef rows, in any order. */
+    public List<MemberRef> memberRefs() {
+        return memberRefs;
     }
 
     /** Ancillary sections that the reader does not know, written back unchanged (BC-20). */

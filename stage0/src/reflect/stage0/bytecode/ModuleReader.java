@@ -11,9 +11,10 @@ import reflect.stage0.lib.Nullable;
  */
 public final class ModuleReader {
     private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.TYPE_DEF, TableId.TYPE_REF,
-        TableId.FIELD, TableId.METHOD, TableId.PARAM};
+        TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.MEMBER_REF};
     private static final int[] TYPE_TOKENS = {TableId.TYPE_DEF, TableId.TYPE_REF, TableId.TYPE_SPEC};
     private static final int[] SCOPE_TOKENS = {TableId.MODULE_REF, TableId.TYPE_REF};
+    private static final int[] PARENT_TOKENS = {TableId.TYPE_REF, TableId.TYPE_SPEC};
 
     private final ModuleFile file;
     private final HeapReader idents;
@@ -59,8 +60,12 @@ public final class ModuleReader {
         runs(TableId.METHOD, 5, TableId.GENERIC_PARAM, "GenericParam");
         List<MethodDef> methods = readMethods(paramRuns);
         List<ParamDef> params = readParams();
+        List<MemberRefRow> memberRefRows = readMemberRefs();
         buildTypeRefs(typeRefRows);
         buildTypeDefs(typeDefRows);
+        for (MemberRefRow raw : memberRefRows) {
+            module.memberRefs().add(new MemberRef(typeHandle(raw.parent()), raw.name(), raw.signature()));
+        }
         for (int row = 1; row <= typeDefRows.size(); row++) {
             TypeDef type = typeDefs.get(row - 1);
             int base = typeDefRows.get(row - 1).base();
@@ -234,6 +239,31 @@ public final class ModuleReader {
             params.add(new ParamDef(flags, ident(TableId.PARAM, row, 1)));
         }
         return params;
+    }
+
+    private List<MemberRefRow> readMemberRefs() throws ModuleFormatException {
+        var rows = new ArrayList<MemberRefRow>();
+        for (int row = 1; row <= tables.rows(TableId.MEMBER_REF); row++) {
+            int parent = token(TableId.MEMBER_REF, row, 0, PARENT_TOKENS, false, "a TypeRef or TypeSpec row");
+            var current = new MemberRefRow(parent, ident(TableId.MEMBER_REF, row, 1), blob(TableId.MEMBER_REF, row, 2));
+            if (row > 1) {
+                MemberRefRow previous = rows.get(row - 2);
+                int order = ModuleWriter.compareRows(previous.parent(), parent);
+                if (order == 0) {
+                    order = Utf8.compare(previous.name(), current.name());
+                }
+                if (order == 0) {
+                    order = Blob.compare(previous.signature().toByteArray(), current.signature().toByteArray());
+                }
+                if (order >= 0) {
+                    throw new ModuleFormatException(tables.offset(TableId.MEMBER_REF, row, 0), order == 0
+                            ? "two MemberRef rows have equal keys (BC-24)"
+                            : "the MemberRef rows are not sorted by parent, name and signature (BC-24)");
+                }
+            }
+            rows.add(current);
+        }
+        return rows;
     }
 
     /**
@@ -421,5 +451,8 @@ public final class ModuleReader {
     }
 
     private record TypeRefRow(int scope, String namespace, String name) {
+    }
+
+    private record MemberRefRow(int parent, String name, Blob signature) {
     }
 }
