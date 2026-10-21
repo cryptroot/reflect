@@ -91,12 +91,12 @@ public final class ModuleWriter {
                     + "; the backing type is one of I8, U8, I16, U16, I32, U32, I64 and U64 (DAT-05)");
         }
         if (type.kind() != Flags.KIND_ENUM && type.backing() != 0) {
-            throw new ModuleFormatException(owner + " is not an enum, but has a backing type (§3.1)");
+            throw new ModuleFormatException(owner + " is not an enum, but has a backing type (BC-11)");
         }
         TypeDef outer = type.enclosing();
         if (outer != null) {
             if (!type.namespace().isEmpty()) {
-                throw new ModuleFormatException("nested " + owner + " has a namespace; a nested type has namespace 0 (§3.1)");
+                throw new ModuleFormatException("nested " + owner + " has a namespace; a nested type has namespace 0 (BC-11)");
             }
             if (!typeDefRows.containsKey(outer)) {
                 throw new ModuleFormatException(owner + " is nested in a type that the module does not list");
@@ -140,7 +140,7 @@ public final class ModuleWriter {
                 }
             } else if (scope instanceof TypeRef outer) {
                 if (!ref.namespace().isEmpty()) {
-                    throw new ModuleFormatException("nested " + owner + " has a namespace; a nested type has namespace 0 (§3.1)");
+                    throw new ModuleFormatException("nested " + owner + " has a namespace; a nested type has namespace 0 (BC-11)");
                 }
                 if (!typeRefRows.containsKey(outer)) {
                     throw new ModuleFormatException(owner + " is nested in a TypeRef that the module does not list");
@@ -286,7 +286,7 @@ public final class ModuleWriter {
     private static void checkVisibility(int flags, String owner) throws ModuleFormatException {
         int visibility = flags & VISIBILITY;
         if ((visibility & (visibility - 1)) != 0) {
-            throw new ModuleFormatException(owner + " has more than one visibility flag (§3.1)");
+            throw new ModuleFormatException(owner + " has more than one visibility flag (BC-11)");
         }
     }
 }

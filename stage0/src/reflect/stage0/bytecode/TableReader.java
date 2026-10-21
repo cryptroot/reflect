@@ -33,7 +33,7 @@ final class TableReader {
                 throw new ModuleFormatException(entry, "table " + hex(id) + " appears twice in the TABLES directory");
             }
             if (id < previous) {
-                throw new ModuleFormatException(entry, "the TABLES directory is not sorted by table ID (§3.1)");
+                throw new ModuleFormatException(entry, "the TABLES directory is not sorted by table ID (BC-11)");
             }
             if (!contains(supported, id)) {
                 throw new ModuleFormatException(entry, "this reader does not support table " + hex(id) + " yet");

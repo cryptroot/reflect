@@ -98,7 +98,7 @@ public final class ModuleTableTest {
         tables(new TestModules.Tables().table(TableId.MODULE, 1, 20, 1, 0, 0, 0, 0), 12,
                 "table 0x1 has rows of 20 bytes, not 24 (BC-11)");
         tables(new TestModules.Tables().rows(TableId.MODULE_REF, 1, 0).rows(TableId.MODULE, module), 16,
-                "the TABLES directory is not sorted by table ID (\u00A73.1)");
+                "the TABLES directory is not sorted by table ID (BC-11)");
         tables(new TestModules.Tables().rows(TableId.MODULE, module).rows(TableId.MODULE, module), 16,
                 "table 0x1 appears twice in the TABLES directory");
         tables(new TestModules.Tables().table(TableId.MODULE, 2, 24, module), 8,

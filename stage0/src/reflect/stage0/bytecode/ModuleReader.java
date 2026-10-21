@@ -119,17 +119,17 @@ public final class ModuleReader {
                 throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, 5), kind == Flags.KIND_ENUM
                         ? "the backing type of an enum is one of I8, U8, I16, U16, I32, U32, I64 and U64, not "
                                 + hex(backing) + " (DAT-05)"
-                        : "TypeDef backing is " + hex(backing) + ", but only an enum has a backing type (§3.1)");
+                        : "TypeDef backing is " + hex(backing) + ", but only an enum has a backing type (BC-11)");
             }
             int enclosing = row(TableId.TYPE_DEF, row, 6, TableId.TYPE_DEF, true);
             if (enclosing != 0 && !namespace.isEmpty()) {
-                throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, 1), "a nested type has namespace 0 (§3.1)");
+                throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, 1), "a nested type has namespace 0 (BC-11)");
             }
             for (int column = 7; column <= 9; column++) {
                 int first = value(TableId.TYPE_DEF, row, column);
                 if (first != 1) {
                     throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, column), "the run of rows starts"
-                            + " at row 1, not at row " + (first & 0xFFFFFFFFL) + ", since the table has no rows (§3.1)");
+                            + " at row 1, not at row " + (first & 0xFFFFFFFFL) + ", since the table has no rows (BC-11)");
                 }
             }
             var current = new TypeDefRow(name, namespace, kind, flags, base, backing, enclosing);
@@ -153,7 +153,7 @@ public final class ModuleReader {
             String namespace = ident(TableId.TYPE_REF, row, 1);
             String name = ident(TableId.TYPE_REF, row, 2);
             if (scope >>> 24 == TableId.TYPE_REF && !namespace.isEmpty()) {
-                throw new ModuleFormatException(tables.offset(TableId.TYPE_REF, row, 1), "a nested type has namespace 0 (§3.1)");
+                throw new ModuleFormatException(tables.offset(TableId.TYPE_REF, row, 1), "a nested type has namespace 0 (BC-11)");
             }
             var current = new TypeRefRow(scope, namespace, name);
             if (row > 1) {
@@ -258,7 +258,7 @@ public final class ModuleReader {
         int visibility = flags & VISIBILITY;
         if ((visibility & (visibility - 1)) != 0) {
             throw new ModuleFormatException(tables.offset(table, row, column), "the flags hold more than one"
-                    + " visibility flag (§3.1)");
+                    + " visibility flag (BC-11)");
         }
     }
 

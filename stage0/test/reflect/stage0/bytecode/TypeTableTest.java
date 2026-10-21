@@ -86,16 +86,16 @@ public final class TypeTableTest {
         unwritable(withTypes(new TypeDef("a", "A", Flags.KIND_CLASS, 0x80, 0, null)),
                 "type A has the undefined flags 0x80 (BC-20)");
         unwritable(withTypes(new TypeDef("a", "A", Flags.KIND_CLASS, Flags.PUBLIC | Flags.PRIVATE, 0, null)),
-                "type A has more than one visibility flag (§3.1)");
+                "type A has more than one visibility flag (BC-11)");
         unwritable(withTypes(new TypeDef("a", "E", Flags.KIND_ENUM, 0, SigCode.CHAR, null)),
                 "enum E has the backing type code 7; the backing type is one of I8, U8, I16, U16, I32, U32, I64 and U64 (DAT-05)");
         unwritable(withTypes(new TypeDef("a", "E", Flags.KIND_ENUM, 0, 0, null)),
                 "enum E has the backing type code 0; the backing type is one of I8, U8, I16, U16, I32, U32, I64 and U64 (DAT-05)");
         unwritable(withTypes(new TypeDef("a", "A", Flags.KIND_CLASS, 0, SigCode.I32, null)),
-                "type A is not an enum, but has a backing type (§3.1)");
+                "type A is not an enum, but has a backing type (BC-11)");
         TypeDef outer = type("a", "A");
         unwritable(withTypes(outer, new TypeDef("a", "T", Flags.KIND_CLASS, 0, 0, outer)),
-                "nested type T has a namespace; a nested type has namespace 0 (§3.1)");
+                "nested type T has a namespace; a nested type has namespace 0 (BC-11)");
         unwritable(withTypes(new TypeDef("", "T", Flags.KIND_CLASS, 0, 0, outer)),
                 "type T is nested in a type that the module does not list");
         TypeDef derived = type("a", "A");
@@ -114,7 +114,7 @@ public final class TypeTableTest {
         unwritable(unrequired, "TypeRef String names the module reflect.core, which the module does not require");
         var outer = new TypeRef(core, "reflect.core", "Outer");
         var named = withRefs(core, outer, new TypeRef(outer, "x", "Entry"));
-        unwritable(named, "nested TypeRef Entry has a namespace; a nested type has namespace 0 (§3.1)");
+        unwritable(named, "nested TypeRef Entry has a namespace; a nested type has namespace 0 (BC-11)");
         unwritable(withRefs(core, new TypeRef(outer, "", "Entry")),
                 "TypeRef Entry is nested in a TypeRef that the module does not list");
         unwritable(withRefs(core, new TypeRef(core, "reflect.core", "String"), new TypeRef(core, "reflect.core", "String")),
@@ -127,16 +127,16 @@ public final class TypeTableTest {
         int def = TableId.TYPE_DEF;
         reject(file, def, 1, 2, 8, "TypeDef kind 0x8 is not defined (BC-20)");
         reject(file, def, 1, 3, 0x80, "TypeDef flags 0x80 are not defined (BC-20)");
-        reject(file, def, 1, 3, 0x03, "the flags hold more than one visibility flag (§3.1)");
+        reject(file, def, 1, 3, 0x03, "the flags hold more than one visibility flag (BC-11)");
         reject(file, def, 3, 5, SigCode.CHAR, "the backing type of an enum is one of I8, U8, I16, U16, I32, U32, I64"
                 + " and U64, not 0x7 (DAT-05)");
-        reject(file, def, 1, 5, SigCode.I32, "TypeDef backing is 0x8, but only an enum has a backing type (§3.1)");
+        reject(file, def, 1, 5, SigCode.I32, "TypeDef backing is 0x8, but only an enum has a backing type (BC-11)");
         reject(file, def, 1, 6, 99, "row 99 of table 0x5 does not exist");
-        rejected(patch(file, def, 5, 6, 1), columnOffset(file, def, 5, 1), "a nested type has namespace 0 (§3.1)");
+        rejected(patch(file, def, 5, 6, 1), columnOffset(file, def, 5, 1), "a nested type has namespace 0 (BC-11)");
         reject(file, def, 1, 4, 0x08000001, "token 0x8000001 does not name a TypeDef, TypeRef or TypeSpec row");
         reject(file, def, 1, 4, 0x07000001, "token 0x7000001 names row 1 of table 0x7, which does not exist");
         reject(file, def, 1, 4, 0x05000063, "token 0x5000063 names row 99 of table 0x5, which does not exist");
-        reject(file, def, 1, 7, 2, "the run of rows starts at row 1, not at row 2, since the table has no rows (§3.1)");
+        reject(file, def, 1, 7, 2, "the run of rows starts at row 1, not at row 2, since the table has no rows (BC-11)");
         reject(file, TableId.MODULE, 1, 5, 99, "row 99 of table 0x5 does not exist");
     }
 
@@ -159,7 +159,7 @@ public final class TypeTableTest {
         rejected(patch(refs, ref, 1, 0, 0), columnOffset(refs, ref, 1, 0), "token 0x0 does not name a ModuleRef or TypeRef row");
         rejected(patch(refs, ref, 1, 0, 0x05000001), columnOffset(refs, ref, 1, 0),
                 "token 0x5000001 does not name a ModuleRef or TypeRef row");
-        rejected(patch(refs, ref, 3, 0, 0x06000001), columnOffset(refs, ref, 3, 1), "a nested type has namespace 0 (§3.1)");
+        rejected(patch(refs, ref, 3, 0, 0x06000001), columnOffset(refs, ref, 3, 1), "a nested type has namespace 0 (BC-11)");
     }
 
     // G, a.A, a.Z, b.B, a.A/Tag (an enum), a.Z/Tag and a.A/Tag/Inner, added out of order.
