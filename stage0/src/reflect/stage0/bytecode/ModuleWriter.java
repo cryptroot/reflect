@@ -13,10 +13,17 @@ import reflect.stage0.lib.Nullable;
  * truncated module.
  */
 public final class ModuleWriter {
-    private static final int MODULE_REF_FLAGS = Flags.REQUIRES_TRANSITIVE | Flags.REQUIRES_STATIC;
-    private static final int VISIBILITY = Flags.PUBLIC | Flags.PROTECTED | Flags.PRIVATE;
-    private static final int TYPE_FLAGS = VISIBILITY | Flags.TYPE_ABSTRACT | Flags.TYPE_FINAL | Flags.TYPE_SEALED
+    static final int MODULE_REF_FLAGS = Flags.REQUIRES_TRANSITIVE | Flags.REQUIRES_STATIC;
+    static final int VISIBILITY = Flags.PUBLIC | Flags.PROTECTED | Flags.PRIVATE;
+    static final int TYPE_FLAGS = VISIBILITY | Flags.TYPE_ABSTRACT | Flags.TYPE_FINAL | Flags.TYPE_SEALED
             | Flags.TYPE_UNSEALED;
+    static final int FIELD_FLAGS = VISIBILITY | Flags.FIELD_STATIC | Flags.FIELD_FINAL | Flags.FIELD_CONST
+            | Flags.FIELD_BACKING;
+    static final int METHOD_FLAGS = VISIBILITY | Flags.METHOD_STATIC | Flags.METHOD_VIRTUAL | Flags.METHOD_ABSTRACT
+            | Flags.METHOD_FINAL | Flags.METHOD_CONSTRUCTOR | Flags.METHOD_NATIVE | Flags.METHOD_EXTERN
+            | Flags.METHOD_UNSAFE | Flags.METHOD_MUTATING | Flags.METHOD_CONST | Flags.METHOD_PRECOMPILE
+            | Flags.METHOD_SYNTHESIZED;
+    static final int PARAM_FLAGS = Flags.PARAM_SCOPED | Flags.PARAM_THIS;
 
     private final ModuleDef module;
     private final HeapWriter idents = new HeapWriter(SectionId.IDENTS);
@@ -28,6 +35,15 @@ public final class ModuleWriter {
     private final Map<TypeDef, Integer> typeDefRows = new HashMap<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
     private final Map<TypeRef, Integer> typeRefRows = new HashMap<>();
+    private final List<FieldDef> fields = new ArrayList<>();
+    private final Map<FieldDef, Integer> fieldRows = new HashMap<>();
+    private final List<MethodDef> methods = new ArrayList<>();
+    private final Map<MethodDef, Integer> methodRows = new HashMap<>();
+    private final List<ParamDef> params = new ArrayList<>();
+    private final Map<ParamDef, Integer> paramRows = new HashMap<>();
+    private final Map<TypeDef, Integer> firstFields = new HashMap<>();
+    private final Map<TypeDef, Integer> firstMethods = new HashMap<>();
+    private final Map<MethodDef, Integer> firstParams = new HashMap<>();
 
     private ModuleWriter(ModuleDef module) {
         this.module = module;
@@ -38,6 +54,7 @@ public final class ModuleWriter {
         writer.numberModuleRefs();
         writer.numberTypeDefs();
         writer.numberTypeRefs();
+        writer.numberMembers();
         return writer.file();
     }
 
@@ -178,6 +195,72 @@ public final class ModuleWriter {
         return compareTypeRefs((TypeRef) left, (TypeRef) right);
     }
 
+    // Field and Method rows keep the runs of their types in row order, and Param rows the runs of
+    // their methods. An empty run starts where the next one does, so with no rows it starts at 1.
+    private void numberMembers() throws ModuleFormatException {
+        for (TypeDef type : typeDefs) {
+            firstFields.put(type, fields.size() + 1);
+            for (FieldDef field : type.fields()) {
+                String owner = "field " + type.qualifiedName() + "::" + field.name();
+                if (fieldRows.containsKey(field)) {
+                    throw new ModuleFormatException(owner + " belongs to two types or appears twice");
+                }
+                checkFlags(field.flags(), FIELD_FLAGS, owner);
+                checkVisibility(field.flags(), owner);
+                if ((field.flags() & Flags.FIELD_CONST) != 0 && (field.flags() & Flags.FIELD_STATIC) == 0) {
+                    throw new ModuleFormatException(owner + " is const but not static; a const field is also STATIC (BC-11)");
+                }
+                fields.add(field);
+                fieldRows.put(field, fields.size());
+            }
+            firstMethods.put(type, methods.size() + 1);
+            for (MethodDef method : type.methods()) {
+                String owner = "method " + type.qualifiedName() + "::" + method.name();
+                if (methodRows.containsKey(method)) {
+                    throw new ModuleFormatException(owner + " belongs to two types or appears twice");
+                }
+                checkMethod(method, owner);
+                methods.add(method);
+                methodRows.put(method, methods.size());
+                firstParams.put(method, params.size() + 1);
+                for (ParamDef param : method.params()) {
+                    if (paramRows.containsKey(param)) {
+                        throw new ModuleFormatException("a parameter of " + owner + " belongs to two methods or appears twice");
+                    }
+                    checkFlags(param.flags(), PARAM_FLAGS, "parameter " + param.name() + " of " + owner);
+                    params.add(param);
+                    paramRows.put(param, params.size());
+                }
+            }
+        }
+    }
+
+    private static void checkMethod(MethodDef method, String owner) throws ModuleFormatException {
+        checkFlags(method.flags(), METHOD_FLAGS, owner);
+        checkVisibility(method.flags(), owner);
+        String problem = constructorName(method.flags(), method.name());
+        if (problem != null) {
+            throw new ModuleFormatException(owner + ": " + problem);
+        }
+        if (method.params().size() > Limits.MAX_PARAMS) {
+            throw new ModuleFormatException(owner + " has " + method.params().size()
+                    + " parameters, more than the limit of " + Limits.MAX_PARAMS + " (BC-21)");
+        }
+    }
+
+    /** Why the name does not fit the CONSTRUCTOR and STATIC flags (§3.1), or null when it does. */
+    static @Nullable String constructorName(int flags, String name) {
+        boolean constructor = (flags & Flags.METHOD_CONSTRUCTOR) != 0;
+        String expected = (flags & Flags.METHOD_STATIC) != 0 ? "static" : "new";
+        if (constructor && !name.equals(expected)) {
+            return "a constructor is named new and a static initializer static, so this one is " + expected + " (BC-11)";
+        }
+        if (!constructor && (name.equals("new") || name.equals("static"))) {
+            return "only constructors and static initializers are named new and static (BC-11)";
+        }
+        return null;
+    }
+
     private byte[] file() throws ModuleFormatException {
         var tables = new TablesWriter();
         tables.begin(TableId.MODULE, 1);
@@ -202,8 +285,8 @@ public final class ModuleWriter {
                 tables.u32(typeToken(type.base(), "the base type of " + type.qualifiedName()));
                 tables.u32(type.backing());
                 tables.u32(typeDefRow(type.enclosing(), "the enclosing type of " + type.qualifiedName()));
-                tables.u32(1);
-                tables.u32(1);
+                tables.u32(firstFields.getOrDefault(type, 0));
+                tables.u32(firstMethods.getOrDefault(type, 0));
                 tables.u32(1);
             }
         }
@@ -212,6 +295,29 @@ public final class ModuleWriter {
                 tables.u32(scopeToken(ref.scope()));
                 tables.u32(idents.ident(ref.namespace()));
                 tables.u32(idents.ident(ref.name()));
+            }
+        }
+        if (tables.begin(TableId.FIELD, fields.size())) {
+            for (FieldDef field : fields) {
+                tables.u32(field.flags());
+                tables.u32(idents.ident(field.name()));
+                tables.u32(blobs.blob(field.signature().toByteArray()));
+            }
+        }
+        if (tables.begin(TableId.METHOD, methods.size())) {
+            for (MethodDef method : methods) {
+                tables.u32(method.flags());
+                tables.u32(idents.ident(method.name()));
+                tables.u32(blobs.blob(method.signature().toByteArray()));
+                tables.u32(0);
+                tables.u32(firstParams.getOrDefault(method, 0));
+                tables.u32(1);
+            }
+        }
+        if (tables.begin(TableId.PARAM, params.size())) {
+            for (ParamDef param : params) {
+                tables.u32(param.flags());
+                tables.u32(idents.ident(param.name()));
             }
         }
         var sections = new ArrayList<Section>();

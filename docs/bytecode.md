@@ -234,9 +234,10 @@ u32, in the order given:
 - IDENTS offset 0 holds the empty identifier. A type in the global namespace and a nested type
   have namespace 0; a nested type takes its namespace from its outermost enclosing type.
 - `fields`, `methods`, `params` and `typeParams` give the first row of the owner's run of rows.
-  The run ends where the next owner's run starts, or at the end of the table. `GenericParam`
-  rows owned by types come before those owned by methods, so the run of the last type ends where
-  the run of the first method starts. `Field`, `Method` and `Param` keep each run in declaration
+  The run ends where the next owner's run starts, or at the end of the table. An empty run starts
+  where the next one does, so a column whose table has no rows holds 1. `GenericParam` rows owned
+  by types come before those owned by methods, so the run of the last type ends where the run of
+  the first method starts. `Field`, `Method` and `Param` keep each run in declaration
   order, and the runs in the order of their owners.
 - Keys compare column by column: identifiers by their UTF-8 bytes, signatures by their bytes, and
   the other columns as unsigned numbers.

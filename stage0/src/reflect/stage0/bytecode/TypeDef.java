@@ -1,5 +1,7 @@
 package reflect.stage0.bytecode;
 
+import reflect.stage0.lib.ArrayList;
+import reflect.stage0.lib.List;
 import reflect.stage0.lib.Nullable;
 
 /**
@@ -14,6 +16,8 @@ public final class TypeDef implements TypeHandle {
     private final int backing;
     private final @Nullable TypeDef enclosing;
     private @Nullable TypeHandle base;
+    private final List<FieldDef> fields = new ArrayList<>();
+    private final List<MethodDef> methods = new ArrayList<>();
 
     /** backing is the signature code of an enum's backing type, and 0 for other kinds. */
     public TypeDef(String namespace, String name, int kind, int flags, int backing, @Nullable TypeDef enclosing) {
@@ -55,6 +59,16 @@ public final class TypeDef implements TypeHandle {
 
     public void setBase(@Nullable TypeHandle base) {
         this.base = base;
+    }
+
+    /** The Field rows of the type, in declaration order. */
+    public List<FieldDef> fields() {
+        return fields;
+    }
+
+    /** The Method rows of the type, in declaration order. */
+    public List<MethodDef> methods() {
+        return methods;
     }
 
     @Override

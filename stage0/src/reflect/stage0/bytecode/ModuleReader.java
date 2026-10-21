@@ -10,11 +10,8 @@ import reflect.stage0.lib.Nullable;
  * order of BC-24, so a heap out of that order is rejected. Every error names its file offset.
  */
 public final class ModuleReader {
-    private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.TYPE_DEF, TableId.TYPE_REF};
-    private static final int MODULE_REF_FLAGS = Flags.REQUIRES_TRANSITIVE | Flags.REQUIRES_STATIC;
-    private static final int VISIBILITY = Flags.PUBLIC | Flags.PROTECTED | Flags.PRIVATE;
-    private static final int TYPE_FLAGS = VISIBILITY | Flags.TYPE_ABSTRACT | Flags.TYPE_FINAL | Flags.TYPE_SEALED
-            | Flags.TYPE_UNSEALED;
+    private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.TYPE_DEF, TableId.TYPE_REF,
+        TableId.FIELD, TableId.METHOD, TableId.PARAM};
     private static final int[] TYPE_TOKENS = {TableId.TYPE_DEF, TableId.TYPE_REF, TableId.TYPE_SPEC};
     private static final int[] SCOPE_TOKENS = {TableId.MODULE_REF, TableId.TYPE_REF};
 
@@ -39,6 +36,7 @@ public final class ModuleReader {
         return new ModuleReader(ModuleFile.read(data)).module();
     }
 
+    // The tables are read in ID order, which is also the order of their heap references (BC-24).
     private ModuleDef module() throws ModuleFormatException {
         int rows = tables.rows(TableId.MODULE);
         if (rows != 1) {
@@ -52,13 +50,33 @@ public final class ModuleReader {
         module.setUnsafe((file.flags() & Header.FLAG_UNSAFE) != 0);
         readModuleRefs();
         List<TypeDefRow> typeDefRows = readTypeDefs();
+        int[] fieldRuns = runs(TableId.TYPE_DEF, 7, TableId.FIELD, "Field");
+        int[] methodRuns = runs(TableId.TYPE_DEF, 8, TableId.METHOD, "Method");
+        runs(TableId.TYPE_DEF, 9, TableId.GENERIC_PARAM, "GenericParam");
         List<TypeRefRow> typeRefRows = readTypeRefs();
+        List<FieldDef> fields = readFields();
+        int[] paramRuns = runs(TableId.METHOD, 4, TableId.PARAM, "Param");
+        runs(TableId.METHOD, 5, TableId.GENERIC_PARAM, "GenericParam");
+        List<MethodDef> methods = readMethods(paramRuns);
+        List<ParamDef> params = readParams();
         buildTypeRefs(typeRefRows);
         buildTypeDefs(typeDefRows);
         for (int row = 1; row <= typeDefRows.size(); row++) {
+            TypeDef type = typeDefs.get(row - 1);
             int base = typeDefRows.get(row - 1).base();
             if (base != 0) {
-                typeDefs.get(row - 1).setBase(typeHandle(base));
+                type.setBase(typeHandle(base));
+            }
+            for (int field = fieldRuns[row]; field < fieldRuns[row + 1]; field++) {
+                type.fields().add(fields.get(field - 1));
+            }
+            for (int method = methodRuns[row]; method < methodRuns[row + 1]; method++) {
+                type.methods().add(methods.get(method - 1));
+            }
+        }
+        for (int row = 1; row <= methods.size(); row++) {
+            for (int param = paramRuns[row]; param < paramRuns[row + 1]; param++) {
+                methods.get(row - 1).params().add(params.get(param - 1));
             }
         }
         module.setMain(main == 0 ? null : typeDefs.get(main - 1));
@@ -96,7 +114,8 @@ public final class ModuleReader {
                         ? "two ModuleRef rows have the name " + name + " (BC-24)"
                         : "the ModuleRef rows are not sorted by name (BC-24)");
             }
-            moduleRefs.add(new ModuleRef(name, flags(TableId.MODULE_REF, row, 1, MODULE_REF_FLAGS, "ModuleRef")));
+            moduleRefs.add(new ModuleRef(name, flags(TableId.MODULE_REF, row, 1, ModuleWriter.MODULE_REF_FLAGS,
+                    "ModuleRef")));
             previous = name;
         }
     }
@@ -111,7 +130,7 @@ public final class ModuleReader {
                 throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, 2), "TypeDef kind "
                         + hex(kind) + " is not defined (BC-20)");
             }
-            int flags = flags(TableId.TYPE_DEF, row, 3, TYPE_FLAGS, "TypeDef");
+            int flags = flags(TableId.TYPE_DEF, row, 3, ModuleWriter.TYPE_FLAGS, "TypeDef");
             visibility(TableId.TYPE_DEF, row, 3, flags);
             int base = token(TableId.TYPE_DEF, row, 4, TYPE_TOKENS, true, "a TypeDef, TypeRef or TypeSpec row");
             int backing = value(TableId.TYPE_DEF, row, 5);
@@ -124,13 +143,6 @@ public final class ModuleReader {
             int enclosing = row(TableId.TYPE_DEF, row, 6, TableId.TYPE_DEF, true);
             if (enclosing != 0 && !namespace.isEmpty()) {
                 throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, 1), "a nested type has namespace 0 (BC-11)");
-            }
-            for (int column = 7; column <= 9; column++) {
-                int first = value(TableId.TYPE_DEF, row, column);
-                if (first != 1) {
-                    throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, column), "the run of rows starts"
-                            + " at row 1, not at row " + (first & 0xFFFFFFFFL) + ", since the table has no rows (BC-11)");
-                }
             }
             var current = new TypeDefRow(name, namespace, kind, flags, base, backing, enclosing);
             if (row > 1) {
@@ -174,6 +186,85 @@ public final class ModuleReader {
             rows.add(current);
         }
         return rows;
+    }
+
+    private List<FieldDef> readFields() throws ModuleFormatException {
+        var fields = new ArrayList<FieldDef>();
+        for (int row = 1; row <= tables.rows(TableId.FIELD); row++) {
+            int flags = flags(TableId.FIELD, row, 0, ModuleWriter.FIELD_FLAGS, "Field");
+            visibility(TableId.FIELD, row, 0, flags);
+            if ((flags & Flags.FIELD_CONST) != 0 && (flags & Flags.FIELD_STATIC) == 0) {
+                throw new ModuleFormatException(tables.offset(TableId.FIELD, row, 0), "a const field is also STATIC (BC-11)");
+            }
+            String name = ident(TableId.FIELD, row, 1);
+            fields.add(new FieldDef(flags, name, blob(TableId.FIELD, row, 2)));
+        }
+        return fields;
+    }
+
+    private List<MethodDef> readMethods(int[] paramRuns) throws ModuleFormatException {
+        var methods = new ArrayList<MethodDef>();
+        for (int row = 1; row <= tables.rows(TableId.METHOD); row++) {
+            int flags = flags(TableId.METHOD, row, 0, ModuleWriter.METHOD_FLAGS, "Method");
+            visibility(TableId.METHOD, row, 0, flags);
+            String name = ident(TableId.METHOD, row, 1);
+            String problem = ModuleWriter.constructorName(flags, name);
+            if (problem != null) {
+                throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 1), problem);
+            }
+            var method = new MethodDef(flags, name, blob(TableId.METHOD, row, 2));
+            if (value(TableId.METHOD, row, 3) != 0) {
+                throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 3), "this reader does not support"
+                        + " method bodies yet");
+            }
+            int count = paramRuns[row + 1] - paramRuns[row];
+            if (count > Limits.MAX_PARAMS) {
+                throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 4), "the method has " + count
+                        + " parameters, more than the limit of " + Limits.MAX_PARAMS + " (BC-21)");
+            }
+            methods.add(method);
+        }
+        return methods;
+    }
+
+    private List<ParamDef> readParams() throws ModuleFormatException {
+        var params = new ArrayList<ParamDef>();
+        for (int row = 1; row <= tables.rows(TableId.PARAM); row++) {
+            int flags = flags(TableId.PARAM, row, 0, ModuleWriter.PARAM_FLAGS, "Param");
+            params.add(new ParamDef(flags, ident(TableId.PARAM, row, 1)));
+        }
+        return params;
+    }
+
+    /**
+     * Checks a first-row column (§3.1): the runs start at row 1, in order, and partition the rows of
+     * the child table among the owners. Returns the start of each owner's run, and after the last
+     * owner the row after the end of the table.
+     */
+    private int[] runs(int owner, int column, int child, String what) throws ModuleFormatException {
+        int owners = tables.rows(owner);
+        int children = tables.rows(child);
+        if (owners == 0 && children > 0) {
+            throw new ModuleFormatException(tables.offset(child, 1, 0), what + " rows belong to no owner (BC-11)");
+        }
+        int[] starts = new int[owners + 2];
+        int previous = 1;
+        for (int row = 1; row <= owners; row++) {
+            int start = value(owner, row, column);
+            if (row == 1 && start != 1) {
+                throw new ModuleFormatException(tables.offset(owner, row, column), "the first run of " + what
+                        + " rows starts at row " + (start & 0xFFFFFFFFL) + ", not at row 1 (BC-11)");
+            }
+            if (start < previous || start > children + 1) {
+                throw new ModuleFormatException(tables.offset(owner, row, column), "the run of " + what
+                        + " rows starts at row " + (start & 0xFFFFFFFFL) + ", outside rows " + previous + " to "
+                        + (children + 1) + " (BC-11)");
+            }
+            starts[row] = start;
+            previous = start;
+        }
+        starts[owners + 1] = children + 1;
+        return starts;
     }
 
     // Builds each chain of nested types from its outermost type, and rejects a cycle.
@@ -245,6 +336,11 @@ public final class ModuleReader {
         return idents.ident(value(table, row, column), tables.offset(table, row, column));
     }
 
+    private Blob blob(int table, int row, int column) throws ModuleFormatException {
+        ByteSource source = blobs.blob(value(table, row, column), tables.offset(table, row, column));
+        return new Blob(source.bytes(source.remaining()));
+    }
+
     private int flags(int table, int row, int column, int defined, String owner) throws ModuleFormatException {
         int flags = value(table, row, column);
         if ((flags & ~defined) != 0) {
@@ -255,7 +351,7 @@ public final class ModuleReader {
     }
 
     private void visibility(int table, int row, int column, int flags) throws ModuleFormatException {
-        int visibility = flags & VISIBILITY;
+        int visibility = flags & ModuleWriter.VISIBILITY;
         if ((visibility & (visibility - 1)) != 0) {
             throw new ModuleFormatException(tables.offset(table, row, column), "the flags hold more than one"
                     + " visibility flag (BC-11)");

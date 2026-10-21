@@ -136,7 +136,8 @@ public final class TypeTableTest {
         reject(file, def, 1, 4, 0x08000001, "token 0x8000001 does not name a TypeDef, TypeRef or TypeSpec row");
         reject(file, def, 1, 4, 0x07000001, "token 0x7000001 names row 1 of table 0x7, which does not exist");
         reject(file, def, 1, 4, 0x05000063, "token 0x5000063 names row 99 of table 0x5, which does not exist");
-        reject(file, def, 1, 7, 2, "the run of rows starts at row 1, not at row 2, since the table has no rows (BC-11)");
+        reject(file, def, 1, 7, 2, "the first run of Field rows starts at row 2, not at row 1 (BC-11)");
+        reject(file, def, 2, 9, 2, "the run of GenericParam rows starts at row 2, outside rows 1 to 1 (BC-11)");
         reject(file, TableId.MODULE, 1, 5, 99, "row 99 of table 0x5 does not exist");
     }
 
