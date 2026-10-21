@@ -106,6 +106,36 @@ public final class Utf8 {
         return text.toString();
     }
 
+    /**
+     * Compares by code points, which is the order of the UTF-8 bytes (BC-11) and differs from
+     * String.compareTo when a surrogate pair meets a unit from U+E000 to U+FFFF.
+     */
+    public static int compare(String left, String right) {
+        int i = 0;
+        int j = 0;
+        while (i < left.length() && j < right.length()) {
+            int a = codePoint(left, i);
+            int b = codePoint(right, j);
+            if (a != b) {
+                return a < b ? -1 : 1;
+            }
+            i += a >= 0x10000 ? 2 : 1;
+            j += b >= 0x10000 ? 2 : 1;
+        }
+        return i < left.length() ? 1 : j < right.length() ? -1 : 0;
+    }
+
+    private static int codePoint(String text, int index) {
+        int unit = text.charAt(index);
+        if (unit >= 0xD800 && unit <= 0xDBFF && index + 1 < text.length()) {
+            int next = text.charAt(index + 1);
+            if (next >= 0xDC00 && next <= 0xDFFF) {
+                return 0x10000 + ((unit - 0xD800) << 10) + (next - 0xDC00);
+            }
+        }
+        return unit;
+    }
+
     private static String hex(int value) {
         return ModuleFormatException.hex(value);
     }

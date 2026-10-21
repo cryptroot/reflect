@@ -64,6 +64,19 @@ public final class Utf8Test {
     }
 
     @Test
+    public static void comparesAsTheUtf8BytesDo() throws ModuleFormatException {
+        for (String left : VALID) {
+            for (String right : VALID) {
+                int bytes = Integer.signum(Blob.compare(Utf8.encode(left), Utf8.encode(right)));
+                assertEquals(bytes, Integer.signum(Utf8.compare(left, right)));
+            }
+        }
+        assertEquals(-1, Utf8.compare("\uE000", "\uD800\uDC00"));
+        // String.compareTo orders the code units, so it puts the surrogate pair first.
+        assertEquals(1, Integer.signum("\uE000".compareTo("\uD800\uDC00")));
+    }
+
+    @Test
     public static void decodingStaysInsideItsLength() throws ModuleFormatException {
         byte[] bytes = {0x61, (byte) 0xC3, (byte) 0xA9, 0x62};
         var source = new ByteSource(bytes);

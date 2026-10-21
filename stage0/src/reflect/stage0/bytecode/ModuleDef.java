@@ -1,0 +1,61 @@
+package reflect.stage0.bytecode;
+
+import reflect.stage0.lib.ArrayList;
+import reflect.stage0.lib.List;
+
+/**
+ * A module in memory (README §7.3): the tables as lists of rows, with references between rows as
+ * objects and names as strings. The writer sorts and numbers the rows and builds the heaps.
+ */
+public final class ModuleDef {
+    private final String name;
+    private final int major;
+    private final int minor;
+    private final int patch;
+    private boolean unsafe;
+    private final List<ModuleRef> requires = new ArrayList<>();
+    private final List<Section> ancillary = new ArrayList<>();
+
+    /** The version components are u32 values (BLD-01). */
+    public ModuleDef(String name, int major, int minor, int patch) {
+        this.name = name;
+        this.major = major;
+        this.minor = minor;
+        this.patch = patch;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public int major() {
+        return major;
+    }
+
+    public int minor() {
+        return minor;
+    }
+
+    public int patch() {
+        return patch;
+    }
+
+    /** The header flag UNSAFE: the module declares unsafe (UNS-02). */
+    public boolean unsafe() {
+        return unsafe;
+    }
+
+    public void setUnsafe(boolean unsafe) {
+        this.unsafe = unsafe;
+    }
+
+    /** The ModuleRef rows, in any order. */
+    public List<ModuleRef> requires() {
+        return requires;
+    }
+
+    /** Ancillary sections that the reader does not know, written back unchanged (BC-20). */
+    public List<Section> ancillary() {
+        return ancillary;
+    }
+}
