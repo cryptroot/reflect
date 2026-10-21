@@ -109,7 +109,7 @@ public final class CodeTest {
                 0x01, 0x00, 0x80, 0x80, 0x80, 0x08, 0x00, 0x00);
         body(2, "the code of 5 bytes runs past the end of CODE", none, 0x01, 0x00, 0x05, 0x00, 0x00, 0x00);
         body(4, "a list of 1 exception regions runs past the end of CODE", none, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00);
-        body(5, "this reader does not support stack maps yet", none, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01);
+        body(5, "a list of 1 stack map frames runs past the end of CODE", none, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01);
         body(6, "CODE continues after the last body (BC-17)", none, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00);
         locals(0, "a LOCALS signature lists at least one type; a body without locals has locals 0 (BC-17)", 0x22, 0x00);
         locals(0, "VOID stands outside a return type (BC-03)", 0x22, 0x01, 0x01);

@@ -196,7 +196,7 @@ public final class RegionTest {
     }
 
     // The bytes of the body after its code: the regions, then the frames.
-    private static String regions(byte[] file) throws ModuleFormatException {
+    static String regions(byte[] file) throws ModuleFormatException {
         var in = new ByteSource(section(file, SectionId.CODE));
         in.uleb();
         in.uleb();

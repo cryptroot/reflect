@@ -777,7 +777,8 @@ marks the instructions that R0 code needs (BOOT-02), which VM0 implements.
   stack slot at each branch target and handler start (the JVM's `StackMapTable`). Verification
   types: `i32`, `i64`, `f32`, `f64`, `null`, reference to `T`, uninitialized object of class `C`
   (before its constructor runs), `ref T` and `ref readonly T` (DAT-02), pointer, struct `S`,
-  `Class<T>`. A body has at most one frame per offset, in offset order:
+  `Class<T>`. A body has at most one frame per offset, in offset order. A frame lists one
+  verification type per argument and local, and at most `maxStack` on the stack:
 
   | Frame field | Encoding | Content |
   |---|---|---|

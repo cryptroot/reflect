@@ -100,7 +100,18 @@ final class Code {
             }
         }
         Regions.Crossing crossing = Regions.crossing(regions);
-        return crossing == null ? null : "region " + crossing.region() + ": " + Regions.crossingProblem(crossing);
+        if (crossing != null) {
+            return "region " + crossing.region() + ": " + Regions.crossingProblem(crossing);
+        }
+        boolean[] places = Frames.places(body);
+        List<Frame> frames = body.frames();
+        for (int i = 0; i < frames.size(); i++) {
+            String problem = Frames.problem(frames.get(i), body, arguments, places);
+            if (problem != null) {
+                return "frame " + i + ": " + problem;
+            }
+        }
+        return null;
     }
 
     /** The first rule that the instruction breaks in a body with these arguments and locals, or null. */
@@ -208,8 +219,7 @@ final class Code {
         out.uleb(code.size());
         out.bytes(code.toByteArray());
         Regions.write(body.regions(), starts, out, tokens, owner);
-        // frameCount; stack maps come later in v0.0.2.
-        out.uleb(0);
+        Frames.write(body.frames(), starts, out, tokens, owner);
         return out.toByteArray();
     }
 
@@ -383,10 +393,7 @@ final class Code {
         in.skip(size);
         starts.put(size, body.code().size());
         Regions.read(in, body, starts, targets, handles);
-        int frames = in.position();
-        if (in.uleb() != 0) {
-            throw new ModuleFormatException(frames, "this reader does not support stack maps yet");
-        }
+        Frames.read(in, body, starts, targets, handles, arguments);
         return body;
     }
 

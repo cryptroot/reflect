@@ -5,13 +5,15 @@ import reflect.stage0.lib.List;
 
 /**
  * The body of a method (BC-17): its maximum stack depth, the types of its locals, which form its
- * LOCALS signature, its instructions in code order, and its exception regions (BC-18).
+ * LOCALS signature, its instructions in code order, its exception regions (BC-18) and its stack map
+ * frames (BC-19).
  */
 public final class MethodBody {
     private final int maxStack;
     private final List<TypeSig> locals = new ArrayList<>();
     private final List<Instruction> code = new ArrayList<>();
     private final List<Region> regions = new ArrayList<>();
+    private final List<Frame> frames = new ArrayList<>();
 
     public MethodBody(int maxStack) {
         this.maxStack = maxStack;
@@ -34,6 +36,11 @@ public final class MethodBody {
     /** The exception regions, in any order; the writer sorts them (BC-18). */
     public List<Region> regions() {
         return regions;
+    }
+
+    /** The stack map frames, in any order; the writer sorts them by offset (BC-19). */
+    public List<Frame> frames() {
+        return frames;
     }
 
     /** Marks the label before the next instruction that the code gains, or at its end. */
