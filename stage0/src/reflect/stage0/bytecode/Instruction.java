@@ -1,12 +1,14 @@
 package reflect.stage0.bytecode;
 
+import reflect.stage0.lib.List;
+
 /**
  * An instruction of a method body (BC-04): its opcode, and the operands that the opcode's operand
  * kind gives (§5.1), one record per kind. A two-byte opcode is 0xFE00 plus its second byte.
  */
 public sealed interface Instruction permits Instruction.Plain, Instruction.Value32, Instruction.Value64,
         Instruction.Literal, Instruction.Index, Instruction.Indexes, Instruction.Type, Instruction.Field,
-        Instruction.Method, Instruction.Constrained {
+        Instruction.Method, Instruction.Constrained, Instruction.Branch, Instruction.Switch {
     int opcode();
 
     /** An instruction without operands. */
@@ -47,5 +49,13 @@ public sealed interface Instruction permits Instruction.Plain, Instruction.Value
 
     /** The two tok operands of call.constrained: a type, then a method of its bound. */
     record Constrained(int opcode, TypeHandle type, MethodHandle method) implements Instruction {
+    }
+
+    /** An off operand: the target of a branch. */
+    record Branch(int opcode, Label target) implements Instruction {
+    }
+
+    /** The count and off operands of switch: one target per value from 0. */
+    record Switch(int opcode, List<Label> targets) implements Instruction {
     }
 }

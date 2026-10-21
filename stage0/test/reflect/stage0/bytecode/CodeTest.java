@@ -12,6 +12,7 @@ import static reflect.stage0.bytecode.TestModules.section;
 import static reflect.stage0.bytecode.TestModules.sectionOffset;
 import static reflect.stage0.bytecode.TestModules.unwritable;
 import static reflect.stage0.test.Assertions.assertEquals;
+import static reflect.stage0.test.Assertions.assertThrows;
 
 public final class CodeTest {
     private static final TypeSig INT = new TypeSig.Primitive(SigCode.I32);
@@ -95,7 +96,6 @@ public final class CodeTest {
         body(3, "argument 0 does not exist; the method has 0 arguments (BC-04)", none,
                 0x01, 0x00, 0x02, 0x10, 0x00, 0x00, 0x00);
         body(4, "LITERALS offset 0x5 is not the start of an entry", none, 0x01, 0x00, 0x02, 0x06, 0x05, 0x00, 0x00);
-        body(3, "this reader does not support the operands of br yet", none, 0x01, 0x00, 0x02, 0x88, 0x00, 0x00, 0x00);
         body(3, "local 1 does not exist; the body has 1 locals (BC-04)", new int[] {0x22, 0x01, 0x08},
                 0x01, 0x06, 0x02, 0x13, 0x01, 0x00, 0x00);
     }
@@ -187,6 +187,126 @@ public final class CodeTest {
                 0x01, 0x00, 0x09, 0xEC, 0x81, 0x80, 0x80, 0x28, 0x81, 0x80, 0x80, 0x40, 0x00, 0x00);
         // f calls itself: Method row 1.
         ModuleReader.read(bodyFile(none, 0x01, 0x00, 0x06, 0xE8, 0x81, 0x80, 0x80, 0x48, 0xB0, 0x00, 0x00));
+    }
+
+    @Test
+    public static void branchOffsetsTakeTheBytesThatTheyNeed() throws Exception {
+        // Forward over 63 and 64 bytes: SLEB128 takes one byte for 63 and two for 64.
+        assertEquals("88 3F " + nops(63) + "B0", forward(63));
+        assertEquals("88 C0 00 " + nops(64) + "B0", forward(64));
+        // Forward over 8,191 and 8,192 bytes: two bytes, then three.
+        assertEquals("88 FF 3F 00", forward(8191).substring(0, 11));
+        assertEquals("88 80 C0 00 00", forward(8192).substring(0, 14));
+        // Backward over 62 nops: -64 from the end of a two-byte br fits one byte, 40. Over 63 nops,
+        // -65 needs two bytes, so the br takes three, and its offset is -66, BE 7F.
+        assertEquals(nops(62) + "88 40", backward(62));
+        assertEquals(nops(63) + "88 BE 7F", backward(63));
+        // A br to itself: -2.
+        assertEquals("88 7E", backward(0));
+    }
+
+    @Test
+    public static void theLayoutRepeatsUntilNoSizeChanges() throws Exception {
+        // br A, br B, 61 nops, A: 3 nops, B: ret. br B spans 64 bytes and grows to three; then br A
+        // spans 64 bytes too and grows, which a single pass would miss.
+        var body = new MethodBody(0);
+        var a = new Label();
+        var b = new Label();
+        body.code().add(new Instruction.Branch(Opcode.BR, a));
+        body.code().add(new Instruction.Branch(Opcode.BR, b));
+        addNops(body, 61);
+        body.mark(a);
+        addNops(body, 3);
+        body.mark(b);
+        body.code().add(new Instruction.Plain(Opcode.RET));
+        assertEquals("88 C0 00 88 C0 00 " + nops(64) + "B0", codeBytes(body));
+        // switch (L0, L2) after L0: nop, then nop and L2: ret. Both offsets count from the end of the switch.
+        var choice = new MethodBody(0);
+        var l0 = new Label();
+        var l2 = new Label();
+        choice.mark(l0);
+        choice.code().add(new Instruction.Plain(Opcode.NOP));
+        choice.code().add(new Instruction.Switch(Opcode.SWITCH, list(l0, l2)));
+        choice.code().add(new Instruction.Plain(Opcode.NOP));
+        choice.mark(l2);
+        choice.code().add(new Instruction.Plain(Opcode.RET));
+        assertEquals("00 AD 02 7B 01 00 B0", codeBytes(choice));
+        MethodBody read = ModuleReader.read(roundTrip(method(Flags.METHOD_STATIC, STATIC_VOID, choice))).types().get(0)
+                .methods().get(0).body();
+        var targets = ((Instruction.Switch) read.code().get(1)).targets();
+        assertEquals("0 3", targets.get(0).index() + " " + targets.get(1).index());
+    }
+
+    @Test
+    public static void theWriterChecksTheTargetsOfBranches() {
+        instruction(new Instruction.Branch(Opcode.BR, new Label()), "br targets a label that this body does not mark (BC-17)");
+        var other = new MethodBody(0);
+        var elsewhere = new Label();
+        other.mark(elsewhere);
+        instruction(new Instruction.Switch(Opcode.SWITCH, list(elsewhere)),
+                "switch targets a label that this body does not mark (BC-17)");
+        var end = new Label();
+        var body = code(0, new Instruction.Branch(Opcode.BRTRUE, end));
+        body.mark(end);
+        unwritable(method(Flags.METHOD_STATIC, STATIC_VOID, body),
+                "method a.A::m: instruction 0: brtrue targets the end of the code, after its last instruction (BC-17)");
+        instruction(new Instruction.Plain(Opcode.BR), "br takes the operands <off> (BC-04)");
+        assertEquals("The label is marked already",
+                assertThrows(IllegalStateException.class, () -> body.mark(end)).getMessage());
+    }
+
+    @Test
+    public static void theReaderChecksThatBranchesLandOnInstructions() throws Exception {
+        int[] none = {};
+        // ldc.i4 64 takes three bytes, and br -4 lands at its second.
+        body(7, "the branch lands at code offset 1, inside an instruction (BC-17)", none,
+                0x01, 0x00, 0x05, 0x02, 0xC0, 0x00, 0x88, 0x7C, 0x00, 0x00);
+        body(8, "the branch lands at code offset 2, inside an instruction (BC-17)", none,
+                0x01, 0x00, 0x06, 0x02, 0xC0, 0x00, 0xAD, 0x01, 0x7C, 0x00, 0x00);
+        body(4, "the branch lands at code offset 2, outside the code (BC-17)", none, 0x01, 0x00, 0x02, 0x88, 0x00, 0x00, 0x00);
+        body(4, "the branch lands at code offset -1, outside the code (BC-17)", none, 0x01, 0x00, 0x02, 0x88, 0x7D, 0x00, 0x00);
+        body(4, "SLEB128 value is not minimal", none, 0x01, 0x00, 0x03, 0x88, 0x80, 0x00, 0x00, 0x00);
+        body(4, "a switch of 5 targets runs past the end of the code", none, 0x01, 0x00, 0x02, 0xAD, 0x05, 0x00, 0x00);
+    }
+
+    // The code of a module whose only method is static void a.A::m() with this body.
+    private static String codeBytes(MethodBody body) throws ModuleFormatException {
+        byte[] file = roundTrip(method(Flags.METHOD_STATIC, STATIC_VOID, body));
+        var in = new ByteSource(section(file, SectionId.CODE));
+        in.uleb();
+        in.uleb();
+        return Leb128Test.hex(in.bytes(in.uleb()));
+    }
+
+    // br L, n nops, L: ret.
+    private static String forward(int nops) throws ModuleFormatException {
+        var body = new MethodBody(0);
+        var target = new Label();
+        body.code().add(new Instruction.Branch(Opcode.BR, target));
+        addNops(body, nops);
+        body.mark(target);
+        body.code().add(new Instruction.Plain(Opcode.RET));
+        return codeBytes(body);
+    }
+
+    // L: n nops, br L.
+    private static String backward(int nops) throws ModuleFormatException {
+        var body = new MethodBody(0);
+        var target = new Label();
+        body.mark(target);
+        addNops(body, nops);
+        body.code().add(new Instruction.Branch(Opcode.BR, target));
+        return codeBytes(body);
+    }
+
+    private static void addNops(MethodBody body, int count) {
+        for (int i = 0; i < count; i++) {
+            body.code().add(new Instruction.Plain(Opcode.NOP));
+        }
+    }
+
+    private static String nops(int count) {
+        return "00 ".repeat(count);
     }
 
     // public class app.Box: int value; int get(); static void use(reflect.core.Object), whose code

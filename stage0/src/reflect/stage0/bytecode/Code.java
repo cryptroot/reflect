@@ -1,6 +1,9 @@
 package reflect.stage0.bytecode;
 
+import reflect.stage0.lib.ArrayList;
+import reflect.stage0.lib.HashMap;
 import reflect.stage0.lib.List;
+import reflect.stage0.lib.Map;
 import reflect.stage0.lib.Nullable;
 
 /**
@@ -78,6 +81,9 @@ final class Code {
         List<Instruction> code = body.code();
         for (int i = 0; i < code.size(); i++) {
             String problem = problem(code.get(i), arguments, body.locals().size());
+            if (problem == null) {
+                problem = targetProblem(code.get(i), body);
+            }
             if (problem != null) {
                 return "instruction " + i + ": " + problem;
             }
@@ -101,6 +107,8 @@ final class Code {
                 : instruction instanceof Instruction.Literal ? kind == Opcode.OPERAND_STR
                 : instruction instanceof Instruction.Index ? kind == Opcode.OPERAND_N
                 : instruction instanceof Instruction.Indexes ? kind == Opcode.OPERAND_N_N
+                : instruction instanceof Instruction.Branch ? kind == Opcode.OPERAND_OFF
+                : instruction instanceof Instruction.Switch ? kind == Opcode.OPERAND_SWITCH
                 : instruction instanceof Instruction.Constrained ? kind == Opcode.OPERAND_TOK_TOK
                 : kind == Opcode.OPERAND_TOK;
         if (!fits) {
@@ -131,6 +139,32 @@ final class Code {
         return null;
     }
 
+    // A branch lands on an instruction of its own body (BC-17). The reader makes its labels itself, from
+    // the offsets, and checks each offset instead.
+    private static @Nullable String targetProblem(Instruction instruction, MethodBody body) {
+        String problem = null;
+        if (instruction instanceof Instruction.Branch branch) {
+            problem = targetProblem(branch.target(), body, branch.opcode());
+        } else if (instruction instanceof Instruction.Switch choice) {
+            for (Label target : choice.targets()) {
+                if (problem == null) {
+                    problem = targetProblem(target, body, choice.opcode());
+                }
+            }
+        }
+        return problem;
+    }
+
+    private static @Nullable String targetProblem(Label target, MethodBody body, int opcode) {
+        if (target.body() != body) {
+            return Opcode.mnemonic(opcode) + " targets a label that this body does not mark (BC-17)";
+        }
+        if (target.index() >= body.code().size()) {
+            return Opcode.mnemonic(opcode) + " targets the end of the code, after its last instruction (BC-17)";
+        }
+        return null;
+    }
+
     // The MemberRef that a field or method operand names, or null.
     private static @Nullable MemberRef memberRef(Instruction instruction) {
         Handle handle = instruction instanceof Instruction.Field field ? field.field()
@@ -153,29 +187,104 @@ final class Code {
         var out = new ByteSink();
         out.uleb(body.maxStack());
         out.uleb(body.locals().isEmpty() ? 0 : blobs.blob(Signatures.locals(body.locals(), tokens::token)));
-        var code = new ByteSink();
-        for (Instruction instruction : body.code()) {
-            encode(instruction, code, literals, tokens);
-        }
-        if (code.size() > Limits.MAX_CODE_SIZE) {
-            throw new ModuleFormatException(owner + " has " + code.size() + " bytes of code, more than the limit of "
+        byte[] code = layout(body.code(), literals, tokens);
+        if (code.length > Limits.MAX_CODE_SIZE) {
+            throw new ModuleFormatException(owner + " has " + code.length + " bytes of code, more than the limit of "
                     + Limits.MAX_CODE_SIZE + " (BC-21)");
         }
-        out.uleb(code.size());
-        out.bytes(code.toByteArray());
+        out.uleb(code.length);
+        out.bytes(code);
         // regionCount and frameCount; exception regions and stack maps come later in v0.0.2.
         out.uleb(0);
         out.uleb(0);
         return out.toByteArray();
     }
 
+    /**
+     * Lays out the code. A branch takes as many bytes as its offsets need, and they depend on the sizes
+     * of the instructions between it and its targets, so the layout repeats until no size changes. It
+     * starts from the smallest sizes, and an offset only grows when an instruction that it spans
+     * grows, so the loop ends, and every offset is minimal (README §7.3, BC-24).
+     */
+    private static byte[] layout(List<Instruction> code, HeapWriter literals, Tokens tokens) throws ModuleFormatException {
+        int count = code.size();
+        boolean[] branches = new boolean[count];
+        byte[][] fixed = new byte[count][];
+        int[] sizes = new int[count];
+        int[] starts = new int[count + 1];
+        for (int i = 0; i < count; i++) {
+            Instruction instruction = code.get(i);
+            branches[i] = instruction instanceof Instruction.Branch || instruction instanceof Instruction.Switch;
+            if (branches[i]) {
+                fixed[i] = new byte[0];
+                sizes[i] = branch(instruction, starts, i, null, true);
+            } else {
+                var out = new ByteSink();
+                encode(instruction, out, literals, tokens);
+                fixed[i] = out.toByteArray();
+                sizes[i] = out.size();
+            }
+        }
+        boolean changed = true;
+        while (changed) {
+            for (int i = 0; i < count; i++) {
+                starts[i + 1] = starts[i] + sizes[i];
+            }
+            changed = false;
+            for (int i = 0; i < count; i++) {
+                if (branches[i]) {
+                    int size = branch(code.get(i), starts, i, null, false);
+                    changed |= size != sizes[i];
+                    sizes[i] = size;
+                }
+            }
+        }
+        var out = new ByteSink();
+        for (int i = 0; i < count; i++) {
+            if (branches[i]) {
+                branch(code.get(i), starts, i, out, false);
+            } else {
+                out.bytes(fixed[i]);
+            }
+        }
+        return out.toByteArray();
+    }
+
+    // The size of the branch or switch at instruction i, whose offsets count from the instruction after
+    // it, with the instructions at these starts; it writes the branch when out is not null. The
+    // smallest size takes one byte per offset.
+    private static int branch(Instruction instruction, int[] starts, int i, @Nullable ByteSink out, boolean smallest) {
+        int opcode = instruction.opcode();
+        if (out != null) {
+            opcode(opcode, out);
+        }
+        int next = starts[i + 1];
+        if (instruction instanceof Instruction.Branch branch) {
+            int offset = starts[branch.target().index()] - next;
+            if (out != null) {
+                out.sleb(offset);
+            }
+            return opcodeSize(opcode) + (smallest ? 1 : Leb128.sizeSigned(offset));
+        }
+        List<Label> targets = ((Instruction.Switch) instruction).targets();
+        if (out != null) {
+            out.uleb(targets.size());
+        }
+        int size = opcodeSize(opcode) + Leb128.sizeUnsigned(targets.size());
+        for (Label target : targets) {
+            int offset = starts[target.index()] - next;
+            if (out != null) {
+                out.sleb(offset);
+            }
+            size += smallest ? 1 : Leb128.sizeSigned(offset);
+        }
+        return size;
+    }
+
     private static void encode(Instruction instruction, ByteSink out, HeapWriter literals, Tokens tokens)
             throws ModuleFormatException {
         int opcode = instruction.opcode();
-        if (opcode > 0xFF) {
-            out.u8(Opcode.PREFIX);
-        }
-        out.u8(opcode & 0xFF);
+        opcode(opcode, out);
         int kind = Opcode.operands(opcode);
         if (instruction instanceof Instruction.Value32 value) {
             if (kind == Opcode.OPERAND_I4) {
@@ -240,11 +349,23 @@ final class Code {
             throw new ModuleFormatException(sizeAt, "the code of " + size + " bytes runs past the end of CODE");
         }
         ByteSource code = in.slice(in.position(), in.position() + size);
+        var targets = new Targets(code.position(), size);
+        Map<Integer, Integer> starts = new HashMap<>();
         while (!code.atEnd()) {
             int start = code.position();
-            Instruction instruction = decode(code, literals, handles);
+            starts.put(start - targets.start, body.code().size());
+            Instruction instruction = decode(code, literals, handles, targets);
             check(start, problem(instruction, arguments, body.locals().size()));
             body.code().add(instruction);
+        }
+        // Every branch lands on the first byte of an instruction (BC-17).
+        for (int i = 0; i < targets.labels.size(); i++) {
+            int index = starts.getOrDefault(targets.offsets.get(i), -1);
+            if (index < 0) {
+                throw new ModuleFormatException(targets.operands.get(i), "the branch lands at code offset "
+                        + targets.offsets.get(i) + ", inside an instruction (BC-17)");
+            }
+            targets.labels.get(i).mark(body, index);
         }
         in.skip(size);
         int regions = in.position();
@@ -258,7 +379,8 @@ final class Code {
         return body;
     }
 
-    private static Instruction decode(ByteSource in, HeapReader literals, Handles handles) throws ModuleFormatException {
+    private static Instruction decode(ByteSource in, HeapReader literals, Handles handles, Targets targets)
+            throws ModuleFormatException {
         int at = in.position();
         int opcode = in.u8();
         if (opcode == Opcode.PREFIX) {
@@ -299,8 +421,30 @@ final class Code {
             var type = (TypeHandle) handle(in, handles, TYPE);
             return new Instruction.Constrained(opcode, type, (MethodHandle) handle(in, handles, METHOD));
         }
-        throw new ModuleFormatException(at, "this reader does not support the operands of " + Opcode.mnemonic(opcode)
-                + " yet");
+        if (kind == Opcode.OPERAND_OFF) {
+            int operand = in.position();
+            int offset = in.sleb32();
+            return new Instruction.Branch(opcode, targets.at((long) in.position() - targets.start + offset, operand));
+        }
+        // The last operand kind, OPERAND_SWITCH: a count, then one offset per target.
+        int countAt = in.position();
+        int count = in.uleb();
+        if (count < 0 || count > in.remaining()) {
+            throw new ModuleFormatException(countAt, "a switch of " + (count & 0xFFFFFFFFL) + " targets runs past the end"
+                    + " of the code");
+        }
+        int[] offsets = new int[count];
+        int[] operands = new int[count];
+        for (int i = 0; i < count; i++) {
+            operands[i] = in.position();
+            offsets[i] = in.sleb32();
+        }
+        long next = in.position() - targets.start;
+        var labels = new ArrayList<Label>();
+        for (int i = 0; i < count; i++) {
+            labels.add(targets.at(next + offsets[i], operands[i]));
+        }
+        return new Instruction.Switch(opcode, labels);
     }
 
     // A token, and the row it names, of the kind that the instruction takes.
@@ -315,6 +459,49 @@ final class Code {
                     + TABLES[kind] + " (BC-04)");
         }
         return handle;
+    }
+
+    // The targets of the branches of one body, which become labels once every instruction is read: one
+    // label per target, in the order of first use, with the file offset of the operand that first names it.
+    private static final class Targets {
+        final int start;
+        final int size;
+        final List<Label> labels = new ArrayList<>();
+        final List<Integer> offsets = new ArrayList<>();
+        final List<Integer> operands = new ArrayList<>();
+        private final Map<Integer, Label> byOffset = new HashMap<>();
+
+        Targets(int start, int size) {
+            this.start = start;
+            this.size = size;
+        }
+
+        Label at(long target, int operand) throws ModuleFormatException {
+            if (target < 0 || target >= size) {
+                throw new ModuleFormatException(operand, "the branch lands at code offset " + target
+                        + ", outside the code (BC-17)");
+            }
+            Label label = byOffset.get((int) target);
+            if (label == null) {
+                label = new Label();
+                byOffset.put((int) target, label);
+                labels.add(label);
+                offsets.add((int) target);
+                operands.add(operand);
+            }
+            return label;
+        }
+    }
+
+    private static void opcode(int opcode, ByteSink out) {
+        if (opcode > 0xFF) {
+            out.u8(Opcode.PREFIX);
+        }
+        out.u8(opcode & 0xFF);
+    }
+
+    private static int opcodeSize(int opcode) {
+        return opcode > 0xFF ? 2 : 1;
     }
 
     private static String undefined(int opcode) {

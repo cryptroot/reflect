@@ -29,4 +29,9 @@ public final class MethodBody {
     public List<Instruction> code() {
         return code;
     }
+
+    /** Marks the label before the next instruction that the code gains, or at its end. */
+    public void mark(Label label) {
+        label.mark(this, code.size());
+    }
 }

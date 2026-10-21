@@ -395,13 +395,13 @@ package-private (MOD-08).
   Java's result, 44 for `(byte) 300.0` (NUM-03). Operands: `<tok>` is a ULEB128 token, `<n>` a
   ULEB128 index, `<str>` a ULEB128 offset into LITERALS, `<i4>` and `<i8>` SLEB128 constants,
   `<r4>` and `<r8>` IEEE 754 bit patterns of 4 and 8 bytes, `<off>` an SLEB128 branch offset from
-  the next instruction; `switch` takes a ULEB128 count, then that many `<off>`. `ldarg`, `starg`
-  and `ldarga` name an argument of the method, `this` first unless it is static; `ldloc`, `stloc`
-  and `ldloca` name a local of its `LOCALS` signature. A `<tok>` names a field, a method or a type,
-  as §8.1 gives for each instruction: a field is a `Field` row or a `MemberRef` with a `FIELD`
-  signature, a method a `Method` row, a `MemberRef` with a `METHOD` signature or a `MethodSpec`,
-  and a type a `TypeDef`, `TypeRef` or `TypeSpec` row. Suffix sets: `t` is one of
-  `i32 i64 f32 f64`, `u` adds `u32 u64`, `k` is a storage kind,
+  the next instruction; `switch` takes a ULEB128 count, then that many `<off>`, each from the
+  instruction after the switch. `ldarg`, `starg` and `ldarga` name an argument of the method, `this`
+  first unless it is static; `ldloc`, `stloc` and `ldloca` name a local of its `LOCALS` signature. A
+  `<tok>` names a field, a method or a type, as §8.1 gives for each instruction: a field is a `Field`
+  row or a `MemberRef` with a `FIELD` signature, a method a `Method` row, a `MemberRef` with a
+  `METHOD` signature or a `MethodSpec`, and a type a `TypeDef`, `TypeRef` or `TypeSpec` row. Suffix
+  sets: `t` is one of `i32 i64 f32 f64`, `u` adds `u32 u64`, `k` is a storage kind,
   `i8 u8 i16 u16 i32 i64 f32 f64 ref` for loads and `i8 i16 i32 i64 f32 f64 ref` for stores.
   The opcode table (§5.1) lists every instruction; an opcode it does not list is invalid, and the
   free places in each range let the family grow. Debuggers write `breakpoint` into loaded code; a
