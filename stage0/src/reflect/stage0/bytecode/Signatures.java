@@ -87,10 +87,14 @@ final class Signatures {
             return code >= SigCode.BOOLEAN && code <= SigCode.F64 ? null : "code " + hex(code) + " is not a primitive (BC-03)";
         }
         if (type instanceof TypeSig.Named named) {
-            return primitiveStruct(named, module);
+            return named(named, module);
         }
         if (type instanceof TypeSig.GenericInst generic) {
-            String problem = primitiveStruct(generic.type(), module);
+            String problem = named(generic.type(), module);
+            // GenericParam rows come with v0.0.9; until then no TypeDef has a type parameter.
+            if (problem == null && generic.type().type() instanceof TypeDef def) {
+                problem = "GENERICINST instantiates " + def.qualifiedName() + ", which has no type parameters (BC-03)";
+            }
             if (problem == null && generic.arguments().isEmpty()) {
                 problem = "GENERICINST has no type argument (BC-03)";
             }
@@ -165,6 +169,24 @@ final class Signatures {
         return type instanceof TypeSig.Named named && !named.valueType()
                 || type instanceof TypeSig.GenericInst generic && !generic.type().valueType()
                 || type instanceof TypeSig.TypeVar || type instanceof TypeSig.ArrayOf;
+    }
+
+    // A type by name: never a primitive's struct, and CLASS or VALUETYPE by the kind of a type that
+    // the module defines. The kind of a type of another module is what its code states (Q69).
+    private static @Nullable String named(TypeSig.Named named, String module) {
+        String problem = primitiveStruct(named, module);
+        if (problem == null && named.type() instanceof TypeDef def && named.valueType() != valueKind(def.kind())) {
+            problem = def.qualifiedName() + (named.valueType() ? " is a reference type, so CLASS names it (BC-03)"
+                    : " is a value type, so VALUETYPE names it (BC-03)");
+        }
+        return problem;
+    }
+
+    // Structs, ref structs, record structs and enums are value types; classes, interfaces, records
+    // and annotation types are reference types (TYP-01).
+    private static boolean valueKind(int kind) {
+        return kind == Flags.KIND_STRUCT || kind == Flags.KIND_REF_STRUCT || kind == Flags.KIND_RECORD_STRUCT
+                || kind == Flags.KIND_ENUM;
     }
 
     // A primitive is its code, never CLASS or VALUETYPE of reflect.core.Int32 and the like (BC-03).

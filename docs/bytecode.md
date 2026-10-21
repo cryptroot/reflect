@@ -361,8 +361,11 @@ package-private (MOD-08).
   follows these rules:
 
   - `VOID` appears only as a return type, and `WILDCARD` only as a type argument.
-  - `GENERICINST` has at least one type argument. `INTERSECTION` has at least two components,
-    each `CLASS` or a `GENERICINST` of `CLASS`.
+  - `CLASS` names a reference type: a class, an interface, a record or an annotation type.
+    `VALUETYPE` names a value type: a struct, a ref struct, a record struct or an enum (TYP-01).
+  - `GENERICINST` has at least one type argument, and for a type that the module defines, one per
+    type parameter. `INTERSECTION` has at least two components, each `CLASS` or a `GENERICINST`
+    of `CLASS`.
   - `NULLABLE` wraps `CLASS`, a `GENERICINST` of `CLASS`, `ARRAY`, `VAR` or `MVAR`. Value types,
     pointers, references, wildcards and intersections have no nullable form (TYP-01).
   - `VAR` names a type parameter of the type that declares the member, and `MVAR` one of the

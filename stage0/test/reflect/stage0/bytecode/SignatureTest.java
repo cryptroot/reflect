@@ -145,6 +145,29 @@ public final class SignatureTest {
     }
 
     @Test
+    public static void aTypeOfTheModuleHasTheCodeOfItsKind() throws Exception {
+        int[][] kinds = {
+            {Flags.KIND_CLASS, SigCode.CLASS}, {Flags.KIND_INTERFACE, SigCode.CLASS},
+            {Flags.KIND_STRUCT, SigCode.VALUETYPE}, {Flags.KIND_REF_STRUCT, SigCode.VALUETYPE},
+            {Flags.KIND_RECORD, SigCode.CLASS}, {Flags.KIND_RECORD_STRUCT, SigCode.VALUETYPE},
+            {Flags.KIND_ENUM, SigCode.VALUETYPE}, {Flags.KIND_ANNOTATION, SigCode.CLASS},
+        };
+        for (int[] kind : kinds) {
+            boolean value = kind[1] == SigCode.VALUETYPE;
+            roundTrip(kindField(kind[0], value));
+            unwritable(kindField(kind[0], !value), "field app.Shapes::f: app.K is a " + (value
+                    ? "value type, so VALUETYPE" : "reference type, so CLASS") + " names it (BC-03)");
+        }
+        var types = new Types();
+        field(types, new TypeSig.GenericInst(new TypeSig.Named(false, types.shapes), list(INT)),
+                "GENERICINST instantiates app.Shapes, which has no type parameters (BC-03)");
+        // TypeDef 1 is the class a.A: VALUETYPE a.A, and GENERICINST CLASS a.A <I32>.
+        signature(0, "a.A is a reference type, so CLASS names it (BC-03)", 0x20, 0x11, 0x81, 0x80, 0x80, 0x28);
+        signature(0, "GENERICINST instantiates a.A, which has no type parameters (BC-03)",
+                0x20, 0x12, 0x10, 0x81, 0x80, 0x80, 0x28, 0x01, 0x08);
+    }
+
+    @Test
     public static void theReaderChecksMethodAndMemberRefSignatures() throws Exception {
         var types = new Types();
         types.shapes.methods().add(new MethodDef(Flags.METHOD_ABSTRACT, "m", new MethodSig(0, 0, VOID, list())));
@@ -253,6 +276,15 @@ public final class SignatureTest {
             return;
         }
         unwritable(types.module, "field app.Shapes::f: " + problem);
+    }
+
+    // A module whose field app.Shapes::f has the type app.K of this kind, as CLASS or VALUETYPE.
+    private static ModuleDef kindField(int kind, boolean valueType) {
+        var types = new Types();
+        var k = new TypeDef("app", "K", kind, 0, kind == Flags.KIND_ENUM ? SigCode.I32 : 0, null);
+        types.module.types().add(k);
+        types.shapes.fields().add(new FieldDef(0, "f", new TypeSig.Named(valueType, k)));
+        return types.module;
     }
 
     private static void method(MethodSig signature, String problem) {
