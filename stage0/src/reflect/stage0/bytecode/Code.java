@@ -88,7 +88,19 @@ final class Code {
                 return "instruction " + i + ": " + problem;
             }
         }
-        return null;
+        List<Region> regions = body.regions();
+        if (regions.size() > Limits.MAX_REGIONS) {
+            return "the body has " + regions.size() + " exception regions, more than the limit of " + Limits.MAX_REGIONS
+                    + " (BC-21)";
+        }
+        for (int i = 0; i < regions.size(); i++) {
+            String problem = Regions.problem(regions.get(i), body);
+            if (problem != null) {
+                return "region " + i + ": " + problem;
+            }
+        }
+        Regions.Crossing crossing = Regions.crossing(regions);
+        return crossing == null ? null : "region " + crossing.region() + ": " + Regions.crossingProblem(crossing);
     }
 
     /** The first rule that the instruction breaks in a body with these arguments and locals, or null. */
@@ -187,15 +199,16 @@ final class Code {
         var out = new ByteSink();
         out.uleb(body.maxStack());
         out.uleb(body.locals().isEmpty() ? 0 : blobs.blob(Signatures.locals(body.locals(), tokens::token)));
-        byte[] code = layout(body.code(), literals, tokens);
-        if (code.length > Limits.MAX_CODE_SIZE) {
-            throw new ModuleFormatException(owner + " has " + code.length + " bytes of code, more than the limit of "
+        var code = new ByteSink();
+        int[] starts = layout(body.code(), code, literals, tokens);
+        if (code.size() > Limits.MAX_CODE_SIZE) {
+            throw new ModuleFormatException(owner + " has " + code.size() + " bytes of code, more than the limit of "
                     + Limits.MAX_CODE_SIZE + " (BC-21)");
         }
-        out.uleb(code.length);
-        out.bytes(code);
-        // regionCount and frameCount; exception regions and stack maps come later in v0.0.2.
-        out.uleb(0);
+        out.uleb(code.size());
+        out.bytes(code.toByteArray());
+        Regions.write(body.regions(), starts, out, tokens, owner);
+        // frameCount; stack maps come later in v0.0.2.
         out.uleb(0);
         return out.toByteArray();
     }
@@ -206,7 +219,8 @@ final class Code {
      * starts from the smallest sizes, and an offset only grows when an instruction that it spans
      * grows, so the loop ends, and every offset is minimal (README §7.3, BC-24).
      */
-    private static byte[] layout(List<Instruction> code, HeapWriter literals, Tokens tokens) throws ModuleFormatException {
+    private static int[] layout(List<Instruction> code, ByteSink out, HeapWriter literals, Tokens tokens)
+            throws ModuleFormatException {
         int count = code.size();
         boolean[] branches = new boolean[count];
         byte[][] fixed = new byte[count][];
@@ -219,10 +233,10 @@ final class Code {
                 fixed[i] = new byte[0];
                 sizes[i] = branch(instruction, starts, i, null, true);
             } else {
-                var out = new ByteSink();
-                encode(instruction, out, literals, tokens);
-                fixed[i] = out.toByteArray();
-                sizes[i] = out.size();
+                var bytes = new ByteSink();
+                encode(instruction, bytes, literals, tokens);
+                fixed[i] = bytes.toByteArray();
+                sizes[i] = bytes.size();
             }
         }
         boolean changed = true;
@@ -239,7 +253,6 @@ final class Code {
                 }
             }
         }
-        var out = new ByteSink();
         for (int i = 0; i < count; i++) {
             if (branches[i]) {
                 branch(code.get(i), starts, i, out, false);
@@ -247,7 +260,7 @@ final class Code {
                 out.bytes(fixed[i]);
             }
         }
-        return out.toByteArray();
+        return starts;
     }
 
     // The size of the branch or switch at instruction i, whose offsets count from the instruction after
@@ -368,10 +381,8 @@ final class Code {
             targets.labels.get(i).mark(body, index);
         }
         in.skip(size);
-        int regions = in.position();
-        if (in.uleb() != 0) {
-            throw new ModuleFormatException(regions, "this reader does not support exception regions yet");
-        }
+        starts.put(size, body.code().size());
+        Regions.read(in, body, starts, targets, handles);
         int frames = in.position();
         if (in.uleb() != 0) {
             throw new ModuleFormatException(frames, "this reader does not support stack maps yet");
@@ -463,7 +474,7 @@ final class Code {
 
     // The targets of the branches of one body, which become labels once every instruction is read: one
     // label per target, in the order of first use, with the file offset of the operand that first names it.
-    private static final class Targets {
+    static final class Targets {
         final int start;
         final int size;
         final List<Label> labels = new ArrayList<>();
@@ -474,6 +485,17 @@ final class Code {
         Targets(int start, int size) {
             this.start = start;
             this.size = size;
+        }
+
+        // The label at a code offset where an instruction starts, or at the end, for a region.
+        Label marked(int offset, int index, MethodBody body) {
+            Label label = byOffset.get(offset);
+            if (label == null) {
+                label = new Label();
+                label.mark(body, index);
+                byOffset.put(offset, label);
+            }
+            return label;
         }
 
         Label at(long target, int operand) throws ModuleFormatException {

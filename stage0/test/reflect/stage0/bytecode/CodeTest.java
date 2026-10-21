@@ -17,7 +17,7 @@ import static reflect.stage0.test.Assertions.assertThrows;
 public final class CodeTest {
     private static final TypeSig INT = new TypeSig.Primitive(SigCode.I32);
     private static final TypeSig VOID = new TypeSig.Primitive(SigCode.VOID);
-    private static final MethodSig STATIC_VOID = new MethodSig(SigCode.METHOD_STATIC, 0, VOID, list());
+    static final MethodSig STATIC_VOID = new MethodSig(SigCode.METHOD_STATIC, 0, VOID, list());
 
     @Test
     public static void bodiesFollowTheirMethodRowsWithEachOperandKind() throws Exception {
@@ -108,7 +108,7 @@ public final class CodeTest {
         body(2, "the code of 16777216 bytes exceeds the limit of 16777215 (BC-21)", none,
                 0x01, 0x00, 0x80, 0x80, 0x80, 0x08, 0x00, 0x00);
         body(2, "the code of 5 bytes runs past the end of CODE", none, 0x01, 0x00, 0x05, 0x00, 0x00, 0x00);
-        body(4, "this reader does not support exception regions yet", none, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00);
+        body(4, "a list of 1 exception regions runs past the end of CODE", none, 0x01, 0x00, 0x01, 0x00, 0x01, 0x00);
         body(5, "this reader does not support stack maps yet", none, 0x01, 0x00, 0x01, 0x00, 0x00, 0x01);
         body(6, "CODE continues after the last body (BC-17)", none, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00);
         locals(0, "a LOCALS signature lists at least one type; a body without locals has locals 0 (BC-17)", 0x22, 0x00);
@@ -425,7 +425,7 @@ public final class CodeTest {
         return module;
     }
 
-    private static MethodBody code(int maxStack, Instruction... instructions) {
+    static MethodBody code(int maxStack, Instruction... instructions) {
         var body = new MethodBody(maxStack);
         for (Instruction instruction : instructions) {
             body.code().add(instruction);
@@ -434,7 +434,7 @@ public final class CodeTest {
     }
 
     // A module with the class a.A and its method m, with these flags, signature and body.
-    private static ModuleDef method(int flags, MethodSig signature, MethodBody body) {
+    static ModuleDef method(int flags, MethodSig signature, MethodBody body) {
         var module = new ModuleDef("a", 0, 0, 0);
         var type = new TypeDef("a", "A", Flags.KIND_CLASS, 0, 0, null);
         var method = new MethodDef(flags, "m", signature);
@@ -453,7 +453,7 @@ public final class CodeTest {
     }
 
     // A module with static void a.A::f() and this body, whose LOCALS, when given, are BLOBS offset 6.
-    private static byte[] bodyFile(int[] locals, int... body) throws ModuleFormatException {
+    static byte[] bodyFile(int[] locals, int... body) throws ModuleFormatException {
         var blobs = new ByteSink();
         blobs.bytes(TestModules.bytes(0x00, 0x04, SigCode.METHOD, SigCode.METHOD_STATIC, 0x00, SigCode.VOID));
         if (locals.length > 0) {
@@ -470,7 +470,7 @@ public final class CodeTest {
     }
 
     // Expects the reader to reject the body at this offset into CODE.
-    private static void body(int at, String message, int[] locals, int... body) throws ModuleFormatException {
+    static void body(int at, String message, int[] locals, int... body) throws ModuleFormatException {
         byte[] file = bodyFile(locals, body);
         rejected(file, sectionOffset(file, SectionId.CODE) + at, message);
     }

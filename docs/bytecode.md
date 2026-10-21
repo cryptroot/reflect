@@ -752,8 +752,11 @@ marks the instructions that R0 code needs (BOOT-02), which VM0 implements.
 - **BC-18 [Proposed]** An exception region is `(kind, tryStart, tryEnd, handlerStart, handlerEnd,
   type)` with kind `catch` or `finally`; multi-catch writes one region per type; the type token
   may name a `TypeSpec` of `VAR` or `MVAR`, resolved through the frame's type context (ex §11.2).
-  Regions nest properly and are ordered innermost first: by `tryEnd` ascending, then `tryStart`
-  descending, then `handlerStart` ascending. An exception goes to the first region whose `try`
+  Regions nest properly: a `try` and a handler each hold at least one instruction, a handler does
+  not overlap its own `try`, and any two tries and handlers of a body are disjoint or one holds the
+  other. Regions are ordered innermost first: by `tryEnd` ascending, then `tryStart` descending,
+  then `handlerStart`, `handlerEnd` and `type` ascending, so the regions of a multi-catch, which
+  share their `try` and handler, have one order. An exception goes to the first region whose `try`
   holds the offset and whose type matches.
 
   | Region field | Encoding | Content |
