@@ -38,6 +38,7 @@ the decision log in sketchpad.md.
 | `THR` | proposed threads, atomics and lock-free semantics | [threading.md](threading.md) |
 | `GPU` | proposed GPU access, Reflect-G and device interpretation | [gpu.md](gpu.md) |
 | `RND` | proposed platform-agnostic rendering, GUI and terminal UI | [rendering.md](rendering.md) |
+| `WID`, `SIMD` | proposed 128-bit arithmetic and explicit SIMD | [wide-arithmetic-and-simd.md](wide-arithmetic-and-simd.md) |
 
 ## 1. Components
 
