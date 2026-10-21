@@ -47,7 +47,8 @@ flowchart TD
   image; no Maven or Gradle, since it is deleted at v0.6. Packages:
   `reflect.stage0.compiler` (`rflc0`), `reflect.stage0.vm` (VM0), `reflect.stage0.translit`,
   `reflect.stage0.bytecode` (the module format), `reflect.stage0.tools` (command lines), and
-  `reflect.stage0.lib`, the facade that mirrors `reflect.collections` (§5).
+  `reflect.stage0.lib`, the facade that mirrors `reflect.collections` over `java.util` and holds
+  the `Nullable` annotation (§5, Q72, Q73).
   `sh stage0/build.sh` uses `javac --release 21` and writes `out/stage0/stage0.jar`, with
   `reflect.stage0.tools.Main` as its entry point.
 - **BOOT-11 [Proposed]** `rflc0` has the pipeline of `rflc` (architecture.md §4) without
@@ -101,7 +102,7 @@ flowchart TD
   | `a.equals(b)` on strings | `a == b` |
   | `yield v;` in a switch expression | `return v;` (Q12) |
   | `non-sealed` | `unsealed` |
-  | `@Nullable T` (JSpecify), checked by `rflc0` | `T?` |
+  | `@Nullable T` (`reflect.stage0.lib.Nullable`, with JSpecify's meaning; Q73), checked by `rflc0`; an unmarked type is non-null | `T?` |
   | `@Property` getter and setter pair | a property |
   | simple `enum` | value-type `enum` |
   | records, sealed interfaces, lambdas, method references, `var`, checked exceptions | the same |

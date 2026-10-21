@@ -184,7 +184,7 @@ docker/build/Dockerfile               the reflect-build image (§5.2)
 docker/dev.ps1, docker/dev.sh         host wrappers (§5.3)
 docker/ci.sh                          the jobs, run inside the container
 stage0/build.sh                       javac and jar (BOOT-10)
-stage0/src/reflect/stage0/lib/        the facade that mirrors reflect.collections (BOOT-03)
+stage0/src/reflect/stage0/lib/        the facade for reflect.collections; Nullable (BOOT-03)
 stage0/src/reflect/stage0/bytecode/   model, reader, writer, assembler, disassembler
 stage0/src/reflect/stage0/vm/         VM0 (BOOT-04)
 stage0/src/reflect/stage0/tools/      command lines: rfla, rfld, vm0, test
@@ -196,9 +196,13 @@ tests/bytecode/invalid/               files that rfla must reject
 out/                                  build output
 ```
 
-- `reflect.stage0.lib` and `reflect.stage0.bytecode` are R0-shaped Java (BOOT-03), so the
-  transliterator can print them as Reflect (Q47). The bytecode package works on byte arrays;
-  file access stays in `reflect.stage0.tools`.
+- `reflect.stage0.bytecode` is R0-shaped Java (BOOT-03), so the transliterator can print it as
+  Reflect (Q47). It uses only `reflect.stage0.lib` and the `java.lang` types that the
+  transliterator maps. It works on byte arrays; file access stays in `reflect.stage0.tools`.
+- `reflect.stage0.lib` has R0-shaped members over `java.util` (Q72). The transliterator maps it to
+  `reflect.collections` and does not print it. It has no iteration over maps, and every sort uses
+  a total order, so no output depends on hash order or sort stability (BOOT-05). Its annotation
+  `Nullable` marks a nullable type; an unmarked type is non-null (Q73).
 - `reflect.stage0.vm` and `reflect.stage0.tools` are plain Java. They leave with stage0 at v0.6
   (BOOT-15).
 
@@ -366,7 +370,7 @@ checks.
 **Design.**
 
 - First comes the facade `reflect.stage0.lib`: the list and map types that the package needs,
-  with the member names of LIB-04 (Q47).
+  with the member names of LIB-04 over `java.util` (Q47, Q72), and `Nullable` (Q73).
 - The model holds the tables as lists of rows, the heaps, and method bodies as lists of
   instructions with symbolic operands (labels and references), not as bytes.
 - The writer sorts the tables by their keys, assigns rows and tokens, deduplicates the heaps and
@@ -385,10 +389,12 @@ checks.
   them with `MessageDigest` and `String.getBytes`.
 - A table arrives with the stage that first needs it. v0.0.2 covers `Module`, `ModuleRef`,
   `TypeDef`, `TypeRef`, `Field`, `Method`, `Param` and `MemberRef`.
+- Signatures cover every type code of BC-03, with its structural rules (Q74). `INSTANTIATION`
+  comes with `MethodSpec`.
 
 **Commits.**
 
-1. Facade lists and maps.
+1. Facade lists and maps, and `Nullable`.
 2. LEB128 and SLEB128, with tests at each byte-length boundary and for padded encodings.
 3. SHA-256, tested against `MessageDigest` with the empty input, `abc`, and one MiB of seeded
    random bytes.
@@ -399,7 +405,7 @@ checks.
    for byte (BC-20).
 6. The three heaps and their deduplication.
 7. The tables listed above, in fixed-width rows.
-8. Signature blobs.
+8. Signature blobs, for every type code of BC-03 (Q74).
 9. The CODE section: instruction encoding and the layout loop, tested with branches across
    LEB128 size boundaries.
 10. Exception regions, and stack maps stored as given (Q50).
@@ -647,8 +653,9 @@ generic code reads its exact type arguments.
 
 **Design.**
 
-- Tables added: `MethodSpec`, `GenericParam` and `GenericConstraint`. Signatures add
-  `GENERICINST`, `VAR` and `MVAR` (BC-03).
+- Tables added: `MethodSpec`, with the `INSTANTIATION` signature, `GenericParam` and
+  `GenericConstraint`. VM0 runs code whose signatures use `GENERICINST`, `VAR` and `MVAR`
+  (BC-03), which the codec reads from v0.0.2 (Q74).
 - One run-time type per instantiation, nullability included, created at first use (BOOT-04,
   GEN-02, GEN-08), with its own statics and initialization. `Box<String>.count` and
   `Box<String?>.count` are two fields (VM-03).

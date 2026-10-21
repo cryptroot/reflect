@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | not started |
@@ -345,6 +345,35 @@ label form only, one line per region: `.try L0 L1 .catch reflect.core.Exception 
 `.try L0 L1 .finally L2 L3`; ex §11.2 changes with A.6 of [../sketchpad.md](../sketchpad.md).
 Alternative: the label form and the block form. **Answer:** 2026-10-20: Accepted as recommended
 (A.2 item 9).
+
+### B.6 Batch 10: the v0.0.2 library (asked and answered 2026-10-21)
+
+Found while v0.0.2 was planned.
+
+**Q72 (BOOT-03, Q47; README §6.1). How the facade is built.** README §6.1 called
+`reflect.stage0.lib` R0-shaped Java "so the transliterator can print" it, but BOOT-03 maps the
+facade to `reflect.collections`, which v0.1 writes in Reflect. *Recommendation:* the facade has
+R0-shaped members with the names of LIB-04 and delegates to `java.util`; the transliterator maps
+it and does not print it; it has no iteration over maps, and every sort uses a total order, so no
+output depends on hash order or sort stability (BOOT-05). Alternative: an array list and a hash
+map written by hand, which need an unchecked cast to make a `T[]`, and R0-shaped Java has no such
+cast. **Answer:** 2026-10-21: Accepted as recommended. README §6.1 and §7.3 say so.
+
+**Q73 (BOOT-03, BOOT-10). Nullable types in stage0 Java.** BOOT-03 maps JSpecify's `@Nullable T`
+to `T?`, but the image has no JSpecify, and jobs have no network. *Recommendation:* a `TYPE_USE`
+annotation `reflect.stage0.lib.Nullable` with JSpecify's meaning; an unmarked type is non-null, as
+in Reflect. Alternatives: JSpecify's jar in the image, or no marks until v0.2. **Answer:**
+2026-10-21: Accepted as recommended. BOOT-03 and BOOT-10 name the annotation.
+
+**Q74 (BC-03; README §7.3, §7.10). Signature codes in v0.0.2.** README §7.10 added `GENERICINST`,
+`VAR` and `MVAR` in v0.0.9. *Recommendation:* the v0.0.2 codec handles every type code of BC-03
+and checks its structural rules: `VOID` only as a return type, `WILDCARD` only as a type argument,
+a `GENERIC` count of at least 1, defined kinds and flags, no primitive by its struct name, and a
+depth of at most 255. `VAR` and `MVAR` indexes are checked where the type parameters are known:
+before v0.0.9 no definition has any, and a `MemberRef`'s `MVAR` is checked against its own
+`GENERIC` count. `INSTANTIATION` comes with `MethodSpec`. Alternative: the codes in the order that
+VM0 needs them, with the reader rejecting the others until then. **Answer:** 2026-10-21: Accepted
+as recommended. README §7.3 and §7.10 follow.
 
 <!-- questions:end -->
 
