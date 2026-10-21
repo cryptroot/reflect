@@ -33,13 +33,13 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   | Header flag | Name | Meaning |
   |---|---|---|
   | `01` | `UNSAFE` | the module declares `unsafe;` (UNS-02) |
-  | `02` | `DELTA` | the module is a hot-reload delta (REFL-07) |
+  | `02` | `DELTA` | the module is a hot-reload delta (REFL-07); until v0.5 a reader rejects it, as it rejects the `DELTA` section |
 
   The section directory follows the header: sectionCount entries of 12 bytes, each an id, an
-  offset from the start of the file and a length, all u32, sorted by id. The first section
-  starts at the next multiple of 8 bytes after the directory, and each later one at the next
-  multiple of 8 bytes after the section before it. Zero bytes fill the gaps, and the file ends
-  where its last section ends. Bit 31 of an ID marks an ancillary section:
+  offset from the start of the file and a length, all u32, sorted by id. Each section starts at
+  an offset that is a multiple of 8 bytes: the first one where the directory ends, rounded up,
+  and each later one where the section before it ends, rounded up. Zero bytes fill the gaps, and
+  the file ends where its last section ends. Bit 31 of an ID marks an ancillary section:
 
   | ID | Section | Content |
   |---|---|---|

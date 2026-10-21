@@ -383,7 +383,7 @@ public final class DocumentTest {
         expect("Header.FORMAT_MINOR", Integer.parseInt(version.group(2)), Header.FORMAT_MINOR);
         MatchResult entry = prose("sectionCount entries of (\\d+) bytes");
         expect("Header.DIRECTORY_ENTRY_SIZE", Integer.parseInt(entry.group(1)), Header.DIRECTORY_ENTRY_SIZE);
-        MatchResult alignment = prose("next multiple of (\\d+) bytes after the directory");
+        MatchResult alignment = prose("Each section starts at an offset that is a multiple of (\\d+) bytes");
         expect("Header.ALIGNMENT", Integer.parseInt(alignment.group(1)), Header.ALIGNMENT);
         listed.addAll(List.of("SIZE", "FORMAT_MAJOR", "FORMAT_MINOR", "DIRECTORY_ENTRY_SIZE", "ALIGNMENT"));
         checkCodes("| Header flag | Name | Meaning |", Header.class, "FLAG_", listed);
