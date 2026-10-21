@@ -1,7 +1,7 @@
 package reflect.stage0.bytecode;
 
 /** A ModuleRef row: a module that this one requires, with the ModuleRef flags (BC-11). */
-public final class ModuleRef {
+public final class ModuleRef implements TypeScope {
     private final String name;
     private final int flags;
 

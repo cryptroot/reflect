@@ -54,6 +54,57 @@ final class TestModules {
         return read.open(read.find(id)).position();
     }
 
+    /** The file offset of a column of a row, found through the TABLES directory; rows count from 1. */
+    static int columnOffset(byte[] file, int table, int row, int column) throws ModuleFormatException {
+        int tables = sectionOffset(file, SectionId.TABLES);
+        int count = u32(file, tables);
+        int position = tables + 4 + 12 * count;
+        for (int i = 0; i < count; i++) {
+            int entry = tables + 4 + 12 * i;
+            if (u32(file, entry) == table) {
+                return position + (row - 1) * u32(file, entry + 8) + 4 * column;
+            }
+            position += u32(file, entry + 4) * u32(file, entry + 8);
+        }
+        throw new AssertionError("the file has no table " + table);
+    }
+
+    static int column(byte[] file, int table, int row, int column) throws ModuleFormatException {
+        return u32(file, columnOffset(file, table, row, column));
+    }
+
+    /** A copy of the file with one column changed and the content hash computed again. */
+    static byte[] patch(byte[] file, int table, int row, int column, int value) throws Exception {
+        byte[] copy = file.clone();
+        int at = columnOffset(file, table, row, column);
+        for (int i = 0; i < 4; i++) {
+            copy[at + i] = (byte) (value >>> (8 * i));
+        }
+        return rehash(copy);
+    }
+
+    /** Puts the contentHash of BC-22 into the file, computed with MessageDigest apart from ModuleFile. */
+    static byte[] rehash(byte[] file) throws java.security.NoSuchAlgorithmException {
+        var sha = java.security.MessageDigest.getInstance("SHA-256");
+        sha.update(file, 4, 24);
+        for (int i = 0; i < u32(file, 28); i++) {
+            int entry = 64 + 12 * i;
+            if (u32(file, entry) >= 0) {
+                sha.update(file, entry, 4);
+                sha.update(file, entry + 8, 4);
+                sha.update(file, u32(file, entry + 4), u32(file, entry + 8));
+            }
+        }
+        byte[] hash = sha.digest();
+        System.arraycopy(hash, 0, file, 32, hash.length);
+        return file;
+    }
+
+    static int u32(byte[] file, int offset) {
+        return (file[offset] & 0xFF) | (file[offset + 1] & 0xFF) << 8 | (file[offset + 2] & 0xFF) << 16
+                | (file[offset + 3] & 0xFF) << 24;
+    }
+
     static byte[] bytes(int... values) {
         byte[] bytes = new byte[values.length];
         for (int i = 0; i < values.length; i++) {

@@ -192,7 +192,7 @@ u32, in the order given:
 | `TypeDef` | `kind` | `TypeDef` kind |
 | `TypeDef` | `flags` | visibility and `TypeDef` flags |
 | `TypeDef` | `base` | token of a `TypeDef`, `TypeRef` or `TypeSpec` row, or 0 |
-| `TypeDef` | `backing` | the signature code of an enum's backing type, `I8` to `U64`, otherwise 0 |
+| `TypeDef` | `backing` | the signature code of an enum's integral backing type (DAT-05): `I8`, `U8`, `I16`, `U16`, `I32`, `U32`, `I64` or `U64`, not `CHAR`; otherwise 0 |
 | `TypeDef` | `enclosing` | `TypeDef` row of the enclosing type, or 0 |
 | `TypeDef` | `fields` | first `Field` row |
 | `TypeDef` | `methods` | first `Method` row |
