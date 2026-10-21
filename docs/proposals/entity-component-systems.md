@@ -6,9 +6,9 @@ classes. The compiler understands their roles, checks access to component batche
 specialize update kernels rather than treating ECS as an opaque collection library.
 
 This feature is not implemented or assigned a release. All rules here are **[Proposed]** unless
-marked **[Open]**. They do not yet amend the baseline [grammar](grammar.md), [type
-system](type-system.md), [module format](bytecode.md) or [roadmap](roadmap.md). Conventions:
-[architecture.md](architecture.md) section 0.
+marked **[Open]**. They do not yet amend the baseline [grammar](../grammar.md), [type
+system](../type-system.md), [module format](../bytecode.md) or [roadmap](../roadmap.md). Conventions:
+[architecture.md](../architecture.md) section 0.
 
 ## 1. Motivation and scope
 
@@ -307,7 +307,7 @@ Implicit bounds, arithmetic and other required checks still apply inside valid k
 annotation is not a guarantee that execution cannot throw.
 
 - **ECS-17 [Proposed]** AOT specializes update entry points and query dispatch for known closed
-  component sets using the existing [optimizing backend](jit-aot.md), not an external toolchain.
+  component sets using the existing [optimizing backend](../jit-aot.md), not an external toolchain.
   It can precompute component layouts, access descriptors and matching tables where the world
   shape is known. Dynamically introduced archetypes still update query caches. Generic sharing,
   reflection metadata, dynamic loading and mixed-mode fallback follow JIT-04/GEN-08; no closed-world
@@ -381,7 +381,7 @@ they must not create permanent global roots that defeat MOD-10.
 ## 9. Validation and performance evidence
 
 - **ECS-21 [Proposed]** Before stabilizing, add conformance, verifier, collector-stress and
-  differential tests following [testing.md](testing.md), plus a formal extension covering entity
+  differential tests following [testing.md](../testing.md), plus a formal extension covering entity
   validity, aligned queries, lease lifetime and preservation under row moves. DAT-03/FR-ref is a
   prerequisite, not a substitute for proving the ECS-specific storage rules.
 

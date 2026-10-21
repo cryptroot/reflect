@@ -5,9 +5,9 @@ of Reflect bytecode by an interpreter running on the GPU itself. **Reflect-G** n
 GPU subset of Reflect, including the code used to implement that interpreter.
 
 This work is not implemented or assigned a release. All rules here are **[Proposed]** unless
-marked **[Open]**; they do not amend the baseline [language](type-system.md),
-[module format](bytecode.md), [backend](jit-aot.md) or [roadmap](roadmap.md). Conventions:
-[architecture.md](architecture.md) section 0.
+marked **[Open]**; they do not amend the baseline [language](../type-system.md),
+[module format](../bytecode.md), [backend](../jit-aot.md) or [roadmap](../roadmap.md). Conventions:
+[architecture.md](../architecture.md) section 0.
 
 This is a companion to [Threads, Atomics and Lock-free Semantics](threading.md), not an addition
 to R0 or v1.0. CON-01's single-threaded host VM remains the baseline. Submitting work to a device
@@ -183,7 +183,7 @@ must be explicitly gated under the unsafe policy.
 ## 5. Reflect-G: a checked device subset
 
 - **GPU-08 [Proposed]** Reflect-G is ordinary Reflect with a transitive device-profile check,
-  analogous in purpose to [Reflect-S](bootstrapping.md#7-the-native-vm-and-reflect-s), but not
+  analogous in purpose to [Reflect-S](../bootstrapping.md#7-the-native-vm-and-reflect-s), but not
   the same restrictions. It is not a second source language or an automatic property of
   `unsafe;`, `@Uninterruptible` or an ECS `@Kernel`.
 
@@ -427,7 +427,7 @@ to weaken existing rules. No keyword, numeric encoding or vendor identity needs 
 
 ## 11. Validation, proof and performance evidence
 
-- **GPU-19 [Proposed]** Extend [testing](testing.md) and the [formal model](formal-model.md)
+- **GPU-19 [Proposed]** Extend [testing](../testing.md) and the [formal model](../formal-model.md)
   before stabilization. Model typed device views, resource leases, image validation, task
   transitions/faults and the supported bytecode subset. Prove memory isolation and that device
   interpretation simulates the CPU reference task semantics, including required checks and

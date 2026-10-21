@@ -33,12 +33,13 @@ the decision log in sketchpad.md.
 | `LEAN` | formal model | [formal-model.md](formal-model.md) |
 | `RM` | milestones | [roadmap.md](roadmap.md) |
 | `HR` | features and optimizations to keep possible | [headroom.md](headroom.md) |
-| `IC`, `TXN` | proposed Intent Contracts and Transactions | [intent-contracts-and-transactions.md](intent-contracts-and-transactions.md) |
-| `ECS` | proposed first-class Entity-Component Systems | [entity-component-systems.md](entity-component-systems.md) |
-| `THR` | proposed threads, atomics and lock-free semantics | [threading.md](threading.md) |
-| `GPU` | proposed GPU access, Reflect-G and device interpretation | [gpu.md](gpu.md) |
-| `RND` | proposed platform-agnostic rendering, GUI and terminal UI | [rendering.md](rendering.md) |
-| `WID`, `SIMD` | proposed 128-bit arithmetic and explicit SIMD | [wide-arithmetic-and-simd.md](wide-arithmetic-and-simd.md) |
+| `MA` | meta-analysis of the proposals: evaluation, order, language changes | [proposals/meta-analysis.md](proposals/meta-analysis.md) |
+| `IC`, `TXN` | proposed Intent Contracts and Transactions | [proposals/intent-contracts-and-transactions.md](proposals/intent-contracts-and-transactions.md) |
+| `ECS` | proposed first-class Entity-Component Systems | [proposals/entity-component-systems.md](proposals/entity-component-systems.md) |
+| `THR` | proposed threads, atomics and lock-free semantics | [proposals/threading.md](proposals/threading.md) |
+| `GPU` | proposed GPU access, Reflect-G and device interpretation | [proposals/gpu.md](proposals/gpu.md) |
+| `RND` | proposed platform-agnostic rendering, GUI and terminal UI | [proposals/rendering.md](proposals/rendering.md) |
+| `WID`, `SIMD` | proposed 128-bit arithmetic and explicit SIMD | [proposals/wide-arithmetic-and-simd.md](proposals/wide-arithmetic-and-simd.md) |
 
 ## 1. Components
 

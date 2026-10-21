@@ -6,9 +6,9 @@ vector. A 128-bit scalar is one number; a 128-bit vector holds several smaller n
 implies the other.
 
 This work is not implemented or assigned a release. All rules here are **[Proposed]** unless
-marked **[Open]**. They do not amend the baseline [language](type-system.md),
-[module format](bytecode.md), [backend](jit-aot.md) or [roadmap](roadmap.md). Conventions:
-[architecture.md](architecture.md) section 0. This is not an addition to R0 or a requirement for
+marked **[Open]**. They do not amend the baseline [language](../type-system.md),
+[module format](../bytecode.md), [backend](../jit-aot.md) or [roadmap](../roadmap.md). Conventions:
+[architecture.md](../architecture.md) section 0. This is not an addition to R0 or a requirement for
 the self-hosting fixpoint.
 
 ## 1. Scope and design constraints
@@ -47,7 +47,7 @@ introduced. Development tests may use an independent oracle without adding a run
 
 Use the existing type names rather than adding keywords such as `int128` or changing `long`.
 Ordinary names such as `Int128` remain subject to normal name lookup. The types implement the
-appropriate existing [generic-math interfaces](stdlib.md); vectors do not become scalar numbers.
+appropriate existing [generic-math interfaces](../stdlib.md); vectors do not become scalar numbers.
 Boxing, nullable values, arrays, reflection, equality and hashing follow the corresponding
 primitive rules. Hashing and formatting must include all 128 bits, not only the low word.
 
@@ -265,7 +265,7 @@ primitive rules. Hashing and formatting must include all 128 bits, not only the 
   Resolve `Vector128<T>`/`Mask128<T>` to these canonical shapes when `T` is known; retain a
   verifiable symbolic lane parameter for permitted generic bodies. Reflection still reports
   the corresponding closed core type. Allocate numeric encodings only when updating BC-03,
-  BC-04, their detailed tables and the [stage0 document tests](../stage0/test/reflect/stage0/bytecode/DocumentTest.java)
+  BC-04, their detailed tables and the [stage0 document tests](../../stage0/test/reflect/stage0/bytecode/DocumentTest.java)
   together. No byte values in this document are assigned opcodes.
 
 - **WID-11 [Proposed]** Add typed wide scalar constants, arithmetic, comparison, conversion and
@@ -331,7 +331,7 @@ primitive rules. Hashing and formatting must include all 128 bits, not only the 
 
 ## 9. Conformance and adversarial checks
 
-- **WID-14 [Proposed]** Extend the [testing strategy](testing.md) with type-checking, bytecode,
+- **WID-14 [Proposed]** Extend the [testing strategy](../testing.md) with type-checking, bytecode,
   runtime and differential cases for each feature. Run the same cases through `const`, the
   interpreter, baseline JIT and AOT; add the optimising JIT when it exists. Force fallback paths
   even on capable CPUs, and test each accelerated path against the fallback.

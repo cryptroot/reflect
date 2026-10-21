@@ -7,7 +7,7 @@ system calls or calls a graphics driver directly.
 
 This work is not implemented or assigned a release. All rules below are **[Proposed]** unless
 marked **[Open]**; they do not expand R0, v1.0 or bootstrap requirements. Conventions:
-[architecture.md](architecture.md) section 0. The [GPU proposal](gpu.md) supplies the proposed
+[architecture.md](../architecture.md) section 0. The [GPU proposal](gpu.md) supplies the proposed
 device/resource/submission contracts; this proposal adds rendering organization, presentation
 and UI frontends, not another GPU ownership model.
 

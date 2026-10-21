@@ -51,34 +51,45 @@ did not make v1.0 (VM-15).
 
 ## Unscheduled proposals
 
-[Intent Contracts and Transactions](intent-contracts-and-transactions.md) proposes method
+[The proposals meta-analysis](proposals/meta-analysis.md) evaluates the proposals below, orders
+their implementation and lists the decisions they need before v1.0 (MA-01 to MA-10). It assigns
+no milestones.
+
+[Intent Contracts and Transactions](proposals/intent-contracts-and-transactions.md) proposes method
 preconditions, postconditions and entry-state captures with run-time fallback, plus dynamically
 scoped managed-memory undo logs. Neither feature has an assigned milestone; both need their
 open semantics, conformance tests and proof layers before becoming stable. They do not expand
 R0 or change the self-hosting milestones above.
 
-[First-class Entity-Component Systems](entity-component-systems.md) proposes `component` structs,
+[First-class Entity-Component Systems](proposals/entity-component-systems.md) proposes `component` structs,
 `system` classes, world-owned component tables and checked update kernels that can use the
 optimizing AOT backend. It is also unscheduled and does not expand R0 or change these milestones.
 Its initial sequential design preserves CON-01; SIMD and parallel scheduling require separate
 backend and concurrency work. Stabilization needs ECS-specific semantics, tests and proofs.
 
-[Threads, Atomics and Lock-free Semantics](threading.md) expands the post-v1.0 concurrency
+[Threads, Atomics and Lock-free Semantics](proposals/threading.md) expands the post-v1.0 concurrency
 direction and headroom entries without scheduling implementation. It proposes OS threads,
 opt-in monitors, publication rules and sequentially consistent atomic cells first; weaker
 orders, certified lock-free implementations and static race checking have separate gates.
 It does not add threads or async to R0, v1.0 or the current proof track.
 
-[GPU Access, Reflect-G and a GPU-resident Interpreter](gpu.md) proposes independent access and
+[GPU Access, Reflect-G and a GPU-resident Interpreter](proposals/gpu.md) proposes independent access and
 execution tracks: capability-based device/resource/command APIs, including a path to rendering,
 and a checked Reflect-G subset used to implement a bytecode interpreter running on the GPU.
 Backend/driver policy, device lowering, memory ownership and profile-specific validation/proofs
 are explicit gates. This is also unscheduled and does not expand R0, v1.0 or bootstrap requirements.
 
-[Platform-agnostic Rendering, GUI and Terminal UI](rendering.md) proposes a shared abstract RHI
+[Platform-agnostic Rendering, GUI and Terminal UI](proposals/rendering.md) proposes a shared abstract RHI
 with raster and cell profiles, platform-owned window/terminal integration, and independent GUI
 and curses-style UI frontends. Native-terminal rendering needs no GPU; a terminal UI can also
 render through the raster profile in a graphical window. It reuses the GPU access ownership
 contracts rather than introducing another driver stack. Native dependency/runtime policy, text
 services and provider conformance are explicit gates; it is unscheduled and changes no baseline
 or bootstrap requirements.
+
+[128-bit Arithmetic and SIMD](proposals/wide-arithmetic-and-simd.md) proposes `Int128`, `UInt128`
+and `Float128` as VM-known primitive structs, and explicit fixed-width `Vector128<T>` and
+`Mask128<T>` operations. Each feature has a complete interpreter path, and hardware acceleration
+changes performance, never results. It needs a versioned format and verifier extension and an
+explicit extension of JIT-09; binary128 is a separate, later step. It is unscheduled and is not an
+addition to R0 or a requirement for the self-hosting fixpoint.

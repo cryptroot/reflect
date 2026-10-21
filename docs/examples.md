@@ -2466,7 +2466,7 @@ Compiled to a state-machine class (C#).
 ### 7.7 Threads
 
 Threads are deferred until after v1.0 (CON-01). Lockability is opt-in through `Lockable`
-(CON-04); the [threads and atomics proposal](threading.md) covers the unscheduled memory model,
+(CON-04); the [threads and atomics proposal](proposals/threading.md) covers the unscheduled memory model,
 atomic operations and possible lock-free semantics. This syntax remains reserved, not enabled.
 
 ```reflect

@@ -7,7 +7,7 @@ instruction semantics: [bytecode.md](bytecode.md). Conventions: [architecture.md
 §0.
 
 Proposed dynamic undo logs and transaction-aware managed stores are described in
-[Intent Contracts and Transactions](intent-contracts-and-transactions.md); they are not current
+[Intent Contracts and Transactions](proposals/intent-contracts-and-transactions.md); they are not current
 VM guarantees.
 
 ## 1. Process

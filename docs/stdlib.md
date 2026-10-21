@@ -144,7 +144,7 @@ Everything the language or the VM depends on (ARC-10), in namespace `reflect.cor
 
 ## 7. Unscheduled rendering modules
 
-The [rendering proposal](rendering.md) describes optional `reflect.platform`,
+The [rendering proposal](proposals/rendering.md) describes optional `reflect.platform`,
 `reflect.render.rhi`, `reflect.render.2d`, `reflect.ui.gui` and `reflect.ui.terminal` modules.
 They separate native platform integration, shared profile-aware rendering and frontend UI
 semantics. These names and their packaging are proposed, not additions to the baseline module

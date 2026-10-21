@@ -3,8 +3,8 @@
 Two complementary language features: Intent Contracts describe what a method requires and
 guarantees; Transactions restore managed state when a block exits by throwing. Neither feature
 is implemented or assigned a release. All rules here are **[Proposed]** unless marked **[Open]**;
-they do not yet amend the baseline [grammar](grammar.md) or [language rules](type-system.md).
-Conventions: [architecture.md](architecture.md) §0.
+they do not yet amend the baseline [grammar](../grammar.md) or [language rules](../type-system.md).
+Conventions: [architecture.md](../architecture.md) §0.
 
 ## 1. Goals and limits
 
@@ -190,7 +190,7 @@ general-purpose implementation can ship.
   methods that can leave a log active accidentally. The bytecode verifier must reject branches
   into a transaction, unmatched exits and exception paths that bypass cleanup. Concrete
   instructions, metadata and format versions remain to be designed in
-  [bytecode.md](bytecode.md); this proposal assigns no opcode numbers.
+  [bytecode.md](../bytecode.md); this proposal assigns no opcode numbers.
 
 ### 3.3 VM write interception and the inactive fast path
 
@@ -321,5 +321,5 @@ that normal returns satisfy checked or soundly proven postconditions; an FR-tran
 should establish restoration of the supported entry heap on an escaping exception, nested
 savepoint correctness, and equivalence of logged/deduplicated and inactive execution paths.
 Both must preserve typing and agree with exception lowering. Stability remains subject to the
-existing [formal-model.md](formal-model.md) gate; unresolved allocation and external-effect cases
+existing [formal-model.md](../formal-model.md) gate; unresolved allocation and external-effect cases
 cannot be hidden by a proof of a smaller core.

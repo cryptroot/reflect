@@ -3,12 +3,12 @@
 A path from Reflect's single-threaded VM to shared-memory threads, with explicit synchronization
 and room for lock-free algorithms. This feature is not implemented or assigned a release.
 All rules here are **[Proposed]** unless marked **[Open]**; they do not amend the baseline
-[language rules](type-system.md), [grammar](grammar.md) or [module format](bytecode.md).
-Conventions: [architecture.md](architecture.md) section 0.
+[language rules](../type-system.md), [grammar](../grammar.md) or [module format](../bytecode.md).
+Conventions: [architecture.md](../architecture.md) section 0.
 
 CON-01 and Q07 still govern: one thread until after v1.0. CON-02 proposes Java's memory model
 as the baseline, and CON-04 has already decided opt-in `Lockable` objects. This proposal expands
-that direction and [headroom](headroom.md), not the self-hosting critical path. Async keeps its
+that direction and [headroom](../headroom.md), not the self-hosting critical path. Async keeps its
 existing deferral under CON-03; a state-machine lowering is not a thread scheduler.
 
 The companion [GPU access and Reflect-G proposal](gpu.md) treats device queues, address spaces
@@ -419,7 +419,7 @@ Cross-feature constraints:
 
 ## 9. Validation and proof obligations
 
-- **THR-17 [Proposed]** Extend [testing](testing.md) and the [formal model](formal-model.md)
+- **THR-17 [Proposed]** Extend [testing](../testing.md) and the [formal model](../formal-model.md)
   before marking threads stable. A concurrent layer must cover thread states, publication,
   monitor ownership/exceptional release and atomic read/RMW observations, with preservation
   of managed-reference safety and a stated race-free sequential-consistency theorem. Static
@@ -497,7 +497,7 @@ the later move from one mutator to many a specified extension rather than a runt
 - [Java `VarHandle`](https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/invoke/VarHandle.html):
   differentiated plain, opaque, acquire/release and volatile accesses. Useful precedent for
   future ordered access, not a proposal to copy its signature-polymorphic API or mixed access.
-- [References: memory management and safety](references.md#memory-management-and-safety):
+- [References: memory management and safety](../references.md#memory-management-and-safety):
   Manson, Pugh and Adve's Java memory model, collector foundations and related safety work.
-- [Headroom HR-19, HR-21, HR-22 and HR-23](headroom.md): lightweight threads, load barriers,
+- [Headroom HR-19, HR-21, HR-22 and HR-23](../headroom.md): lightweight threads, load barriers,
   static race safety and weakly ordered targets. Their opportunities remain open.

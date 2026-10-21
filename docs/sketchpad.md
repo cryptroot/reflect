@@ -252,7 +252,7 @@ refresh), scaffold checked code." [Decided]
 | [formal-model.md](formal-model.md) and `formal/` | Featherweight Reflect layers, the v1.0 gate, the checked FR-core scaffold |
 | [roadmap.md](roadmap.md) | milestones v0.0.1 to v1.0.0 and the proof track |
 | [headroom.md](headroom.md) | features and optimizations that early decisions could rule out, with judgements and steps |
-| [intent-contracts-and-transactions.md](intent-contracts-and-transactions.md) | unscheduled proposal for method contracts, entry-state captures, run-time checks and VM-managed rollback scopes |
+| [proposals/meta-analysis.md](proposals/meta-analysis.md) | the unscheduled proposals in `proposals/` and their meta-analysis: evaluation, order, language changes and the decisions they need before v1.0 |
 
 examples.md stays the home of examples; the sketchpad keeps the housekeeping lists and the
 question log.

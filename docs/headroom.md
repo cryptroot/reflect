@@ -6,11 +6,11 @@ libraries had shipped, so it erased them; Reflect has reified generics from the 
 gap gave Java covariant arrays, which Reflect no longer copies (HR-11). Conventions:
 [architecture.md](architecture.md) §0.
 
-The unscheduled [threads, atomics and lock-free semantics proposal](threading.md) expands the
+The unscheduled [threads, atomics and lock-free semantics proposal](proposals/threading.md) expands the
 concurrency hooks, particularly HR-19, HR-21, HR-22 and HR-23. It does not accept these entries
 or change CON-01's single-threaded baseline.
 
-The separate [GPU access and Reflect-G proposal](gpu.md) records seams for device resources,
+The separate [GPU access and Reflect-G proposal](proposals/gpu.md) records seams for device resources,
 transfer layouts and a GPU-resident interpreter. It adds no accepted headroom entries, required
 backend or bootstrap dependency.
 

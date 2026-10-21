@@ -5,10 +5,10 @@ reflection, annotations and generators: [reflection.md](reflection.md); conventi
 [architecture.md](architecture.md) §0. Examples are cited as **ex §N** ([examples.md](examples.md)).
 
 Intent Contracts and managed-memory rollback scopes are proposed separately in
-[Intent Contracts and Transactions](intent-contracts-and-transactions.md). Their rules are not
+[Intent Contracts and Transactions](proposals/intent-contracts-and-transactions.md). Their rules are not
 yet part of the baseline language below.
 
-[First-class Entity-Component Systems](entity-component-systems.md) separately proposes components
+[First-class Entity-Component Systems](proposals/entity-component-systems.md) separately proposes components
 as structs, systems as classes, checked batch access and an optimizable kernel subset. Those roles
 are not yet part of the baseline type rules below.
 
@@ -777,7 +777,7 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   - an analyzer warns on `synchronized (this)` in public lockable types, because any holder of a
     reference can take that lock (Java's pitfall).
 
-The unscheduled [threads, atomics and lock-free semantics proposal](threading.md) expands the
+The unscheduled [threads, atomics and lock-free semantics proposal](proposals/threading.md) expands the
 CON-02 direction, including publication, atomic cells and future flow-analysis requirements.
 It does not amend CON-01 or CON-04; weaker memory orders and static race checking remain
 separate decisions.
