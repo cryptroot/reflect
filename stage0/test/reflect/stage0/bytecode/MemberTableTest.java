@@ -2,10 +2,12 @@ package reflect.stage0.bytecode;
 
 import reflect.stage0.test.Test;
 
+import static reflect.stage0.bytecode.TestModules.blobOffset;
 import static reflect.stage0.bytecode.TestModules.bytes;
 import static reflect.stage0.bytecode.TestModules.column;
 import static reflect.stage0.bytecode.TestModules.columnOffset;
 import static reflect.stage0.bytecode.TestModules.idents;
+import static reflect.stage0.bytecode.TestModules.list;
 import static reflect.stage0.bytecode.TestModules.patch;
 import static reflect.stage0.bytecode.TestModules.rejected;
 import static reflect.stage0.bytecode.TestModules.roundTrip;
@@ -13,11 +15,12 @@ import static reflect.stage0.bytecode.TestModules.unwritable;
 import static reflect.stage0.test.Assertions.assertEquals;
 
 public final class MemberTableTest {
-    private static final Blob INT_FIELD = new Blob(bytes(SigCode.FIELD, SigCode.I32));
-    private static final Blob INSTANCE_VOID = new Blob(bytes(SigCode.METHOD, 0, 0, SigCode.VOID));
-    private static final Blob STATIC_VOID = new Blob(bytes(SigCode.METHOD, SigCode.METHOD_STATIC, 0, SigCode.VOID));
-    private static final Blob STATIC_INT_TO_VOID = new Blob(bytes(SigCode.METHOD, SigCode.METHOD_STATIC, 1, SigCode.VOID,
-            SigCode.I32));
+    private static final TypeSig INT = new TypeSig.Primitive(SigCode.I32);
+    private static final TypeSig VOID = new TypeSig.Primitive(SigCode.VOID);
+    private static final MethodSig INSTANCE_VOID = new MethodSig(0, 0, VOID, list());
+    private static final MethodSig INSTANCE_INT_TO_VOID = new MethodSig(0, 0, VOID, list(INT));
+    private static final MethodSig STATIC_VOID = new MethodSig(SigCode.METHOD_STATIC, 0, VOID, list());
+    private static final MethodSig STATIC_INT_TO_VOID = new MethodSig(SigCode.METHOD_STATIC, 0, VOID, list(INT));
 
     @Test
     public static void fieldsMethodsAndParamsFollowTheRunsOfTheirOwners() throws Exception {
@@ -36,9 +39,9 @@ public final class MemberTableTest {
         assertEquals(Flags.PARAM_SCOPED, a.methods().get(0).params().get(1).flags());
         assertEquals("new run", c.methods().get(0).name() + " " + c.methods().get(1).name());
         assertEquals("", c.methods().get(1).params().get(0).name());
-        assertEquals(Leb128Test.hex(STATIC_INT_TO_VOID.toByteArray()),
-                Leb128Test.hex(c.methods().get(1).signature().toByteArray()));
-        assertEquals(Leb128Test.hex(INT_FIELD.toByteArray()), Leb128Test.hex(c.fields().get(0).signature().toByteArray()));
+        assertEquals(STATIC_INT_TO_VOID, c.methods().get(1).signature());
+        assertEquals(INT, c.fields().get(0).type());
+        assertEquals("21 01 01 01 08", Leb128Test.hex(TestModules.blobBytes(file, TableId.METHOD, 3, 2)));
         // One BLOBS entry serves both fields of type int.
         assertEquals(column(file, TableId.FIELD, 1, 2), column(file, TableId.FIELD, 3, 2));
     }
@@ -58,17 +61,17 @@ public final class MemberTableTest {
 
     @Test
     public static void theWriterRejectsInvalidMembers() {
-        unwritable(withField(new FieldDef(0x80, "x", INT_FIELD)), "field a.A::x has the undefined flags 0x80 (BC-20)");
-        unwritable(withField(new FieldDef(Flags.PUBLIC | Flags.PRIVATE, "x", INT_FIELD)),
+        unwritable(withField(new FieldDef(0x80, "x", INT)), "field a.A::x has the undefined flags 0x80 (BC-20)");
+        unwritable(withField(new FieldDef(Flags.PUBLIC | Flags.PRIVATE, "x", INT)),
                 "field a.A::x has more than one visibility flag (BC-11)");
-        unwritable(withField(new FieldDef(Flags.FIELD_CONST, "x", INT_FIELD)),
+        unwritable(withField(new FieldDef(Flags.FIELD_CONST, "x", INT)),
                 "field a.A::x is const but not static; a const field is also STATIC (BC-11)");
         unwritable(withMethod(new MethodDef(0x8000 | Flags.METHOD_ABSTRACT, "m", INSTANCE_VOID)),
                 "method a.A::m has the undefined flags 0x8000 (BC-20)");
-        var param = new MethodDef(Flags.METHOD_ABSTRACT, "m", INSTANCE_VOID);
+        var param = new MethodDef(Flags.METHOD_ABSTRACT, "m", INSTANCE_INT_TO_VOID);
         param.params().add(new ParamDef(0x04, "p"));
         unwritable(withMethod(param), "parameter p of method a.A::m has the undefined flags 0x4 (BC-20)");
-        var shared = new FieldDef(0, "x", INT_FIELD);
+        var shared = new FieldDef(0, "x", INT);
         ModuleDef twoTypes = withField(shared);
         var other = new TypeDef("a", "B", Flags.KIND_CLASS, 0, 0, null);
         other.fields().add(shared);
@@ -83,6 +86,15 @@ public final class MemberTableTest {
             many.params().add(new ParamDef(0, ""));
         }
         unwritable(withMethod(many), "method a.A::m has 65536 parameters, more than the limit of 65535 (BC-21)");
+        unwritable(withMethod(new MethodDef(Flags.METHOD_STATIC | Flags.METHOD_ABSTRACT, "m", INSTANCE_VOID)),
+                "method a.A::m: the signature has STATIC exactly when the method has (BC-11)");
+        unwritable(withMethod(new MethodDef(Flags.METHOD_ABSTRACT, "m", INSTANCE_INT_TO_VOID)),
+                "method a.A::m: the signature has 1 parameters, but the method has 0 Param rows (BC-11)");
+        var generic = new MethodSig(SigCode.METHOD_GENERIC, 1, VOID, list(new TypeSig.TypeVar(true, 0)));
+        var genericMethod = new MethodDef(Flags.METHOD_ABSTRACT, "m", generic);
+        genericMethod.params().add(new ParamDef(0, "t"));
+        unwritable(withMethod(genericMethod), "method a.A::m: the signature is GENERIC, but the method has no"
+                + " GenericParam rows (BC-24)");
     }
 
     @Test
@@ -96,6 +108,11 @@ public final class MemberTableTest {
                 "only constructors and static initializers are named new and static (BC-11)");
         reject(file, TableId.METHOD, 1, 3, 8, "this reader does not support method bodies yet");
         reject(file, TableId.PARAM, 1, 0, 0x04, "Param flags 0x4 are not defined (BC-20)");
+        rejected(patch(file, TableId.METHOD, 1, 0, Flags.PUBLIC | Flags.METHOD_ABSTRACT | Flags.METHOD_STATIC),
+                blobOffset(file, TableId.METHOD, 1, 2), "the signature has STATIC exactly when the method has (BC-11)");
+        // C::new starting its run at row 2 leaves A::m one Param row for two parameters.
+        rejected(patch(file, TableId.METHOD, 2, 4, 2), columnOffset(file, TableId.METHOD, 1, 4),
+                "the signature has 2 parameters, but the method has 1 Param rows (BC-11)");
     }
 
     @Test
@@ -121,15 +138,15 @@ public final class MemberTableTest {
         var a = new TypeDef("a", "A", Flags.KIND_CLASS, Flags.PUBLIC, 0, null);
         var b = new TypeDef("a", "B", Flags.KIND_CLASS, 0, 0, null);
         var c = new TypeDef("a", "C", Flags.KIND_CLASS, 0, 0, null);
-        a.fields().add(new FieldDef(Flags.PUBLIC, "x", INT_FIELD));
+        a.fields().add(new FieldDef(Flags.PUBLIC, "x", INT));
         a.fields().add(new FieldDef(Flags.PRIVATE | Flags.FIELD_STATIC | Flags.FIELD_FINAL, "y",
-                new Blob(bytes(SigCode.FIELD, SigCode.F64))));
+                new TypeSig.Primitive(SigCode.F64)));
         var m = new MethodDef(Flags.PUBLIC | Flags.METHOD_ABSTRACT | Flags.METHOD_VIRTUAL, "m",
-                new Blob(bytes(SigCode.METHOD, 0, 2, SigCode.VOID, SigCode.I32, SigCode.I64)));
+                new MethodSig(0, 0, VOID, list(INT, new TypeSig.Primitive(SigCode.I64))));
         m.params().add(new ParamDef(0, "p"));
         m.params().add(new ParamDef(Flags.PARAM_SCOPED, "q"));
         a.methods().add(m);
-        c.fields().add(new FieldDef(0, "z", INT_FIELD));
+        c.fields().add(new FieldDef(0, "z", INT));
         c.methods().add(new MethodDef(Flags.METHOD_CONSTRUCTOR | Flags.METHOD_NATIVE, "new", INSTANCE_VOID));
         var run = new MethodDef(Flags.METHOD_STATIC | Flags.METHOD_NATIVE, "run", STATIC_INT_TO_VOID);
         run.params().add(new ParamDef(0, ""));

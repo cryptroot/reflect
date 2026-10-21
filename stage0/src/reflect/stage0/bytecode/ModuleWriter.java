@@ -24,6 +24,10 @@ public final class ModuleWriter {
             | Flags.METHOD_UNSAFE | Flags.METHOD_MUTATING | Flags.METHOD_CONST | Flags.METHOD_PRECOMPILE
             | Flags.METHOD_SYNTHESIZED;
     static final int PARAM_FLAGS = Flags.PARAM_SCOPED | Flags.PARAM_THIS;
+    // Until GenericParam rows exist (v0.0.9), no definition has type parameters; the parameters of
+    // the type of a MemberRef are not known to this module.
+    static final Signatures.Scope DEFINITION = new Signatures.Scope(0, 0);
+    static final Signatures.Scope REFERENCE = new Signatures.Scope(-1, 0);
 
     private final ModuleDef module;
     private final HeapWriter idents = new HeapWriter(SectionId.IDENTS);
@@ -46,6 +50,7 @@ public final class ModuleWriter {
     private final Map<MethodDef, Integer> firstParams = new HashMap<>();
     private final List<MemberRef> memberRefs = new ArrayList<>();
     private final Map<MemberRef, Integer> memberRefRows = new HashMap<>();
+    private final Map<MemberRef, byte[]> memberRefSignatures = new HashMap<>();
 
     private ModuleWriter(ModuleDef module) {
         this.module = module;
@@ -213,6 +218,7 @@ public final class ModuleWriter {
                 if ((field.flags() & Flags.FIELD_CONST) != 0 && (field.flags() & Flags.FIELD_STATIC) == 0) {
                     throw new ModuleFormatException(owner + " is const but not static; a const field is also STATIC (BC-11)");
                 }
+                check(Signatures.problem(field.type(), Signatures.OTHER, DEFINITION, module.name()), owner);
                 fields.add(field);
                 fieldRows.put(field, fields.size());
             }
@@ -223,6 +229,7 @@ public final class ModuleWriter {
                     throw new ModuleFormatException(owner + " belongs to two types or appears twice");
                 }
                 checkMethod(method, owner);
+                checkSignature(method, owner);
                 methods.add(method);
                 methodRows.put(method, methods.size());
                 firstParams.put(method, params.size() + 1);
@@ -251,6 +258,13 @@ public final class ModuleWriter {
             if (!typeRefRows.containsKey(parent)) {
                 throw new ModuleFormatException(owner + " has a parent that the module does not list");
             }
+            MemberSig signature = ref.signature();
+            if (signature instanceof FieldSig field) {
+                check(Signatures.problem(field.type(), Signatures.OTHER, REFERENCE, module.name()), owner);
+            } else {
+                check(Signatures.problem((MethodSig) signature, REFERENCE, module.name()), owner);
+            }
+            memberRefSignatures.put(ref, Signatures.member(signature, this::signatureToken));
             memberRefRows.put(ref, 0);
             memberRefs.add(ref);
         }
@@ -272,7 +286,36 @@ public final class ModuleWriter {
         if (order == 0) {
             order = Utf8.compare(left.name(), right.name());
         }
-        return order != 0 ? order : Blob.compare(left.signature().toByteArray(), right.signature().toByteArray());
+        return order != 0 ? order : Blob.compare(memberRefSignatures.getOrDefault(left, new byte[0]),
+                memberRefSignatures.getOrDefault(right, new byte[0]));
+    }
+
+    // The rules that tie a definition's signature to its row: STATIC in both or in neither, no
+    // GENERIC until GenericParam rows exist, and one Param row per parameter (BC-11, BC-24).
+    private void checkSignature(MethodDef method, String owner) throws ModuleFormatException {
+        MethodSig signature = method.signature();
+        check(Signatures.problem(signature, DEFINITION, module.name()), owner);
+        if (((signature.flags() & SigCode.METHOD_STATIC) != 0) != ((method.flags() & Flags.METHOD_STATIC) != 0)) {
+            throw new ModuleFormatException(owner + ": the signature has STATIC exactly when the method has (BC-11)");
+        }
+        if ((signature.flags() & SigCode.METHOD_GENERIC) != 0) {
+            throw new ModuleFormatException(owner + ": the signature is GENERIC, but the method has no GenericParam"
+                    + " rows (BC-24)");
+        }
+        if (signature.params().size() != method.params().size()) {
+            throw new ModuleFormatException(owner + ": the signature has " + signature.params().size()
+                    + " parameters, but the method has " + method.params().size() + " Param rows (BC-11)");
+        }
+    }
+
+    private static void check(@Nullable String problem, String owner) throws ModuleFormatException {
+        if (problem != null) {
+            throw new ModuleFormatException(owner + ": " + problem);
+        }
+    }
+
+    private int signatureToken(TypeHandle type) throws ModuleFormatException {
+        return typeToken(type, "a type in a signature");
     }
 
     private static void checkMethod(MethodDef method, String owner) throws ModuleFormatException {
@@ -341,14 +384,14 @@ public final class ModuleWriter {
             for (FieldDef field : fields) {
                 tables.u32(field.flags());
                 tables.u32(idents.ident(field.name()));
-                tables.u32(blobs.blob(field.signature().toByteArray()));
+                tables.u32(blobs.blob(Signatures.field(field.type(), this::signatureToken)));
             }
         }
         if (tables.begin(TableId.METHOD, methods.size())) {
             for (MethodDef method : methods) {
                 tables.u32(method.flags());
                 tables.u32(idents.ident(method.name()));
-                tables.u32(blobs.blob(method.signature().toByteArray()));
+                tables.u32(blobs.blob(Signatures.method(method.signature(), this::signatureToken)));
                 tables.u32(0);
                 tables.u32(firstParams.getOrDefault(method, 0));
                 tables.u32(1);
@@ -364,7 +407,7 @@ public final class ModuleWriter {
             for (MemberRef ref : memberRefs) {
                 tables.u32(typeToken(ref.parent(), "the parent of a MemberRef"));
                 tables.u32(idents.ident(ref.name()));
-                tables.u32(blobs.blob(ref.signature().toByteArray()));
+                tables.u32(blobs.blob(memberRefSignatures.getOrDefault(ref, new byte[0])));
             }
         }
         var sections = new ArrayList<Section>();

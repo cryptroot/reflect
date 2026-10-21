@@ -105,6 +105,42 @@ final class TestModules {
                 | (file[offset + 3] & 0xFF) << 24;
     }
 
+    @SafeVarargs
+    static <T> reflect.stage0.lib.List<T> list(T... items) {
+        var list = new ArrayList<T>();
+        for (T item : items) {
+            list.add(item);
+        }
+        return list;
+    }
+
+    /** The file offset of the payload of the BLOBS entry that a column holds. */
+    static int blobOffset(byte[] file, int table, int row, int column) throws ModuleFormatException {
+        int entry = sectionOffset(file, SectionId.BLOBS) + column(file, table, row, column);
+        int position = entry;
+        while ((file[position] & 0x80) != 0) {
+            position++;
+        }
+        return position + 1;
+    }
+
+    /** The payload of the BLOBS entry that a column holds, read with a ULEB128 length of its own. */
+    static byte[] blobBytes(byte[] file, int table, int row, int column) throws ModuleFormatException {
+        int entry = sectionOffset(file, SectionId.BLOBS) + column(file, table, row, column);
+        int length = 0;
+        int shift = 0;
+        int position = entry;
+        while (true) {
+            int b = file[position++] & 0xFF;
+            length |= (b & 0x7F) << shift;
+            shift += 7;
+            if ((b & 0x80) == 0) {
+                break;
+            }
+        }
+        return Arrays.copyOfRange(file, position, position + length);
+    }
+
     static byte[] bytes(int... values) {
         byte[] bytes = new byte[values.length];
         for (int i = 0; i < values.length; i++) {

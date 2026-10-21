@@ -24,6 +24,7 @@ public final class ModuleReader {
     private final List<ModuleRef> moduleRefs = new ArrayList<>();
     private final List<TypeDef> typeDefs = new ArrayList<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
+    private String moduleName = "";
 
     private ModuleReader(ModuleFile file) throws ModuleFormatException {
         this.file = file;
@@ -44,8 +45,9 @@ public final class ModuleReader {
             throw new ModuleFormatException(file.open(file.find(SectionId.TABLES)).position(), "the Module table has "
                     + rows + " rows; it has exactly one (BC-24)");
         }
-        var module = new ModuleDef(ident(TableId.MODULE, 1, 0), value(TableId.MODULE, 1, 1),
-                value(TableId.MODULE, 1, 2), value(TableId.MODULE, 1, 3));
+        moduleName = ident(TableId.MODULE, 1, 0);
+        var module = new ModuleDef(moduleName, value(TableId.MODULE, 1, 1), value(TableId.MODULE, 1, 2),
+                value(TableId.MODULE, 1, 3));
         flags(TableId.MODULE, 1, 4, 0, "Module");
         int main = row(TableId.MODULE, 1, 5, TableId.TYPE_DEF, true);
         module.setUnsafe((file.flags() & Header.FLAG_UNSAFE) != 0);
@@ -55,16 +57,16 @@ public final class ModuleReader {
         int[] methodRuns = runs(TableId.TYPE_DEF, 8, TableId.METHOD, "Method");
         runs(TableId.TYPE_DEF, 9, TableId.GENERIC_PARAM, "GenericParam");
         List<TypeRefRow> typeRefRows = readTypeRefs();
+        // Signatures name these types, so they exist before the tables that hold signatures.
+        buildTypeRefs(typeRefRows);
+        buildTypeDefs(typeDefRows);
         List<FieldDef> fields = readFields();
         int[] paramRuns = runs(TableId.METHOD, 4, TableId.PARAM, "Param");
         runs(TableId.METHOD, 5, TableId.GENERIC_PARAM, "GenericParam");
         List<MethodDef> methods = readMethods(paramRuns);
         List<ParamDef> params = readParams();
-        List<MemberRefRow> memberRefRows = readMemberRefs();
-        buildTypeRefs(typeRefRows);
-        buildTypeDefs(typeDefRows);
-        for (MemberRefRow raw : memberRefRows) {
-            module.memberRefs().add(new MemberRef(typeHandle(raw.parent()), raw.name(), raw.signature()));
+        for (MemberRef ref : readMemberRefs()) {
+            module.memberRefs().add(ref);
         }
         for (int row = 1; row <= typeDefRows.size(); row++) {
             TypeDef type = typeDefs.get(row - 1);
@@ -202,7 +204,11 @@ public final class ModuleReader {
                 throw new ModuleFormatException(tables.offset(TableId.FIELD, row, 0), "a const field is also STATIC (BC-11)");
             }
             String name = ident(TableId.FIELD, row, 1);
-            fields.add(new FieldDef(flags, name, blob(TableId.FIELD, row, 2)));
+            ByteSource source = blobSource(TableId.FIELD, row, 2);
+            int at = source.position();
+            TypeSig type = Signatures.field(source, this::handleOf);
+            check(at, Signatures.problem(type, Signatures.OTHER, ModuleWriter.DEFINITION, moduleName));
+            fields.add(new FieldDef(flags, name, type));
         }
         return fields;
     }
@@ -217,7 +223,16 @@ public final class ModuleReader {
             if (problem != null) {
                 throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 1), problem);
             }
-            var method = new MethodDef(flags, name, blob(TableId.METHOD, row, 2));
+            ByteSource source = blobSource(TableId.METHOD, row, 2);
+            int at = source.position();
+            MethodSig signature = Signatures.method(source, this::handleOf);
+            check(at, Signatures.problem(signature, ModuleWriter.DEFINITION, moduleName));
+            if (((signature.flags() & SigCode.METHOD_STATIC) != 0) != ((flags & Flags.METHOD_STATIC) != 0)) {
+                throw new ModuleFormatException(at, "the signature has STATIC exactly when the method has (BC-11)");
+            }
+            if ((signature.flags() & SigCode.METHOD_GENERIC) != 0) {
+                throw new ModuleFormatException(at, "the signature is GENERIC, but the method has no GenericParam rows (BC-24)");
+            }
             if (value(TableId.METHOD, row, 3) != 0) {
                 throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 3), "this reader does not support"
                         + " method bodies yet");
@@ -227,7 +242,11 @@ public final class ModuleReader {
                 throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 4), "the method has " + count
                         + " parameters, more than the limit of " + Limits.MAX_PARAMS + " (BC-21)");
             }
-            methods.add(method);
+            if (count != signature.params().size()) {
+                throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 4), "the signature has "
+                        + signature.params().size() + " parameters, but the method has " + count + " Param rows (BC-11)");
+            }
+            methods.add(new MethodDef(flags, name, signature));
         }
         return methods;
     }
@@ -241,19 +260,28 @@ public final class ModuleReader {
         return params;
     }
 
-    private List<MemberRefRow> readMemberRefs() throws ModuleFormatException {
+    private List<MemberRef> readMemberRefs() throws ModuleFormatException {
+        var refs = new ArrayList<MemberRef>();
         var rows = new ArrayList<MemberRefRow>();
         for (int row = 1; row <= tables.rows(TableId.MEMBER_REF); row++) {
             int parent = token(TableId.MEMBER_REF, row, 0, PARENT_TOKENS, false, "a TypeRef or TypeSpec row");
-            var current = new MemberRefRow(parent, ident(TableId.MEMBER_REF, row, 1), blob(TableId.MEMBER_REF, row, 2));
+            String name = ident(TableId.MEMBER_REF, row, 1);
+            ByteSource source = blobSource(TableId.MEMBER_REF, row, 2);
+            int at = source.position();
+            byte[] bytes = source.slice(at, at + source.remaining()).bytes(source.remaining());
+            MemberSig signature = Signatures.member(source, this::handleOf);
+            check(at, signature instanceof FieldSig field
+                    ? Signatures.problem(field.type(), Signatures.OTHER, ModuleWriter.REFERENCE, moduleName)
+                    : Signatures.problem((MethodSig) signature, ModuleWriter.REFERENCE, moduleName));
+            var current = new MemberRefRow(parent, name, bytes);
             if (row > 1) {
                 MemberRefRow previous = rows.get(row - 2);
                 int order = ModuleWriter.compareRows(previous.parent(), parent);
                 if (order == 0) {
-                    order = Utf8.compare(previous.name(), current.name());
+                    order = Utf8.compare(previous.name(), name);
                 }
                 if (order == 0) {
-                    order = Blob.compare(previous.signature().toByteArray(), current.signature().toByteArray());
+                    order = Blob.compare(previous.signature(), bytes);
                 }
                 if (order >= 0) {
                     throw new ModuleFormatException(tables.offset(TableId.MEMBER_REF, row, 0), order == 0
@@ -262,8 +290,9 @@ public final class ModuleReader {
                 }
             }
             rows.add(current);
+            refs.add(new MemberRef(typeHandle(parent), name, signature));
         }
-        return rows;
+        return refs;
     }
 
     /**
@@ -366,9 +395,27 @@ public final class ModuleReader {
         return idents.ident(value(table, row, column), tables.offset(table, row, column));
     }
 
-    private Blob blob(int table, int row, int column) throws ModuleFormatException {
-        ByteSource source = blobs.blob(value(table, row, column), tables.offset(table, row, column));
-        return new Blob(source.bytes(source.remaining()));
+    private ByteSource blobSource(int table, int row, int column) throws ModuleFormatException {
+        return blobs.blob(value(table, row, column), tables.offset(table, row, column));
+    }
+
+    // The type of a token in a signature, or null when it names no TypeDef or TypeRef row.
+    private @Nullable TypeHandle handleOf(int token) {
+        int row = token & 0xFFFFFF;
+        int table = token >>> 24;
+        if (table == TableId.TYPE_DEF && row >= 1 && row <= typeDefs.size()) {
+            return typeDefs.get(row - 1);
+        }
+        if (table == TableId.TYPE_REF && row >= 1 && row <= typeRefs.size()) {
+            return typeRefs.get(row - 1);
+        }
+        return null;
+    }
+
+    private static void check(int at, @Nullable String problem) throws ModuleFormatException {
+        if (problem != null) {
+            throw new ModuleFormatException(at, problem);
+        }
     }
 
     private int flags(int table, int row, int column, int defined, String owner) throws ModuleFormatException {
@@ -453,6 +500,6 @@ public final class ModuleReader {
     private record TypeRefRow(int scope, String namespace, String name) {
     }
 
-    private record MemberRefRow(int parent, String name, Blob signature) {
+    private record MemberRefRow(int parent, String name, byte[] signature) {
     }
 }

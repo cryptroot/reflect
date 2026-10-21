@@ -357,8 +357,24 @@ package-private (MOD-08).
   A kind byte and the flags byte are one byte each. A primitive is always its code, never
   `VALUETYPE` of its struct: `reflect.core.Int32` is `I32`. A nullable value type is an
   instantiation of the nullable wrapper; a tuple is an instantiation of `TupleN` with names in
-  `TupleNames`. `WILDCARD` appears only as a type argument. `scoped` is a parameter flag and
-  `ref struct` a type flag.
+  `TupleNames`. `scoped` is a parameter flag and `ref struct` a type flag. A signature also
+  follows these rules:
+
+  - `VOID` appears only as a return type, and `WILDCARD` only as a type argument.
+  - `GENERICINST` has at least one type argument. `INTERSECTION` has at least two components,
+    each `CLASS` or a `GENERICINST` of `CLASS`.
+  - `NULLABLE` wraps `CLASS`, a `GENERICINST` of `CLASS`, `ARRAY`, `VAR` or `MVAR`. Value types,
+    pointers, references, wildcards and intersections have no nullable form (TYP-01).
+  - `VAR` names a type parameter of the type that declares the member, and `MVAR` one of the
+    method. In a `MemberRef`, `MVAR` names one of its own `GENERIC` count, and `VAR` is not
+    checked, since the parent's type parameters are declared in another module (Q74).
+  - The last parameter of a `VARIADIC` signature is an `ARRAY` (MEM-10).
+  - The signature of a `Method` row has `STATIC` exactly when the row has it, `GENERIC` exactly
+    when the method has `GenericParam` rows (BC-24), and one parameter per `Param` row.
+  - The types that a signature lists have depth 1, and a type inside another is one deeper: an
+    element, a bound, a type argument, a component, or the type of `NULLABLE` or `BYREF`. The
+    named type of a `GENERICINST` keeps the depth of the instantiation. `int[][]` has depth 3,
+    and BC-21 limits the depth to 255.
 
 ## 5. Instruction set
 

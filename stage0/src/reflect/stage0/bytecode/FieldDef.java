@@ -1,15 +1,15 @@
 package reflect.stage0.bytecode;
 
-/** A Field row: a field of the type that lists it, with its flags, name and FIELD signature (BC-11). */
+/** A Field row: a field of the type that lists it, with its flags, name and type, its FIELD signature (BC-11). */
 public final class FieldDef {
     private final int flags;
     private final String name;
-    private final Blob signature;
+    private final TypeSig type;
 
-    public FieldDef(int flags, String name, Blob signature) {
+    public FieldDef(int flags, String name, TypeSig type) {
         this.flags = flags;
         this.name = name;
-        this.signature = signature;
+        this.type = type;
     }
 
     public int flags() {
@@ -20,7 +20,7 @@ public final class FieldDef {
         return name;
     }
 
-    public Blob signature() {
-        return signature;
+    public TypeSig type() {
+        return type;
     }
 }

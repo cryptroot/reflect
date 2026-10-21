@@ -7,10 +7,10 @@ package reflect.stage0.bytecode;
 public final class MemberRef {
     private final TypeHandle parent;
     private final String name;
-    private final Blob signature;
+    private final MemberSig signature;
 
     /** The parent is a TypeRef; a TypeDef's members are Field and Method rows. */
-    public MemberRef(TypeHandle parent, String name, Blob signature) {
+    public MemberRef(TypeHandle parent, String name, MemberSig signature) {
         this.parent = parent;
         this.name = name;
         this.signature = signature;
@@ -24,7 +24,7 @@ public final class MemberRef {
         return name;
     }
 
-    public Blob signature() {
+    public MemberSig signature() {
         return signature;
     }
 }

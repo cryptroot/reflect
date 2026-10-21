@@ -10,10 +10,10 @@ import reflect.stage0.lib.List;
 public final class MethodDef {
     private final int flags;
     private final String name;
-    private final Blob signature;
+    private final MethodSig signature;
     private final List<ParamDef> params = new ArrayList<>();
 
-    public MethodDef(int flags, String name, Blob signature) {
+    public MethodDef(int flags, String name, MethodSig signature) {
         this.flags = flags;
         this.name = name;
         this.signature = signature;
@@ -27,7 +27,7 @@ public final class MethodDef {
         return name;
     }
 
-    public Blob signature() {
+    public MethodSig signature() {
         return signature;
     }
 
