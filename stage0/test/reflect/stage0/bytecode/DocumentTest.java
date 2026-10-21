@@ -275,6 +275,36 @@ public final class DocumentTest {
         }
     }
 
+    @Test
+    public static void tokenOperandsNameWhatTheirSyntaxGives() throws IOException {
+        var listed = new HashMap<String, Integer>();
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Operands | Syntax |")) {
+            if (!row.cell(0).equals("`<tok>`")) {
+                continue;
+            }
+            row.check(row.cell(1).endsWith("`Type` for the others"), "the instructions it does not list take a Type");
+            int kind = -1;
+            Matcher span = CODE_SPAN.matcher(row.cell(1));
+            while (span.find()) {
+                String text = span.group(1);
+                if (Character.isUpperCase(text.charAt(0))) {
+                    kind = text.equals("FieldRef") ? Code.FIELD : text.equals("MethodRef") ? Code.METHOD : Code.TYPE;
+                } else {
+                    row.check(kind >= 0, text + " comes before the rule it takes");
+                    listed.put(text, kind);
+                }
+            }
+        }
+        String[] kinds = {"a type", "a field", "a method"};
+        for (int code : possibleOpcodes()) {
+            if (Opcode.isDefined(code) && Opcode.operands(code) == Opcode.OPERAND_TOK) {
+                String mnemonic = Opcode.mnemonic(code);
+                assertEquals(mnemonic + " names " + kinds[listed.getOrDefault(mnemonic, Code.TYPE)],
+                        mnemonic + " names " + kinds[Code.tokenKind(code)]);
+            }
+        }
+    }
+
     // Maps each rule of section 8.1 to the rules and character classes on its right side.
     private static Map<String, List<String>> grammar() throws IOException {
         List<String> lines = Files.readAllLines(BYTECODE, StandardCharsets.UTF_8);

@@ -5,7 +5,8 @@ package reflect.stage0.bytecode;
  * kind gives (§5.1), one record per kind. A two-byte opcode is 0xFE00 plus its second byte.
  */
 public sealed interface Instruction permits Instruction.Plain, Instruction.Value32, Instruction.Value64,
-        Instruction.Literal, Instruction.Index, Instruction.Indexes {
+        Instruction.Literal, Instruction.Index, Instruction.Indexes, Instruction.Type, Instruction.Field,
+        Instruction.Method, Instruction.Constrained {
     int opcode();
 
     /** An instruction without operands. */
@@ -30,5 +31,21 @@ public sealed interface Instruction permits Instruction.Plain, Instruction.Value
 
     /** Two n operands: the call number and the argument count of syscall. */
     record Indexes(int opcode, int first, int second) implements Instruction {
+    }
+
+    /** A tok operand that names a type. */
+    record Type(int opcode, TypeHandle type) implements Instruction {
+    }
+
+    /** A tok operand that names a field, of ldfld and the other field instructions. */
+    record Field(int opcode, FieldHandle field) implements Instruction {
+    }
+
+    /** A tok operand that names a method, of newobj and the calls. */
+    record Method(int opcode, MethodHandle method) implements Instruction {
+    }
+
+    /** The two tok operands of call.constrained: a type, then a method of its bound. */
+    record Constrained(int opcode, TypeHandle type, MethodHandle method) implements Instruction {
     }
 }

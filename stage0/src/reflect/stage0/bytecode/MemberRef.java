@@ -4,7 +4,7 @@ package reflect.stage0.bytecode;
  * A MemberRef row: a field or method of a type of another module, named by its parent type, its
  * name and the signature that its row holds, so a reader needs no other module (BC-11, Q69).
  */
-public final class MemberRef {
+public final class MemberRef implements FieldHandle, MethodHandle {
     private final TypeHandle parent;
     private final String name;
     private final MemberSig signature;

@@ -69,7 +69,7 @@ public final class ModuleReader {
         for (MemberRef ref : readMemberRefs()) {
             module.memberRefs().add(ref);
         }
-        readBodies(methods);
+        readBodies(methods, token -> rowOf(token, fields, methods, module.memberRefs()));
         for (int row = 1; row <= typeDefRows.size(); row++) {
             TypeDef type = typeDefs.get(row - 1);
             int base = typeDefRows.get(row - 1).base();
@@ -294,7 +294,7 @@ public final class ModuleReader {
 
     // The bodies follow one another from CODE offset 0 in the order of their Method rows (BC-17).
     // They are read after every table, since their heap entries come last (BC-24).
-    private void readBodies(List<MethodDef> methods) throws ModuleFormatException {
+    private void readBodies(List<MethodDef> methods, Code.Handles rows) throws ModuleFormatException {
         int first = 0;
         for (int row = methods.size(); row >= 1; row--) {
             if (Code.hasBody(methods.get(row - 1).flags())) {
@@ -325,8 +325,7 @@ public final class ModuleReader {
                 throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 3), "the body of the method starts"
                         + " at CODE offset " + hex(offset) + " (BC-17)");
             }
-            method.setBody(Code.body(code, blobs, literals, this::handleOf, Code.arguments(method.signature()),
-                    moduleName));
+            method.setBody(Code.body(code, blobs, literals, rows, Code.arguments(method.signature()), moduleName));
         }
         if (!code.atEnd()) {
             throw new ModuleFormatException(code.position(), "CODE continues after the last body (BC-17)");
@@ -448,6 +447,23 @@ public final class ModuleReader {
             return typeRefs.get(row - 1);
         }
         return null;
+    }
+
+    // The row of a token in an instruction, or null when it names no TypeDef, TypeRef, Field, Method or
+    // MemberRef row.
+    private @Nullable Handle rowOf(int token, List<FieldDef> fields, List<MethodDef> methods, List<MemberRef> refs) {
+        int row = token & 0xFFFFFF;
+        int table = token >>> 24;
+        if (table == TableId.FIELD) {
+            return row >= 1 && row <= fields.size() ? fields.get(row - 1) : null;
+        }
+        if (table == TableId.METHOD) {
+            return row >= 1 && row <= methods.size() ? methods.get(row - 1) : null;
+        }
+        if (table == TableId.MEMBER_REF) {
+            return row >= 1 && row <= refs.size() ? refs.get(row - 1) : null;
+        }
+        return handleOf(token);
     }
 
     private static void check(int at, @Nullable String problem) throws ModuleFormatException {

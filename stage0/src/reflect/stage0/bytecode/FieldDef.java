@@ -1,7 +1,7 @@
 package reflect.stage0.bytecode;
 
 /** A Field row: a field of the type that lists it, with its flags, name and type, its FIELD signature (BC-11). */
-public final class FieldDef {
+public final class FieldDef implements FieldHandle {
     private final int flags;
     private final String name;
     private final TypeSig type;

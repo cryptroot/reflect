@@ -95,8 +95,7 @@ public final class CodeTest {
         body(3, "argument 0 does not exist; the method has 0 arguments (BC-04)", none,
                 0x01, 0x00, 0x02, 0x10, 0x00, 0x00, 0x00);
         body(4, "LITERALS offset 0x5 is not the start of an entry", none, 0x01, 0x00, 0x02, 0x06, 0x05, 0x00, 0x00);
-        body(3, "this reader does not support the operands of ldtype yet", none,
-                0x01, 0x00, 0x02, 0x07, 0x81, 0x00, 0x00);
+        body(3, "this reader does not support the operands of br yet", none, 0x01, 0x00, 0x02, 0x88, 0x00, 0x00, 0x00);
         body(3, "local 1 does not exist; the body has 1 locals (BC-04)", new int[] {0x22, 0x01, 0x08},
                 0x01, 0x06, 0x02, 0x13, 0x01, 0x00, 0x00);
     }
@@ -126,6 +125,147 @@ public final class CodeTest {
         byte[] bodiless = roundTrip(natives);
         rejected(patch(bodiless, TableId.METHOD, 1, 0, Flags.METHOD_STATIC), columnOffset(bodiless, TableId.METHOD, 1, 3),
                 "the method has a body, but the module has no CODE section (BC-24)");
+    }
+
+    @Test
+    public static void tokensNameTypesFieldsAndMethods() throws Exception {
+        ModuleDef module = box();
+        byte[] file = roundTrip(module);
+        // Tokens: Box 05000001, Object 06000001, String 06000002, value 08000001, get 09000001,
+        // Object::hashCode 0F000001, String::length 0F000002; each takes four bytes of ULEB128.
+        assertEquals("01 00 08 10 00 BA 81 80 80 40 B0 00 00 01 00 3C 07 82 80 80 30 0A 10 00 C2 81 80 80 28 "
+                + "E8 81 80 80 48 0A 10 00 EA 81 80 80 78 0A 10 00 C2 81 80 80 28 BA 81 80 80 40 0A 10 00 "
+                + "BA 82 80 80 78 0A 12 00 EC 81 80 80 30 81 80 80 78 B0 00 00",
+                Leb128Test.hex(section(file, SectionId.CODE)));
+        MethodDef read = ModuleReader.read(file).types().get(0).methods().get(1);
+        assertEquals(describe(module.types().get(0).methods().get(1).body()), describe(read.body()));
+        // The reader resolves a MemberRef token to its row: patching String::length to Object::hashCode,
+        // which is a method, makes ldfld name a method. The ldfld is at offset 42 of the code of use.
+        int ldfld = sectionOffset(file, SectionId.CODE) + 13 + 3 + 42;
+        rejected(TestModules.patchByte(file, ldfld + 1, 0x81), ldfld,
+                "ldfld names a field, but the MemberRef reflect.core.Object::hashCode is a method (BC-04)");
+    }
+
+    @Test
+    public static void theWriterChecksTokenOperands() {
+        ModuleDef module = box();
+        TypeDef type = module.types().get(0);
+        TypeRef object = module.typeRefs().get(0);
+        MemberRef hashCode = module.memberRefs().get(0);
+        MemberRef length = module.memberRefs().get(1);
+        token(new Instruction.Type(Opcode.LDFLD, type), "ldfld names a field (BC-04)");
+        token(new Instruction.Field(Opcode.CALL, type.fields().get(0)), "call names a method (BC-04)");
+        token(new Instruction.Method(Opcode.LDTYPE, type.methods().get(0)), "ldtype names a type (BC-04)");
+        token(new Instruction.Constrained(Opcode.CALL, object, hashCode), "call takes the operands <tok> (BC-04)");
+        token(new Instruction.Type(Opcode.CALL_CONSTRAINED, object), "call.constrained takes the operands <tok> <tok> (BC-04)");
+        token(new Instruction.Field(Opcode.LDSFLD, hashCode),
+                "ldsfld names a field, but the MemberRef reflect.core.Object::hashCode is a method (BC-04)");
+        token(new Instruction.Method(Opcode.CALLVIRT, length),
+                "callvirt names a method, but the MemberRef reflect.core.String::length is a field (BC-04)");
+        token(new Instruction.Constrained(Opcode.CALL_CONSTRAINED, object, length),
+                "call.constrained names a method, but the MemberRef reflect.core.String::length is a field (BC-04)");
+        unlisted(new Instruction.Field(Opcode.LDFLD, new FieldDef(0, "x", INT)),
+                "an instruction names the field x, which the module does not list");
+        unlisted(new Instruction.Method(Opcode.CALL, new MemberRef(object, "toString", new MethodSig(0, 0, VOID, list()))),
+                "an instruction names the MemberRef reflect.core.Object::toString, which the module does not list");
+        unlisted(new Instruction.Type(Opcode.LDTYPE, new TypeRef(module.requires().get(0), "reflect.core", "Thing")),
+                "a type in an instruction is reflect.core.Thing, which the module does not list");
+    }
+
+    @Test
+    public static void theReaderChecksTheTablesThatTokensName() throws Exception {
+        int[] none = {};
+        body(4, "token 0x9000001 does not name a TypeDef, TypeRef or TypeSpec row (BC-04)", none,
+                0x01, 0x00, 0x05, 0x07, 0x81, 0x80, 0x80, 0x48, 0x00, 0x00);
+        body(4, "token 0x5000001 does not name a Field or MemberRef row (BC-04)", none,
+                0x01, 0x00, 0x05, 0xBA, 0x81, 0x80, 0x80, 0x28, 0x00, 0x00);
+        body(4, "token 0x5000001 does not name a Method, MemberRef or MethodSpec row (BC-04)", none,
+                0x01, 0x00, 0x05, 0xE8, 0x81, 0x80, 0x80, 0x28, 0x00, 0x00);
+        body(4, "token 0x9000002 does not name a Method, MemberRef or MethodSpec row (BC-04)", none,
+                0x01, 0x00, 0x05, 0xE8, 0x82, 0x80, 0x80, 0x48, 0x00, 0x00);
+        body(8, "token 0x8000001 does not name a Method, MemberRef or MethodSpec row (BC-04)", none,
+                0x01, 0x00, 0x09, 0xEC, 0x81, 0x80, 0x80, 0x28, 0x81, 0x80, 0x80, 0x40, 0x00, 0x00);
+        // f calls itself: Method row 1.
+        ModuleReader.read(bodyFile(none, 0x01, 0x00, 0x06, 0xE8, 0x81, 0x80, 0x80, 0x48, 0xB0, 0x00, 0x00));
+    }
+
+    // public class app.Box: int value; int get(); static void use(reflect.core.Object), whose code
+    // names a TypeDef, TypeRefs, a Field row, a Method row and MemberRefs of a field and a method.
+    private static ModuleDef box() {
+        var module = new ModuleDef("app", 0, 0, 0);
+        var core = new ModuleRef("reflect.core", 0);
+        module.requires().add(core);
+        var object = new TypeRef(core, "reflect.core", "Object");
+        var string = new TypeRef(core, "reflect.core", "String");
+        module.typeRefs().add(object);
+        module.typeRefs().add(string);
+        var hashCode = new MemberRef(object, "hashCode", new MethodSig(0, 0, INT, list()));
+        var length = new MemberRef(string, "length", new FieldSig(INT));
+        module.memberRefs().add(hashCode);
+        module.memberRefs().add(length);
+        var box = new TypeDef("app", "Box", Flags.KIND_CLASS, Flags.PUBLIC, 0, null);
+        module.types().add(box);
+        var value = new FieldDef(0, "value", INT);
+        box.fields().add(value);
+        var get = new MethodDef(0, "get", new MethodSig(0, 0, INT, list()));
+        get.setBody(code(1, new Instruction.Index(Opcode.LDARG, 0), new Instruction.Field(Opcode.LDFLD, value),
+                new Instruction.Plain(Opcode.RET)));
+        box.methods().add(get);
+        var use = new MethodDef(Flags.METHOD_STATIC, "use", new MethodSig(SigCode.METHOD_STATIC, 0, VOID,
+                list(new TypeSig.Named(false, object))));
+        use.params().add(new ParamDef(0, "o"));
+        var pop = new Instruction.Plain(Opcode.POP);
+        var arg = new Instruction.Index(Opcode.LDARG, 0);
+        var cast = new Instruction.Type(Opcode.CASTCLASS, box);
+        use.setBody(code(1, new Instruction.Type(Opcode.LDTYPE, string), pop, arg, cast,
+                new Instruction.Method(Opcode.CALL, get), pop, arg, new Instruction.Method(Opcode.CALLVIRT, hashCode), pop,
+                arg, cast, new Instruction.Field(Opcode.LDFLD, value), pop, arg, new Instruction.Field(Opcode.LDFLD, length),
+                pop, new Instruction.Index(Opcode.LDARGA, 0), new Instruction.Constrained(Opcode.CALL_CONSTRAINED, object,
+                hashCode), new Instruction.Plain(Opcode.RET)));
+        box.methods().add(use);
+        return module;
+    }
+
+    // Expects the writer to reject app.Box::m, whose only instruction is this one.
+    private static void token(Instruction instruction, String problem) {
+        unwritable(boxWith(instruction), "method app.Box::m: instruction 0: " + problem);
+    }
+
+    // Expects the writer to reject app.Box::m, whose only instruction names a row that the module lacks.
+    private static void unlisted(Instruction instruction, String message) {
+        unwritable(boxWith(instruction), message);
+    }
+
+    private static ModuleDef boxWith(Instruction instruction) {
+        ModuleDef module = box();
+        var m = new MethodDef(Flags.METHOD_STATIC, "m", STATIC_VOID);
+        m.setBody(code(1, instruction));
+        module.types().get(0).methods().add(m);
+        return module;
+    }
+
+    // One line per instruction: the mnemonic, and the rows that its tokens name.
+    private static String describe(MethodBody body) {
+        var text = new StringBuilder();
+        for (Instruction instruction : body.code()) {
+            text.append(Opcode.mnemonic(instruction.opcode()));
+            if (instruction instanceof Instruction.Type type) {
+                text.append(' ').append(type.type().qualifiedName());
+            } else if (instruction instanceof Instruction.Field field) {
+                text.append(' ').append(describe(field.field()));
+            } else if (instruction instanceof Instruction.Method method) {
+                text.append(' ').append(describe(method.method()));
+            } else if (instruction instanceof Instruction.Constrained constrained) {
+                text.append(' ').append(constrained.type().qualifiedName()).append(' ').append(describe(constrained.method()));
+            }
+            text.append('\n');
+        }
+        return text.toString();
+    }
+
+    private static String describe(Handle handle) {
+        return handle instanceof MemberRef ref ? ref.parent().qualifiedName() + "::" + ref.name()
+                : handle instanceof FieldDef field ? "field " + field.name() : "method " + ((MethodDef) handle).name();
     }
 
     // public abstract class app.Calc: abstract void m(); static int add(int, int); void show(), with

@@ -6,6 +6,7 @@ import reflect.stage0.test.Test;
 import static reflect.stage0.bytecode.TestModules.blobBytes;
 import static reflect.stage0.bytecode.TestModules.blobOffset;
 import static reflect.stage0.bytecode.TestModules.list;
+import static reflect.stage0.bytecode.TestModules.patchByte;
 import static reflect.stage0.bytecode.TestModules.rejected;
 import static reflect.stage0.bytecode.TestModules.roundTrip;
 import static reflect.stage0.bytecode.TestModules.sectionOffset;
@@ -360,13 +361,6 @@ public final class SignatureTest {
     private static void signature(int at, String message, int... signature) throws ModuleFormatException {
         byte[] file = fieldFile("String", signature);
         rejected(file, payload(file, signature.length) + at, message);
-    }
-
-    // A copy of the file with one byte changed and the content hash computed again.
-    private static byte[] patchByte(byte[] file, int offset, int value) throws Exception {
-        byte[] copy = file.clone();
-        copy[offset] = (byte) value;
-        return TestModules.rehash(copy);
     }
 
     // BLOBS holds its empty entry, then the signature after its ULEB128 length.

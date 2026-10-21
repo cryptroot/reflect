@@ -9,7 +9,7 @@ import reflect.stage0.lib.Nullable;
  * Param rows (BC-11), and its body unless it is ABSTRACT, NATIVE or EXTERN. A constructor is named
  * new, and a static initializer static (§3.1).
  */
-public final class MethodDef {
+public final class MethodDef implements MethodHandle {
     private final int flags;
     private final String name;
     private final MethodSig signature;

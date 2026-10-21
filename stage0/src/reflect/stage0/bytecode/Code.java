@@ -6,14 +6,51 @@ import reflect.stage0.lib.Nullable;
 /**
  * Encodes and decodes method bodies (BC-17) and their instructions (BC-04), and states the rules
  * of a body once, for the writer and the reader: a stack depth and locals within the limits of
- * BC-21, a defined opcode other than breakpoint, the operands of its operand kind, and only the
- * arguments and locals that the method has.
+ * BC-21, a defined opcode other than breakpoint, the operands of its operand kind, tokens that
+ * name what the instruction takes, and only the arguments and locals that the method has.
  */
 final class Code {
+    /** What the tok operand of an instruction names (§8.1). */
+    static final int TYPE = 0;
+    static final int FIELD = 1;
+    static final int METHOD = 2;
+
     private static final String[] NOTATIONS = {"", "<i4>", "<i8>", "<r4>", "<r8>", "<str>", "<tok>", "<n>", "<off>",
         "<count> <off>...", "<tok> <tok>", "<n> <n>"};
+    private static final String[] KINDS = {"a type", "a field", "a method"};
+    private static final String[] TABLES = {"a TypeDef, TypeRef or TypeSpec row", "a Field or MemberRef row",
+        "a Method, MemberRef or MethodSpec row"};
+
+    /** The token of a row, for the writer. */
+    @FunctionalInterface
+    interface Tokens {
+        int token(Handle handle) throws ModuleFormatException;
+    }
+
+    /** The row of a token, or null when it names no row that an instruction may name, for the reader. */
+    @FunctionalInterface
+    interface Handles {
+        @Nullable Handle handle(int token);
+    }
 
     private Code() {
+    }
+
+    /**
+     * What the tok operand of the instruction names (§8.1): a field for ldfld, stfld, ldflda,
+     * ldsfld, stsfld, ldsflda and ldconst; a method for newobj, newobj.svirt, call, call.recv,
+     * callvirt and call.svirt; a type for the others.
+     */
+    static int tokenKind(int opcode) {
+        if (opcode == Opcode.LDFLD || opcode == Opcode.STFLD || opcode == Opcode.LDFLDA || opcode == Opcode.LDSFLD
+                || opcode == Opcode.STSFLD || opcode == Opcode.LDSFLDA || opcode == Opcode.LDCONST) {
+            return FIELD;
+        }
+        if (opcode == Opcode.NEWOBJ || opcode == Opcode.NEWOBJ_SVIRT || opcode == Opcode.CALL || opcode == Opcode.CALL_RECV
+                || opcode == Opcode.CALLVIRT || opcode == Opcode.CALL_SVIRT) {
+            return METHOD;
+        }
+        return TYPE;
     }
 
     /** Whether a method with these flags has a body: it is not ABSTRACT, NATIVE or EXTERN (§3.1). */
@@ -63,10 +100,25 @@ final class Code {
                 : instruction instanceof Instruction.Value64 ? kind == Opcode.OPERAND_I8 || kind == Opcode.OPERAND_R8
                 : instruction instanceof Instruction.Literal ? kind == Opcode.OPERAND_STR
                 : instruction instanceof Instruction.Index ? kind == Opcode.OPERAND_N
-                : kind == Opcode.OPERAND_N_N;
+                : instruction instanceof Instruction.Indexes ? kind == Opcode.OPERAND_N_N
+                : instruction instanceof Instruction.Constrained ? kind == Opcode.OPERAND_TOK_TOK
+                : kind == Opcode.OPERAND_TOK;
         if (!fits) {
             return Opcode.mnemonic(opcode) + (kind == Opcode.OPERAND_NONE ? " takes no operand"
                     : " takes the operands " + NOTATIONS[kind]) + " (BC-04)";
+        }
+        if (kind == Opcode.OPERAND_TOK) {
+            int names = instruction instanceof Instruction.Type ? TYPE : instruction instanceof Instruction.Field ? FIELD
+                    : METHOD;
+            if (names != tokenKind(opcode)) {
+                return Opcode.mnemonic(opcode) + " names " + KINDS[tokenKind(opcode)] + " (BC-04)";
+            }
+        }
+        MemberRef ref = memberRef(instruction);
+        boolean field = instruction instanceof Instruction.Field;
+        if (ref != null && (ref.signature() instanceof FieldSig) != field) {
+            return Opcode.mnemonic(opcode) + " names " + KINDS[field ? FIELD : METHOD] + ", but the MemberRef "
+                    + ref.parent().qualifiedName() + "::" + ref.name() + " is " + KINDS[field ? METHOD : FIELD] + " (BC-04)";
         }
         if (instruction instanceof Instruction.Index index) {
             boolean argument = opcode == Opcode.LDARG || opcode == Opcode.STARG || opcode == Opcode.LDARGA;
@@ -79,6 +131,14 @@ final class Code {
         return null;
     }
 
+    // The MemberRef that a field or method operand names, or null.
+    private static @Nullable MemberRef memberRef(Instruction instruction) {
+        Handle handle = instruction instanceof Instruction.Field field ? field.field()
+                : instruction instanceof Instruction.Method method ? method.method()
+                : instruction instanceof Instruction.Constrained constrained ? constrained.method() : null;
+        return handle instanceof MemberRef ref ? ref : null;
+    }
+
     private static @Nullable String stackProblem(int maxStack) {
         return maxStack >= 0 && maxStack <= Limits.MAX_STACK ? null : "the maximum stack depth of "
                 + (maxStack & 0xFFFFFFFFL) + " exceeds the limit of " + Limits.MAX_STACK + " (BC-21)";
@@ -88,14 +148,14 @@ final class Code {
      * Encodes a body that the writer has checked. Its LOCALS signature, then the strings of its
      * instructions, enter the heaps here, in the canonical order of BC-24.
      */
-    static byte[] body(MethodBody body, HeapWriter blobs, HeapWriter literals, Signatures.Tokens tokens, String owner)
+    static byte[] body(MethodBody body, HeapWriter blobs, HeapWriter literals, Tokens tokens, String owner)
             throws ModuleFormatException {
         var out = new ByteSink();
         out.uleb(body.maxStack());
-        out.uleb(body.locals().isEmpty() ? 0 : blobs.blob(Signatures.locals(body.locals(), tokens)));
+        out.uleb(body.locals().isEmpty() ? 0 : blobs.blob(Signatures.locals(body.locals(), tokens::token)));
         var code = new ByteSink();
         for (Instruction instruction : body.code()) {
-            encode(instruction, code, literals);
+            encode(instruction, code, literals, tokens);
         }
         if (code.size() > Limits.MAX_CODE_SIZE) {
             throw new ModuleFormatException(owner + " has " + code.size() + " bytes of code, more than the limit of "
@@ -109,7 +169,8 @@ final class Code {
         return out.toByteArray();
     }
 
-    private static void encode(Instruction instruction, ByteSink out, HeapWriter literals) {
+    private static void encode(Instruction instruction, ByteSink out, HeapWriter literals, Tokens tokens)
+            throws ModuleFormatException {
         int opcode = instruction.opcode();
         if (opcode > 0xFF) {
             out.u8(Opcode.PREFIX);
@@ -135,6 +196,15 @@ final class Code {
         } else if (instruction instanceof Instruction.Indexes indexes) {
             out.uleb(indexes.first());
             out.uleb(indexes.second());
+        } else if (instruction instanceof Instruction.Type type) {
+            out.uleb(tokens.token(type.type()));
+        } else if (instruction instanceof Instruction.Field field) {
+            out.uleb(tokens.token(field.field()));
+        } else if (instruction instanceof Instruction.Method method) {
+            out.uleb(tokens.token(method.method()));
+        } else if (instruction instanceof Instruction.Constrained constrained) {
+            out.uleb(tokens.token(constrained.type()));
+            out.uleb(tokens.token(constrained.method()));
         }
     }
 
@@ -142,8 +212,8 @@ final class Code {
      * Decodes the body at the position of the source, which ends where CODE does, for a method with
      * this many arguments. Each error names its offset: a malformed instruction its own.
      */
-    static MethodBody body(ByteSource in, HeapReader blobs, HeapReader literals, Signatures.Handles handles,
-            int arguments, String module) throws ModuleFormatException {
+    static MethodBody body(ByteSource in, HeapReader blobs, HeapReader literals, Handles handles, int arguments,
+            String module) throws ModuleFormatException {
         int at = in.position();
         int maxStack = in.uleb();
         check(at, stackProblem(maxStack));
@@ -153,7 +223,8 @@ final class Code {
         if (locals != 0) {
             ByteSource signature = blobs.blob(locals, localsAt);
             int start = signature.position();
-            List<TypeSig> types = Signatures.locals(signature, handles);
+            List<TypeSig> types = Signatures.locals(signature, token -> handles.handle(token) instanceof TypeHandle type
+                    ? type : null);
             check(start, Signatures.localsProblem(types, ModuleWriter.DEFINITION, module));
             for (TypeSig type : types) {
                 body.locals().add(type);
@@ -171,7 +242,7 @@ final class Code {
         ByteSource code = in.slice(in.position(), in.position() + size);
         while (!code.atEnd()) {
             int start = code.position();
-            Instruction instruction = decode(code, literals);
+            Instruction instruction = decode(code, literals, handles);
             check(start, problem(instruction, arguments, body.locals().size()));
             body.code().add(instruction);
         }
@@ -187,7 +258,7 @@ final class Code {
         return body;
     }
 
-    private static Instruction decode(ByteSource in, HeapReader literals) throws ModuleFormatException {
+    private static Instruction decode(ByteSource in, HeapReader literals, Handles handles) throws ModuleFormatException {
         int at = in.position();
         int opcode = in.u8();
         if (opcode == Opcode.PREFIX) {
@@ -217,8 +288,33 @@ final class Code {
             int first = in.uleb();
             return new Instruction.Indexes(opcode, first, in.uleb());
         }
+        if (kind == Opcode.OPERAND_TOK) {
+            int names = tokenKind(opcode);
+            Handle handle = handle(in, handles, names);
+            return names == TYPE ? new Instruction.Type(opcode, (TypeHandle) handle)
+                    : names == FIELD ? new Instruction.Field(opcode, (FieldHandle) handle)
+                    : new Instruction.Method(opcode, (MethodHandle) handle);
+        }
+        if (kind == Opcode.OPERAND_TOK_TOK) {
+            var type = (TypeHandle) handle(in, handles, TYPE);
+            return new Instruction.Constrained(opcode, type, (MethodHandle) handle(in, handles, METHOD));
+        }
         throw new ModuleFormatException(at, "this reader does not support the operands of " + Opcode.mnemonic(opcode)
                 + " yet");
+    }
+
+    // A token, and the row it names, of the kind that the instruction takes.
+    private static Handle handle(ByteSource in, Handles handles, int kind) throws ModuleFormatException {
+        int at = in.position();
+        int token = in.uleb();
+        Handle handle = handles.handle(token);
+        boolean fits = kind == TYPE ? handle instanceof TypeHandle : kind == FIELD ? handle instanceof FieldHandle
+                : handle instanceof MethodHandle;
+        if (!fits) {
+            throw new ModuleFormatException(at, "token " + ModuleFormatException.hex(token & 0xFFFFFFFFL) + " does not name "
+                    + TABLES[kind] + " (BC-04)");
+        }
+        return handle;
     }
 
     private static String undefined(int opcode) {

@@ -333,6 +333,34 @@ public final class ModuleWriter {
         return typeToken(type, "a type in a signature");
     }
 
+    // The token of a row that an instruction names.
+    private int token(Handle handle) throws ModuleFormatException {
+        if (handle instanceof TypeHandle type) {
+            return typeToken(type, "a type in an instruction");
+        }
+        int row;
+        int table;
+        String name;
+        if (handle instanceof FieldDef field) {
+            row = fieldRows.getOrDefault(field, 0);
+            table = TableId.FIELD;
+            name = "the field " + field.name();
+        } else if (handle instanceof MethodDef method) {
+            row = methodRows.getOrDefault(method, 0);
+            table = TableId.METHOD;
+            name = "the method " + method.name();
+        } else {
+            var ref = (MemberRef) handle;
+            row = memberRefRows.getOrDefault(ref, 0);
+            table = TableId.MEMBER_REF;
+            name = "the MemberRef " + ref.parent().qualifiedName() + "::" + ref.name();
+        }
+        if (row == 0) {
+            throw new ModuleFormatException("an instruction names " + name + ", which the module does not list");
+        }
+        return (table << 24) | row;
+    }
+
     private static void checkMethod(MethodDef method, String owner) throws ModuleFormatException {
         checkFlags(method.flags(), METHOD_FLAGS, owner);
         checkVisibility(method.flags(), owner);
@@ -437,7 +465,7 @@ public final class ModuleWriter {
             MethodBody body = method.body();
             if (body != null) {
                 tables.set(codeColumns[i], code.size());
-                code.bytes(Code.body(body, blobs, literals, this::signatureToken, methodOwners.get(i)));
+                code.bytes(Code.body(body, blobs, literals, this::token, methodOwners.get(i)));
             }
         }
         var sections = new ArrayList<Section>();

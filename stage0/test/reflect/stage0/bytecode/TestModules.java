@@ -83,6 +83,13 @@ final class TestModules {
         return rehash(copy);
     }
 
+    /** A copy of the file with one byte changed and the content hash computed again. */
+    static byte[] patchByte(byte[] file, int offset, int value) throws Exception {
+        byte[] copy = file.clone();
+        copy[offset] = (byte) value;
+        return rehash(copy);
+    }
+
     /** Puts the contentHash of BC-22 into the file, computed with MessageDigest apart from ModuleFile. */
     static byte[] rehash(byte[] file) throws java.security.NoSuchAlgorithmException {
         var sha = java.security.MessageDigest.getInstance("SHA-256");
