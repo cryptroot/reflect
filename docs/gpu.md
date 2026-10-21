@@ -170,6 +170,11 @@ must define acquire, render, signal and present ordering, resize/out-of-date han
 ownership. Rendering can consume compute-produced buffers/images through declared dependencies.
 It does not require a bytecode guest to call a graphics driver or a new scene-graph framework.
 
+The companion [rendering proposal](rendering.md) builds on these contracts with an abstract RHI,
+platform-owned presentation and separate GUI and terminal UI frontends. Its raster profile
+reuses this device/resource/submission model; a separate cell profile supports real terminals
+without requiring a GPU. It does not create a second graphics ownership or driver stack.
+
 Graphics shader modules and Reflect-G compute/interpreter modules are distinct entry kinds with
 backend validation. Arbitrary native shader binaries are not made safe by being called
 "validated": a safe facade needs resource-robustness guarantees; an unchecked/native escape

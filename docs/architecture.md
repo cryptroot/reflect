@@ -37,6 +37,7 @@ the decision log in sketchpad.md.
 | `ECS` | proposed first-class Entity-Component Systems | [entity-component-systems.md](entity-component-systems.md) |
 | `THR` | proposed threads, atomics and lock-free semantics | [threading.md](threading.md) |
 | `GPU` | proposed GPU access, Reflect-G and device interpretation | [gpu.md](gpu.md) |
+| `RND` | proposed platform-agnostic rendering, GUI and terminal UI | [rendering.md](rendering.md) |
 
 ## 1. Components
 

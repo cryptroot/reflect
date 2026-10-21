@@ -74,3 +74,11 @@ execution tracks: capability-based device/resource/command APIs, including a pat
 and a checked Reflect-G subset used to implement a bytecode interpreter running on the GPU.
 Backend/driver policy, device lowering, memory ownership and profile-specific validation/proofs
 are explicit gates. This is also unscheduled and does not expand R0, v1.0 or bootstrap requirements.
+
+[Platform-agnostic Rendering, GUI and Terminal UI](rendering.md) proposes a shared abstract RHI
+with raster and cell profiles, platform-owned window/terminal integration, and independent GUI
+and curses-style UI frontends. Native-terminal rendering needs no GPU; a terminal UI can also
+render through the raster profile in a graphical window. It reuses the GPU access ownership
+contracts rather than introducing another driver stack. Native dependency/runtime policy, text
+services and provider conformance are explicit gates; it is unscheduled and changes no baseline
+or bootstrap requirements.

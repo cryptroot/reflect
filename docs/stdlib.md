@@ -141,3 +141,13 @@ Everything the language or the VM depends on (ARC-10), in namespace `reflect.cor
 | `reflect.lint` | the standard analyzers and `@CheckResult` (reflection.md §6) |
 | `reflect.json` | JSON reading and writing through reflection (ex §10.3) |
 | `reflect.testing` | `@Test`, `Assert`, the unit-test runner ([testing.md](testing.md)) |
+
+## 7. Unscheduled rendering modules
+
+The [rendering proposal](rendering.md) describes optional `reflect.platform`,
+`reflect.render.rhi`, `reflect.render.2d`, `reflect.ui.gui` and `reflect.ui.terminal` modules.
+They separate native platform integration, shared profile-aware rendering and frontend UI
+semantics. These names and their packaging are proposed, not additions to the baseline module
+graph. Terminal-only builds do not require the GUI, a GPU or window-system libraries; none of
+these modules becomes a dependency of `reflect.core`, the compiler or the baseline VM.
+Native backends remain subject to LIB-07 and the proposal's explicit platform/dependency gate.
