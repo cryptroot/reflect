@@ -28,6 +28,11 @@ public final class HashMap<K, V> implements Map<K, V> {
     }
 
     @Override
+    public V getOrDefault(K key, V fallback) {
+        return entries.getOrDefault(key, fallback);
+    }
+
+    @Override
     public @Nullable V put(K key, V value) {
         return entries.put(key, value);
     }

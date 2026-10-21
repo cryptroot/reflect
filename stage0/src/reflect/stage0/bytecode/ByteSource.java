@@ -6,6 +6,7 @@ package reflect.stage0.bytecode;
  */
 public final class ByteSource {
     private final byte[] data;
+    private final int start;
     private final int end;
     private int position;
 
@@ -18,12 +19,21 @@ public final class ByteSource {
             throw new IllegalArgumentException("Range " + start + " to " + end + " is outside the data");
         }
         this.data = data;
+        this.start = start;
         this.end = end;
         this.position = start;
     }
 
     public int position() {
         return position;
+    }
+
+    /** A source over the positions start to end of the same data, inside this source's range. */
+    public ByteSource slice(int start, int end) {
+        if (start < this.start || end > this.end) {
+            throw new IllegalArgumentException("Slice " + start + " to " + end + " is outside the source");
+        }
+        return new ByteSource(data, start, end);
     }
 
     public boolean atEnd() {

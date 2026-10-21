@@ -51,9 +51,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   | `00000006` | `DELTA` | base module hash and change list, only in delta modules (reflection.md §8); its layout comes with v0.5, and until then a reader rejects it |
   | `80000001` | `DEBUG` | ancillary, optional: contentHash, the source files (relative path and SHA-256), then per method token its line table and local names (§6) |
 
-  IDENTS, LITERALS and BLOBS are heaps. A heap entry is a ULEB128 length, then that many units:
-  UTF-8 bytes in IDENTS, UTF-16LE code units of two bytes in LITERALS, bytes in BLOBS. Offset 0 of
-  each heap holds its empty entry, one zero byte. Heaps are referenced by the byte offset of an
+  IDENTS, LITERALS and BLOBS are heaps. A heap is a run of entries, from its empty entry at offset
+  0, one zero byte, to its end. An entry is a ULEB128 length, then that many units: UTF-8 bytes in
+  IDENTS, UTF-16LE code units of two bytes in LITERALS, bytes in BLOBS. Heaps are referenced by the byte offset of an
   entry's length from the start of the heap (BC-22); table rows by a **token**
   `(table << 24) | row`, rows counted from 1, token 0 meaning none (CIL's scheme). The writer
   deduplicates heap entries in the order of a canonical traversal, so equal inputs give equal

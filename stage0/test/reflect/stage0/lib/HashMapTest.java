@@ -18,6 +18,8 @@ public final class HashMapTest {
         assertTrue(map.containsKey("a"));
         assertTrue(!map.isEmpty());
         assertEquals(1, map.size());
+        assertEquals(2, map.getOrDefault("a", -1));
+        assertEquals(-1, map.getOrDefault("b", -1));
     }
 
     @Test
