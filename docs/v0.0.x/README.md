@@ -223,6 +223,13 @@ Inside the container (job `shell`):
 - 1 after an uncaught exception;
 - 2 when a module cannot be read.
 
+`rfla` prints its diagnostic after the path of the file, as `in.rfla:3:5: RFA0101: ...`, and
+writes no module then. It exits with:
+
+- 0 when it writes the module;
+- 1 after a diagnostic;
+- 2 when its arguments are wrong, or a file cannot be read or written.
+
 ### 6.3 Test files
 
 `.rfla` tests state their expectations in leading `//` comments, with the directives of TST-01:
