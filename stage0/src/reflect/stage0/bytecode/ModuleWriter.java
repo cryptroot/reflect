@@ -146,28 +146,60 @@ public final class ModuleWriter {
     }
 
     private void checkType(TypeDef type) throws ModuleFormatException {
+        check(typeProblem(type));
+        TypeDef outer = type.enclosing();
+        if (outer != null && !typeDefRows.containsKey(outer)) {
+            throw new ModuleFormatException("type " + type.name() + " is nested in a type that the module does not list");
+        }
+    }
+
+    /**
+     * The first rule that the type breaks on its own, or null: a defined kind, defined flags with at
+     * most one visibility, a backing type exactly for an enum, and namespace 0 when nested (BC-11).
+     * That the module lists it, and its enclosing type, the writer checks.
+     */
+    static @Nullable String typeProblem(TypeDef type) {
         String owner = "type " + type.name();
         if (type.kind() < Flags.KIND_CLASS || type.kind() > Flags.KIND_ANNOTATION) {
-            throw new ModuleFormatException(owner + " has the undefined kind " + type.kind() + " (BC-20)");
+            return owner + " has the undefined kind " + type.kind() + " (BC-20)";
         }
-        checkFlags(type.flags(), TYPE_FLAGS, owner);
-        checkVisibility(type.flags(), owner);
-        if (type.kind() == Flags.KIND_ENUM && !integral(type.backing())) {
-            throw new ModuleFormatException("enum " + type.name() + " has the backing type code " + type.backing()
-                    + "; the backing type is one of I8, U8, I16, U16, I32, U32, I64 and U64 (DAT-05)");
+        String problem = flagsProblem(type.flags(), TYPE_FLAGS, owner);
+        if (problem == null) {
+            problem = visibilityProblem(type.flags(), owner);
         }
-        if (type.kind() != Flags.KIND_ENUM && type.backing() != 0) {
-            throw new ModuleFormatException(owner + " is not an enum, but has a backing type (BC-11)");
+        if (problem == null && type.kind() == Flags.KIND_ENUM && !integral(type.backing())) {
+            problem = "enum " + type.name() + " has the backing type code " + type.backing()
+                    + "; the backing type is one of I8, U8, I16, U16, I32, U32, I64 and U64 (DAT-05)";
         }
-        TypeDef outer = type.enclosing();
-        if (outer != null) {
-            if (!type.namespace().isEmpty()) {
-                throw new ModuleFormatException("nested " + owner + " has a namespace; a nested type has namespace 0 (BC-11)");
-            }
-            if (!typeDefRows.containsKey(outer)) {
-                throw new ModuleFormatException(owner + " is nested in a type that the module does not list");
-            }
+        if (problem == null && type.kind() != Flags.KIND_ENUM && type.backing() != 0) {
+            problem = owner + " is not an enum, but has a backing type (BC-11)";
         }
+        if (problem == null && type.enclosing() != null && !type.namespace().isEmpty()) {
+            problem = "nested " + owner + " has a namespace; a nested type has namespace 0 (BC-11)";
+        }
+        return problem;
+    }
+
+    /** The first rule that the field breaks, or null: defined flags with at most one visibility, CONST with STATIC, and its type. */
+    static @Nullable String fieldProblem(FieldDef field, String owner, String module) {
+        String problem = flagsProblem(field.flags(), FIELD_FLAGS, owner);
+        if (problem == null) {
+            problem = visibilityProblem(field.flags(), owner);
+        }
+        if (problem == null && (field.flags() & Flags.FIELD_CONST) != 0 && (field.flags() & Flags.FIELD_STATIC) == 0) {
+            problem = owner + " is const but not static; a const field is also STATIC (BC-11)";
+        }
+        if (problem == null) {
+            String type = Signatures.problem(field.type(), Signatures.OTHER, DEFINITION, module);
+            problem = type == null ? null : owner + ": " + type;
+        }
+        return problem;
+    }
+
+    /** Why the type cannot implement the interface (BC-11), or null; the kind of a TypeRef is not known. */
+    static @Nullable String interfaceProblem(TypeDef type, TypeHandle implemented) {
+        return implemented instanceof TypeDef def && !interfaceKind(def.kind()) ? "type " + type.qualifiedName()
+                + " implements " + def.qualifiedName() + ", which is not an interface (BC-11)" : null;
     }
 
     // The key of BC-11: namespace, name, and the enclosing type, whose row follows the same order. The
@@ -251,10 +283,7 @@ public final class ModuleWriter {
             TypeDef type = typeDefs.get(i);
             for (TypeHandle implemented : type.interfaces()) {
                 int token = typeToken(implemented, "an interface of " + type.qualifiedName());
-                if (implemented instanceof TypeDef def && !interfaceKind(def.kind())) {
-                    throw new ModuleFormatException("type " + type.qualifiedName() + " implements " + def.qualifiedName()
-                            + ", which is not an interface (BC-11)");
-                }
+                check(interfaceProblem(type, implemented));
                 interfaceImpls.add(new InterfaceImplRow(i + 1, token, implemented));
             }
         }
@@ -287,12 +316,7 @@ public final class ModuleWriter {
                 if (fieldRows.containsKey(field)) {
                     throw new ModuleFormatException(owner + " belongs to two types or appears twice");
                 }
-                checkFlags(field.flags(), FIELD_FLAGS, owner);
-                checkVisibility(field.flags(), owner);
-                if ((field.flags() & Flags.FIELD_CONST) != 0 && (field.flags() & Flags.FIELD_STATIC) == 0) {
-                    throw new ModuleFormatException(owner + " is const but not static; a const field is also STATIC (BC-11)");
-                }
-                check(Signatures.problem(field.type(), Signatures.OTHER, DEFINITION, module.name()), owner);
+                check(fieldProblem(field, owner, module.name()));
                 fields.add(field);
                 fieldRows.put(field, fields.size());
             }
@@ -399,6 +423,12 @@ public final class ModuleWriter {
     private static void check(@Nullable String problem, String owner) throws ModuleFormatException {
         if (problem != null) {
             throw new ModuleFormatException(owner + ": " + problem);
+        }
+    }
+
+    private static void check(@Nullable String problem) throws ModuleFormatException {
+        if (problem != null) {
+            throw new ModuleFormatException(problem);
         }
     }
 
@@ -634,17 +664,21 @@ public final class ModuleWriter {
     }
 
     private static void checkFlags(int flags, int defined, String owner) throws ModuleFormatException {
-        if ((flags & ~defined) != 0) {
-            throw new ModuleFormatException(owner + " has the undefined flags "
-                    + ModuleFormatException.hex((flags & ~defined) & 0xFFFFFFFFL) + " (BC-20)");
-        }
+        check(flagsProblem(flags, defined, owner));
     }
 
     private static void checkVisibility(int flags, String owner) throws ModuleFormatException {
+        check(visibilityProblem(flags, owner));
+    }
+
+    private static @Nullable String flagsProblem(int flags, int defined, String owner) {
+        return (flags & ~defined) == 0 ? null : owner + " has the undefined flags "
+                + ModuleFormatException.hex((flags & ~defined) & 0xFFFFFFFFL) + " (BC-20)";
+    }
+
+    private static @Nullable String visibilityProblem(int flags, String owner) {
         int visibility = flags & VISIBILITY;
-        if ((visibility & (visibility - 1)) != 0) {
-            throw new ModuleFormatException(owner + " has more than one visibility flag (BC-11)");
-        }
+        return (visibility & (visibility - 1)) == 0 ? null : owner + " has more than one visibility flag (BC-11)";
     }
 
     // An InterfaceImpl row: the TypeDef row of the type, the token of the interface, and the interface.

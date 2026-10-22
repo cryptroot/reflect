@@ -225,9 +225,24 @@ final class Signatures {
 
     // Structs, ref structs, record structs and enums are value types; classes, interfaces, records
     // and annotation types are reference types (TYP-01).
-    private static boolean valueKind(int kind) {
+    static boolean valueKind(int kind) {
         return kind == Flags.KIND_STRUCT || kind == Flags.KIND_REF_STRUCT || kind == Flags.KIND_RECORD_STRUCT
                 || kind == Flags.KIND_ENUM;
+    }
+
+    /**
+     * The signature code of the primitive whose struct has this namespace and name, such as I32 for
+     * reflect.core.Int32, or 0. The structs come in the order of their codes, from BOOLEAN to F64.
+     */
+    static int primitiveCode(String namespace, String name) {
+        if (namespace.equals(CORE)) {
+            for (int i = 0; i < PRIMITIVE_STRUCTS.length; i++) {
+                if (name.equals(PRIMITIVE_STRUCTS[i])) {
+                    return SigCode.BOOLEAN + i;
+                }
+            }
+        }
+        return 0;
     }
 
     // A primitive is its code, never CLASS or VALUETYPE of reflect.core.Int32 and the like (BC-03).

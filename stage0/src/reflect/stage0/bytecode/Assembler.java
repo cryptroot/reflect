@@ -12,14 +12,30 @@ import reflect.stage0.lib.Nullable;
  * signature that each row of another module holds, so rfla reads no other module (Q69). rfla checks
  * each rule of the format at the place in the text that breaks it, with the checks that the writer
  * uses; what the writer then rejects is a limit of the whole module, reported at .module.
+ *
+ * A type may name a type that the text defines later, so rfla reads the text twice: first the
+ * module directives and the head of each .class, which declare the types, then the members.
  */
 public final class Assembler {
+    private static final String[] REQUIRES_WORDS = {"transitive", "static"};
+    private static final int[] REQUIRES_FLAGS = {Flags.REQUIRES_TRANSITIVE, Flags.REQUIRES_STATIC};
+    private static final String[] TYPE_WORDS = {"public", "protected", "private", "abstract", "final", "sealed",
+        "unsealed"};
+    private static final int[] TYPE_FLAGS = {Flags.PUBLIC, Flags.PROTECTED, Flags.PRIVATE, Flags.TYPE_ABSTRACT,
+        Flags.TYPE_FINAL, Flags.TYPE_SEALED, Flags.TYPE_UNSEALED};
+    private static final String[] FIELD_WORDS = {"public", "protected", "private", "static", "final", "const",
+        "backing"};
+    private static final int[] FIELD_FLAGS = {Flags.PUBLIC, Flags.PROTECTED, Flags.PRIVATE, Flags.FIELD_STATIC,
+        Flags.FIELD_FINAL, Flags.FIELD_CONST, Flags.FIELD_BACKING};
+
     private final Parser parser;
     private final ModuleDef module;
     private final Token moduleName;
     private final Map<String, ModuleRef> requires = new HashMap<>();
     private final Map<Export, Boolean> exports = new HashMap<>();
     private final Map<String, TypeDef> types = new HashMap<>();
+    private final Map<String, TypeRef> typeRefs = new HashMap<>();
+    private final List<Declared> classes = new ArrayList<>();
     private final List<Kept> sections = new ArrayList<>();
     private @Nullable TypeName main;
 
@@ -42,6 +58,7 @@ public final class Assembler {
         assembler.identifier(name, name.text());
         assembler.directives();
         assembler.resolveMain();
+        assembler.members();
         return assembler.write();
     }
 
@@ -60,6 +77,8 @@ public final class Assembler {
                 unsafe();
             } else if (parser.atDirective(".section")) {
                 section();
+            } else if (parser.atDirective(".class")) {
+                declare(null);
             } else {
                 throw parser.unexpected("a directive of the module");
             }
@@ -76,11 +95,11 @@ public final class Assembler {
     }
 
     private void resolveMain() throws AssemblyException {
-        TypeName name = main;
+        @Nullable TypeName name = main;
         if (name == null) {
             return;
         }
-        TypeDef type = types.get(name.qualified());
+        @Nullable TypeDef type = types.get(name.qualified());
         if (type == null) {
             throw Parser.error(Diagnostic.NO_TYPE, name.token(), "the module defines no type " + name.qualified());
         }
@@ -89,15 +108,7 @@ public final class Assembler {
 
     private void requires() throws AssemblyException {
         parser.next();
-        int flags = 0;
-        while (parser.at("transitive") || parser.at("static")) {
-            Token word = parser.next();
-            int flag = word.text().equals("transitive") ? Flags.REQUIRES_TRANSITIVE : Flags.REQUIRES_STATIC;
-            if ((flags & flag) != 0) {
-                throw Parser.error(Diagnostic.REPEATED, word, word.text() + " appears twice");
-            }
-            flags |= flag;
-        }
+        int flags = flags(REQUIRES_WORDS, REQUIRES_FLAGS);
         Token name = parser.qualifiedName("the name of a required module");
         identifier(name, name.text());
         if (requires.containsKey(name.text())) {
@@ -163,6 +174,301 @@ public final class Assembler {
         sections.add(new Kept(directive, new Section(id, content)));
     }
 
+    // The head of a .class declares its type, and the types nested in it; the base type, the
+    // interfaces and the members wait until every type is declared. A nested .class names only
+    // itself (BC-08).
+    private void declare(@Nullable TypeDef enclosing) throws AssemblyException {
+        parser.next();
+        int flags = flags(TYPE_WORDS, TYPE_FLAGS);
+        int kind = kind();
+        TypeName name = parser.typeName("the name of the type");
+        if (!name.nested().isEmpty() || enclosing != null && name.token().text().indexOf('.') >= 0) {
+            throw Parser.error(Diagnostic.SYNTAX, name.token(), enclosing == null ? "a nested type is declared inside"
+                    + " the type that encloses it (BC-08)" : "a nested type names only itself (BC-08)");
+        }
+        if (parser.at("<")) {
+            throw Parser.error(Diagnostic.LATER, parser.peek(), "the GenericParam table arrives in v0.0.9");
+        }
+        int backing = parser.accept(":") ? backing(parser.type("the backing type of the enum")) : 0;
+        @Nullable TypeSyntax base = parser.accept("extends") ? parser.type("the base type") : null;
+        var interfaces = new ArrayList<TypeSyntax>();
+        if (parser.accept("implements")) {
+            do {
+                interfaces.add(parser.type("an interface"));
+            } while (parser.accept(","));
+        }
+        parser.expect("{");
+        String namespace = enclosing == null ? name.namespace() : "";
+        var type = new TypeDef(namespace, name.name(), kind, flags, backing, enclosing);
+        identifier(name.token(), namespace);
+        identifier(name.token(), name.name());
+        check(name.token(), ModuleWriter.typeProblem(type));
+        if (types.containsKey(type.qualifiedName())) {
+            throw Parser.error(Diagnostic.FORMAT, name.token(), "two TypeDef rows have the key of "
+                    + type.qualifiedName() + " (BC-24)");
+        }
+        types.put(type.qualifiedName(), type);
+        module.types().add(type);
+        var declared = new Declared(type, base, interfaces, new ArrayList<>());
+        classes.add(declared);
+        while (!parser.at("}")) {
+            if (parser.atDirective(".field")) {
+                declared.members().add(parser.position());
+                skipMember();
+            } else if (parser.atDirective(".class")) {
+                declare(type);
+            } else {
+                throw parser.unexpected(".field, .class or }");
+            }
+        }
+        parser.next();
+    }
+
+    private int kind() throws AssemblyException {
+        if (parser.accept("interface")) {
+            return Flags.KIND_INTERFACE;
+        }
+        if (parser.accept("struct")) {
+            return Flags.KIND_STRUCT;
+        }
+        if (parser.accept("ref")) {
+            parser.expect("struct");
+            return Flags.KIND_REF_STRUCT;
+        }
+        if (parser.accept("record")) {
+            return parser.accept("struct") ? Flags.KIND_RECORD_STRUCT : Flags.KIND_RECORD;
+        }
+        if (parser.accept("enum")) {
+            return Flags.KIND_ENUM;
+        }
+        return parser.accept("annotation") ? Flags.KIND_ANNOTATION : Flags.KIND_CLASS;
+    }
+
+    // An integral primitive, by keyword or by its struct (DAT-05).
+    private int backing(TypeSyntax syntax) throws AssemblyException {
+        int code = syntax instanceof TypeSyntax.Primitive primitive ? primitive.code()
+                : syntax instanceof TypeSyntax.Named named ? primitiveStruct(named) : 0;
+        if (!ModuleWriter.integral(code)) {
+            throw Parser.error(Diagnostic.FORMAT, syntax.token(), "the backing type of an enum is one of I8, U8, I16, U16,"
+                    + " I32, U32, I64 and U64 (DAT-05)");
+        }
+        return code;
+    }
+
+    // Skips a member, which the second reading reads; it stops where the next member could start.
+    private void skipMember() {
+        parser.next();
+        while (!parser.atKind(Token.END) && !parser.atKind(Token.DIRECTIVE) && !parser.at("{") && !parser.at("}")) {
+            parser.next();
+        }
+    }
+
+    // The second reading: base types, interfaces and members, once every type is declared.
+    private void members() throws AssemblyException {
+        for (Declared declared : classes) {
+            TypeDef type = declared.type();
+            @Nullable TypeSyntax base = declared.base();
+            if (base != null) {
+                type.setBase(tokenType(base));
+            }
+            for (TypeSyntax syntax : declared.interfaces()) {
+                TypeHandle implemented = tokenType(syntax);
+                check(syntax.token(), ModuleWriter.interfaceProblem(type, implemented));
+                for (TypeHandle earlier : type.interfaces()) {
+                    if (earlier == implemented) {
+                        throw Parser.error(Diagnostic.FORMAT, syntax.token(), "type " + type.qualifiedName()
+                                + " implements " + implemented.qualifiedName() + " twice (BC-24)");
+                    }
+                }
+                type.interfaces().add(implemented);
+            }
+            for (int position : declared.members()) {
+                parser.seek(position);
+                field(type);
+                if (!parser.atKind(Token.DIRECTIVE) && !parser.at("}")) {
+                    throw parser.unexpected(".field, .class or }");
+                }
+            }
+        }
+    }
+
+    private void field(TypeDef type) throws AssemblyException {
+        parser.next();
+        int flags = flags(FIELD_WORDS, FIELD_FLAGS);
+        TypeSig fieldType = definition(parser.type("the type of the field"), Signatures.OTHER);
+        Token name = parser.identifier("the name of the field");
+        identifier(name, name.text());
+        if (parser.at("=")) {
+            throw Parser.error(Diagnostic.LATER, parser.peek(), "the Constant table arrives in v0.0.6");
+        }
+        var field = new FieldDef(flags, name.text(), fieldType);
+        check(name, ModuleWriter.fieldProblem(field, "field " + type.qualifiedName() + "::" + name.text(), module.name()));
+        type.fields().add(field);
+    }
+
+    // The words of a list of flags, in any order, each once.
+    private int flags(String[] words, int[] values) throws AssemblyException {
+        int flags = 0;
+        while (true) {
+            int flag = 0;
+            for (int i = 0; i < words.length; i++) {
+                if (parser.at(words[i])) {
+                    flag = values[i];
+                }
+            }
+            if (flag == 0) {
+                return flags;
+            }
+            Token word = parser.next();
+            if ((flags & flag) != 0) {
+                throw Parser.error(Diagnostic.REPEATED, word, word.text() + " appears twice");
+            }
+            flags |= flag;
+        }
+    }
+
+    // The type of a definition in this position of a signature, checked at its token (BC-03).
+    private TypeSig definition(TypeSyntax syntax, int position) throws AssemblyException {
+        TypeSig type = resolve(syntax);
+        check(syntax.token(), Signatures.problem(type, position, ModuleWriter.DEFINITION, module.name()));
+        return type;
+    }
+
+    // The signature type that the syntax states: a primitive is its code (Q52), a type of the module
+    // its TypeDef, and any other type a TypeRef (Q76).
+    private TypeSig resolve(TypeSyntax syntax) throws AssemblyException {
+        if (syntax instanceof TypeSyntax.Primitive primitive) {
+            return new TypeSig.Primitive(primitive.code());
+        }
+        if (syntax instanceof TypeSyntax.Named named) {
+            return named(named);
+        }
+        if (syntax instanceof TypeSyntax.TypeVar variable) {
+            return new TypeSig.TypeVar(variable.method(), variable.index());
+        }
+        if (syntax instanceof TypeSyntax.Intersection intersection) {
+            var components = new ArrayList<TypeSig>();
+            for (TypeSyntax component : intersection.components()) {
+                components.add(resolve(component));
+            }
+            return new TypeSig.Intersection(components);
+        }
+        if (syntax instanceof TypeSyntax.Suffixed suffixed) {
+            TypeSig inner = resolve(suffixed.type());
+            return suffixed.code() == SigCode.NULLABLE ? new TypeSig.NullableRef(inner)
+                    : suffixed.code() == SigCode.ARRAY ? new TypeSig.ArrayOf(inner) : new TypeSig.PointerTo(inner);
+        }
+        if (syntax instanceof TypeSyntax.ByRef byRef) {
+            return new TypeSig.ByRef(byRef.kind(), resolve(byRef.type()));
+        }
+        var wildcard = (TypeSyntax.Wildcard) syntax;
+        @Nullable TypeSyntax bound = wildcard.bound();
+        return new TypeSig.Wildcard(wildcard.kind(), bound == null ? null : resolve(bound));
+    }
+
+    private TypeSig named(TypeSyntax.Named named) throws AssemblyException {
+        int primitive = primitiveStruct(named);
+        if (primitive != 0) {
+            if (!named.arguments().isEmpty()) {
+                throw Parser.error(Diagnostic.FORMAT, named.token(), "a primitive takes no type arguments (BC-03)");
+            }
+            return new TypeSig.Primitive(primitive);
+        }
+        TypeHandle handle = handle(named);
+        var type = new TypeSig.Named(named.valueType() || valueKind(handle), handle);
+        if (named.arguments().isEmpty()) {
+            return type;
+        }
+        var arguments = new ArrayList<TypeSig>();
+        for (TypeSyntax argument : named.arguments()) {
+            arguments.add(resolve(argument));
+        }
+        return new TypeSig.GenericInst(type, arguments);
+    }
+
+    // The TypeDef or TypeRef row of a type in a token, as the base type and an interface are; any
+    // other type needs a TypeSpec row.
+    private TypeHandle tokenType(TypeSyntax syntax) throws AssemblyException {
+        if (syntax instanceof TypeSyntax.Named named && named.arguments().isEmpty() && primitiveStruct(named) == 0) {
+            TypeHandle handle = handle(named);
+            check(syntax.token(), Signatures.problem(new TypeSig.Named(named.valueType() || valueKind(handle), handle),
+                    Signatures.OTHER, ModuleWriter.DEFINITION, module.name()));
+            return handle;
+        }
+        throw Parser.error(Diagnostic.LATER, syntax.token(), "the type needs a TypeSpec row, which arrives in v0.0.6");
+    }
+
+    // A name of the module is its TypeDef. Any other name is a TypeRef of the module in brackets, or of
+    // the required module whose name is its namespace or the longest prefix of it at a dot (Q76).
+    private TypeHandle handle(TypeSyntax.Named named) throws AssemblyException {
+        TypeName name = named.name();
+        @Nullable Token scope = named.scope();
+        @Nullable TypeDef type = scope == null ? types.get(name.token().text()) : null;
+        if (type != null) {
+            for (String nested : name.nested()) {
+                @Nullable TypeDef inner = types.get(type.qualifiedName() + "/" + nested);
+                if (inner == null) {
+                    throw Parser.error(Diagnostic.NO_TYPE, name.token(), "the module defines no type "
+                            + type.qualifiedName() + "/" + nested);
+                }
+                type = inner;
+            }
+            return type;
+        }
+        @Nullable ModuleRef required = scope == null ? prefixModule(name.namespace()) : requires.get(scope.text());
+        if (required == null) {
+            if (scope != null) {
+                throw Parser.error(Diagnostic.NOT_REQUIRED, scope, "the module does not require " + scope.text());
+            }
+            throw Parser.error(Diagnostic.NO_MODULE, name.token(), "no required module holds the "
+                    + (name.namespace().isEmpty() ? "global namespace" : "namespace " + name.namespace()) + " of "
+                    + name.qualified() + "; name its module in brackets (Q76)");
+        }
+        identifier(name.token(), name.namespace());
+        identifier(name.token(), name.name());
+        String key = "[" + required.name() + "]" + name.token().text();
+        TypeRef ref = typeRef(required, name.namespace(), name.name(), key);
+        for (String nested : name.nested()) {
+            identifier(name.token(), nested);
+            key = key + "/" + nested;
+            ref = typeRef(ref, "", nested, key);
+        }
+        return ref;
+    }
+
+    private @Nullable ModuleRef prefixModule(String namespace) {
+        @Nullable ModuleRef best = null;
+        for (ModuleRef ref : module.requires()) {
+            String candidate = ref.name();
+            boolean prefix = namespace.equals(candidate) || namespace.startsWith(candidate + ".");
+            if (prefix && (best == null || candidate.length() > best.name().length())) {
+                best = ref;
+            }
+        }
+        return best;
+    }
+
+    // One TypeRef row per scope, namespace and name, which the key spells.
+    private TypeRef typeRef(TypeScope scope, String namespace, String name, String key) {
+        @Nullable TypeRef ref = typeRefs.get(key);
+        if (ref == null) {
+            ref = new TypeRef(scope, namespace, name);
+            typeRefs.put(key, ref);
+            module.typeRefs().add(ref);
+        }
+        return ref;
+    }
+
+    // The code of a primitive that the text names by its struct, such as reflect.core.Int32 (Q52), or 0.
+    private static int primitiveStruct(TypeSyntax.Named named) {
+        TypeName name = named.name();
+        return named.scope() == null && name.nested().isEmpty() ? Signatures.primitiveCode(name.namespace(), name.name()) : 0;
+    }
+
+    private static boolean valueKind(TypeHandle handle) {
+        return handle instanceof TypeDef def && Signatures.valueKind(def.kind());
+    }
+
     // The ancillary sections leave the contentHash as it is (BC-22), so the module written without
     // them tells whether a kept DEBUG is stale (BC-20).
     private byte[] write() throws AssemblyException {
@@ -214,9 +520,20 @@ public final class Assembler {
         }
     }
 
+    private static void check(Token at, @Nullable String problem) throws AssemblyException {
+        if (problem != null) {
+            throw content(at, problem);
+        }
+    }
+
     // A rule of the format, or a limit of BC-21, which the message names.
     private static AssemblyException content(Token at, String problem) {
         return Parser.error(problem.endsWith("(BC-21)") ? Diagnostic.LIMIT : Diagnostic.FORMAT, at, problem);
+    }
+
+    // A type that the first reading declared: its base type and interfaces as the text gives them,
+    // and the position of each member, which the second reading reads.
+    private record Declared(TypeDef type, @Nullable TypeSyntax base, List<TypeSyntax> interfaces, List<Integer> members) {
     }
 
     // A section of a .section directive.

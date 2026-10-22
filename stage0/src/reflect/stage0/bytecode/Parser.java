@@ -90,6 +90,117 @@ final class Parser {
         return next();
     }
 
+    /** ReturnType of §8.1: void, or a Type. */
+    TypeSyntax returnType(String what) throws AssemblyException {
+        if (at("void")) {
+            return new TypeSyntax.Primitive(next(), SigCode.VOID);
+        }
+        return type(what);
+    }
+
+    /** Type of §8.1: ref, in or out before a type, or a BaseType with its suffixes. */
+    TypeSyntax type(String what) throws AssemblyException {
+        Token start = peek();
+        if (at("ref") || at("in") || at("out")) {
+            int kind = at("ref") ? SigCode.BYREF_REF : at("in") ? SigCode.BYREF_IN : SigCode.BYREF_OUT;
+            next();
+            return new TypeSyntax.ByRef(start, kind, type("the type of a reference"));
+        }
+        TypeSyntax type = baseType(what);
+        while (true) {
+            int code = at("?") ? SigCode.NULLABLE : at("*") ? SigCode.PTR
+                    : at("[") && peekSecond().is("]") ? SigCode.ARRAY : 0;
+            if (code == 0) {
+                return type;
+            }
+            next();
+            if (code == SigCode.ARRAY) {
+                next();
+            }
+            type = new TypeSyntax.Suffixed(start, type, code);
+        }
+    }
+
+    private TypeSyntax baseType(String what) throws AssemblyException {
+        Token start = peek();
+        if (at("void")) {
+            throw error(Diagnostic.SYNTAX, start, "void stands only as a return type (BC-03)");
+        }
+        int primitive = primitive(start);
+        if (primitive != 0) {
+            next();
+            return new TypeSyntax.Primitive(start, primitive);
+        }
+        if (at("!") || at("!!")) {
+            boolean method = next().text().equals("!!");
+            return new TypeSyntax.TypeVar(start, method, digits("the index of a type parameter"));
+        }
+        if (accept("(")) {
+            var components = new ArrayList<TypeSyntax>();
+            components.add(type("a component of an intersection"));
+            expect("&");
+            do {
+                components.add(type("a component of an intersection"));
+            } while (accept("&"));
+            expect(")");
+            return new TypeSyntax.Intersection(start, components);
+        }
+        boolean valueType = accept("valuetype");
+        @Nullable Token scope = null;
+        if (accept("[")) {
+            scope = qualifiedName("the name of a required module");
+            expect("]");
+        }
+        TypeName name = typeName(what);
+        var arguments = new ArrayList<TypeSyntax>();
+        if (accept("<")) {
+            do {
+                arguments.add(typeArgument());
+            } while (accept(","));
+            expect(">");
+        }
+        return new TypeSyntax.Named(start, valueType, scope, name, arguments);
+    }
+
+    // TypeArg of §8.1: a type, or a wildcard with its bound.
+    private TypeSyntax typeArgument() throws AssemblyException {
+        Token start = peek();
+        if (!accept("?")) {
+            return type("a type argument");
+        }
+        if (accept("extends")) {
+            return new TypeSyntax.Wildcard(start, SigCode.WILDCARD_EXTENDS, type("the bound of a wildcard"));
+        }
+        if (accept("super")) {
+            return new TypeSyntax.Wildcard(start, SigCode.WILDCARD_SUPER, type("the bound of a wildcard"));
+        }
+        return new TypeSyntax.Wildcard(start, SigCode.WILDCARD_ANY, null);
+    }
+
+    /** The signature code of a primitive keyword (BC-03), or 0. */
+    static int primitive(Token token) {
+        if (token.kind() != Token.WORD) {
+            return 0;
+        }
+        String[] keywords = {"boolean", "byte", "ubyte", "short", "ushort", "char", "int", "uint", "long", "ulong",
+            "float", "double"};
+        for (int i = 0; i < keywords.length; i++) {
+            if (token.text().equals(keywords[i])) {
+                return SigCode.BOOLEAN + i;
+            }
+        }
+        return 0;
+    }
+
+    /** Digits of §8.1, a decimal u32 value without a sign. */
+    int digits(String what) throws AssemblyException {
+        Token token = peek();
+        if (!atKind(Token.NUMBER) || !decimal(token.text())) {
+            throw unexpected(what);
+        }
+        return u32(what);
+    }
+
     /** TypeName of §8.1: a QName, then an identifier after each "/". */
     TypeName typeName(String what) throws AssemblyException {
         Token token = qualifiedName(what);
