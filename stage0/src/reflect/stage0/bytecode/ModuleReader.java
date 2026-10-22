@@ -161,6 +161,10 @@ public final class ModuleReader {
         var exports = new ArrayList<Export>();
         for (int row = 1; row <= tables.rows(TableId.EXPORT); row++) {
             String namespace = ident(TableId.EXPORT, row, 0);
+            if (namespace.isEmpty()) {
+                throw new ModuleFormatException(tables.offset(TableId.EXPORT, row, 0), "the Export row names the global"
+                        + " namespace, which no module exports (MOD-01)");
+            }
             int kind = value(TableId.EXPORT, row, 1);
             if (kind != Flags.EXPORTS && kind != Flags.OPENS) {
                 throw new ModuleFormatException(tables.offset(TableId.EXPORT, row, 1), "Export kind " + hex(kind)

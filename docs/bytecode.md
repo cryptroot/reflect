@@ -187,7 +187,7 @@ u32, in the order given:
 | `Module` | `main` | `TypeDef` row of the descriptor's `main` class (VM-12), or 0 |
 | `ModuleRef` | `name` | IDENTS offset of a required module |
 | `ModuleRef` | `flags` | `ModuleRef` flags |
-| `Export` | `namespace` | IDENTS offset |
+| `Export` | `namespace` | IDENTS offset, not 0, since no module exports the global namespace (MOD-01) |
 | `Export` | `kind` | `Export` kind |
 | `Export` | `target` | IDENTS offset of the module it is qualified to, or 0 for every module |
 | `TypeDef` | `name` | IDENTS offset of the simple name |

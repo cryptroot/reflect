@@ -57,26 +57,25 @@ public final class ModuleTableTest {
         module.exports().add(new Export("app.a", Flags.OPENS, "tests"));
         module.exports().add(new Export("\uE000", Flags.EXPORTS, ""));
         module.exports().add(new Export("app.a", Flags.EXPORTS, "tests"));
-        module.exports().add(new Export("", Flags.EXPORTS, ""));
         module.exports().add(new Export("app.a", Flags.EXPORTS, ""));
         byte[] file = roundTrip(module);
         // The names of Export rows follow the ModuleRef names in IDENTS, in row order (BC-24).
         assertEquals("00 03 61 70 70 0C 72 65 66 6C 65 63 74 2E 63 6F 72 65 05 61 70 70 2E 61 05 74 65 73 74 73 "
                 + "05 61 70 70 2E 62 03 EE 80 80 04 F0 90 80 80", Leb128Test.hex(section(file, SectionId.IDENTS)));
-        // The global namespace, IDENTS 0, comes first, and U+E000 comes before U+10000 in UTF-8.
+        // Every module, the empty target, comes first, and U+E000 comes before U+10000 in UTF-8.
         var rows = new StringBuilder();
-        for (int row = 1; row <= 7; row++) {
+        for (int row = 1; row <= 6; row++) {
             for (int column = 0; column < 3; column++) {
                 rows.append(TestModules.column(file, TableId.EXPORT, row, column)).append(column < 2 ? " " : "; ");
             }
         }
-        assertEquals("0 0 0; 18 0 0; 18 0 24; 18 1 24; 30 0 0; 36 0 0; 40 0 0; ", rows.toString());
+        assertEquals("18 0 0; 18 0 24; 18 1 24; 30 0 0; 36 0 0; 40 0 0; ", rows.toString());
         var order = new StringBuilder();
         for (Export export : ModuleReader.read(file).exports()) {
             order.append(Leb128Test.hex(export.namespace().getBytes(java.nio.charset.StandardCharsets.UTF_8)))
                     .append(" / ").append(export.kind()).append(" / ").append(export.target()).append("; ");
         }
-        assertEquals(" / 0 / ; 61 70 70 2E 61 / 0 / ; 61 70 70 2E 61 / 0 / tests; 61 70 70 2E 61 / 1 / tests; "
+        assertEquals("61 70 70 2E 61 / 0 / ; 61 70 70 2E 61 / 0 / tests; 61 70 70 2E 61 / 1 / tests; "
                 + "61 70 70 2E 62 / 0 / ; EE 80 80 / 0 / ; F0 90 80 80 / 0 / ; ", order.toString());
     }
 
@@ -93,6 +92,9 @@ public final class ModuleTableTest {
         var kind = new ModuleDef("a", 0, 0, 0);
         kind.exports().add(new Export("a.b", 2, ""));
         unwritable(kind, "Export a.b has the undefined kind 2 (BC-20)");
+        var global = new ModuleDef("a", 0, 0, 0);
+        global.exports().add(new Export("", Flags.EXPORTS, ""));
+        unwritable(global, "an Export row names the global namespace, which no module exports (MOD-01)");
     }
 
     @Test
@@ -101,6 +103,8 @@ public final class ModuleTableTest {
         int[] module = {1, 0, 0, 0, 0, 0};
         rows(idents("m", "a"), new TestModules.Tables().rows(TableId.MODULE, module).rows(TableId.EXPORT, 3, 2, 0), 56,
                 "Export kind 0x2 is not defined (BC-20)");
+        rows(idents("m"), new TestModules.Tables().rows(TableId.MODULE, module).rows(TableId.EXPORT, 0, 0, 0), 52,
+                "the Export row names the global namespace, which no module exports (MOD-01)");
         rows(idents("m", "b", "a"), new TestModules.Tables().rows(TableId.MODULE, module)
                 .rows(TableId.EXPORT, 3, 0, 0, 5, 0, 0), 64, "the Export rows are not sorted by namespace, kind and target (BC-24)");
         rows(idents("m", "a"), new TestModules.Tables().rows(TableId.MODULE, module)

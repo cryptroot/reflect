@@ -96,17 +96,23 @@ public final class ModuleWriter {
                 throw new ModuleFormatException("Export " + export.namespace() + " has the undefined kind "
                         + export.kind() + " (BC-20)");
             }
+            if (export.namespace().isEmpty()) {
+                throw new ModuleFormatException("an Export row names the global namespace, which no module exports (MOD-01)");
+            }
             exports.add(export);
         }
         exports.sort(ModuleWriter::compareExports);
         for (int i = 1; i < exports.size(); i++) {
             if (compareExports(exports.get(i - 1), exports.get(i)) == 0) {
-                Export export = exports.get(i);
-                throw new ModuleFormatException("two Export rows have the key of "
-                        + (export.kind() == Flags.OPENS ? "opens " : "exports ") + export.namespace()
-                        + (export.target().isEmpty() ? "" : " to " + export.target()) + " (BC-24)");
+                throw new ModuleFormatException("two Export rows have the key of " + describe(exports.get(i)) + " (BC-24)");
             }
         }
+    }
+
+    /** The directive that gives the Export row: exports or opens, the namespace, and the target. */
+    static String describe(Export export) {
+        return (export.kind() == Flags.OPENS ? "opens " : "exports ") + export.namespace()
+                + (export.target().isEmpty() ? "" : " to " + export.target());
     }
 
     // The key of BC-11 is every column: the namespace, the kind, then the target, whose empty name,
