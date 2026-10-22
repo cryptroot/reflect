@@ -311,6 +311,23 @@ public final class DocumentTest {
         }
     }
 
+    @Test
+    public static void diagnosticCodes() throws IOException {
+        var listed = new HashSet<String>();
+        int previous = 0;
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Code | Name | Defect |")) {
+            String code = row.code(0);
+            row.check(code.matches("RFA[0-9]{4}"), "not an RFA code: " + code);
+            int value = Integer.parseInt(code.substring(3));
+            row.check(value > previous, "the codes are not in increasing order");
+            row.check(listed.add(row.code(1)), "lists " + row.code(1) + " twice");
+            row.expect("Diagnostic." + row.code(1), value, constant(row, Diagnostic.class, row.code(1)));
+            row.expect("the name of code " + value, code, Diagnostic.name(value));
+            previous = value;
+        }
+        checkAllListed(Diagnostic.class, listed);
+    }
+
     // Maps each rule of section 8.1 to the rules and character classes on its right side.
     private static Map<String, List<String>> grammar() throws IOException {
         List<String> lines = Files.readAllLines(BYTECODE, StandardCharsets.UTF_8);

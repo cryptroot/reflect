@@ -1036,6 +1036,21 @@ The operands of an instruction follow its operand kind in §5.1:
 | `<tok> <tok>` | `Type`, then `MethodRef` |
 | `<n> <n>` | `Int`, then `Int` |
 
+### 8.2 Diagnostics
+
+`rfla` reports the first defect that it finds and writes no module (Q79). A diagnostic has a code,
+and the line and column where the defect starts, which count code points from 1; a tab is one
+column. The codes are grouped by hundreds: `RFA00xx` for the characters of the text, `RFA01xx` for
+its syntax, `RFA02xx` for names and `RFA03xx` for content. Tests match the code and the position
+(TST-01), so a code keeps its meaning.
+
+| Code | Name | Defect |
+|---|---|---|
+| `RFA0001` | `CHARACTER` | a character that starts no token |
+| `RFA0002` | `UNCLOSED` | a string that does not end on its line |
+| `RFA0003` | `ESCAPE` | a backslash that starts no escape of §8.1 |
+| `RFA0004` | `ENCODING` | a byte sequence that is not UTF-8 |
+
 ## 9. Binary compatibility
 
 - **BC-06 [Proposed]** Instance calls into another module always use `callvirt`, which the VM
