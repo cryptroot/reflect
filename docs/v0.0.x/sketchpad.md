@@ -17,7 +17,7 @@ log is [../sketchpad.md](../sketchpad.md).
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
-| v0.0.3 | assembler; suite runner for rejected files | not started |
+| v0.0.3 | assembler; suite runner for rejected files | done; `all` passes with 170 tests, 0 failures, and the `bytecode` job with 8 files, 0 failures; tag `v0.0.3`, 2026-10-22 |
 | v0.0.4 | disassembler, round trip | not started |
 | v0.0.5 | VM0 loader and core interpreter | not started |
 | v0.0.6 | VM0 objects and dispatch | not started |
@@ -46,8 +46,8 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [architecture.md](../architecture.md) §3 | the layout gains `.gitattributes`, `docker/dev.ps1`, `docker/dev.sh`, `docker/ci.sh` and `tests/bytecode/` (README §6.1) | done in v0.0.0 |
 | [bootstrapping.md](../bootstrapping.md) BOOT-10 | the package list gains `reflect.stage0.bytecode` and `reflect.stage0.tools` | done in v0.0.0 (Q47) |
 | [bootstrapping.md](../bootstrapping.md) BOOT-11, BOOT-12 | one writer, written in stage0, instead of a Java port of a Reflect writer; the transliterator also prints `reflect.bytecode` | Q47 |
-| [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes, the Stack column of §5.1 | done in v0.0.1, except the `RFA` codes and the Stack column (v0.0.3, Q77, Q79) |
-| [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | v0.0.3 |
+| [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes, the Stack column of §5.1 | done in v0.0.1; the `RFA` codes and the Stack column in v0.0.3 (Q77, Q79) |
+| [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | done in v0.0.3 (TST-13) |
 | [examples.md](../examples.md) §11.1, §11.2 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3); the `.try` blocks become regions in label form, and calls into other modules state their signatures (A.2 item 9) | with [../sketchpad.md](../sketchpad.md) A.6 |
 | [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | done 2026-10-20 (Q57 to Q62) |
 
