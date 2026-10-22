@@ -457,7 +457,9 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   serves reflection, errors and `.rfla`: qualified names, arguments in angle brackets, `?` for
   nullability, intersections in parentheses, primitives by struct name (ex §3.3 prints
   `reflect.collections.List<reflect.core.Int32>`). The last dotted segment names the top-level
-  type, and `/` starts each nested type, as in CIL: `demo.zoo.Enclosure/Tag`.
+  type, and `/` starts each nested type, as in CIL: `demo.zoo.Enclosure/Tag`. `.rfla` puts the
+  module in brackets before a type of another module when its namespace does not name that
+  module (BC-08, Q76).
 
 ## 9. Properties, indexers, events (MEM, continued)
 

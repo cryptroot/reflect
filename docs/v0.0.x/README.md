@@ -235,8 +235,9 @@ Inside the container (job `shell`):
 | `// args: a b c` | arguments for `main` |
 | `// expect-error: RFAnnnn @ line:col` | `rfla` rejects the file with this diagnostic |
 
-- Assembler diagnostics have codes `RFA0001` and up, in the style of CMP-02, listed in
-  [bytecode.md](../bytecode.md) §8.
+- Assembler diagnostics have codes `RFA0001` and up, in the style of CMP-02, grouped by hundreds
+  and listed in [bytecode.md](../bytecode.md) §8.2 (Q79). `rfla` stops at the first error, so a
+  file in `invalid/` holds one `expect-error`.
 - A directory under `run/` is one multi-module test. Its expectations sit in its `test.rfla`, as
   for `.rfl` tests (TST-01).
 - `rfla` ignores comments, and `rfld` does not print them.
@@ -432,29 +433,51 @@ identical bytes, and every defect is rejected with a message that names its offs
 **Design.**
 
 - A lexer and a recursive-descent parser for the grammar of §7.2. Diagnostics carry a code
-  (`RFA0001` and up), a line and a column (§6.3). Content over a limit of BC-21 is a diagnostic.
+  (`RFA0001` and up), a line and a column (§6.3), which count code points from 1, a tab as one
+  column. `rfla` stops at the first diagnostic (Q79). Content over a limit of BC-21 is a
+  diagnostic.
+- Tables added: `Export` and `InterfaceImpl`, for `.exports`, `.opens` and `implements` (Q75).
+  The parser also reads the syntax of the tables that come later, `Constant`, `Override`,
+  `TypeSpec`, `GenericParam` and `MethodSpec`, and `rfla` rejects it with one code until their
+  stage.
 - Names resolve to definitions in the module, or to `TypeRef` and `MemberRef` rows that are
-  created at first use. Labels become offsets in the writer.
+  created at first use. A `TypeRef` belongs to the required module whose name is its namespace or
+  the longest prefix of it at a dot, or else to the module in brackets before it (Q76). Labels
+  become offsets in the writer.
 - A reference to a member or a value type of another module states its signature: `static`, the
-  return type or field type, and `valuetype` (Q69). `rfla` reads no other module; the short form
-  serves only the members and types of the module it assembles.
-- `.maxstack` is used when present. Otherwise the assembler computes the depth from the stack
-  effect of each instruction, call signatures included.
+  return type or field type, `valuetype`, and `...` for a variadic method (Q69, Q78). `rfla` reads
+  no other module; the short form serves only the members and types of the module it assembles.
+- `.unsafe` sets the header flag `UNSAFE` (Q78).
+- `.maxstack` is used when present. Otherwise `rfla` computes the depth from the Stack column of
+  §5.1, call signatures included (Q77):
+  - the first instruction has depth 0, a catch handler starts at 1 and a finally handler at 0;
+  - `leave` empties the stack, and `br`, `leave`, `ret`, `throw`, `rethrow` and `endfinally` do not
+    go on to the next instruction;
+  - two paths into one instruction have the same depth, and no instruction pops more than the
+    stack holds; otherwise `rfla` reports a diagnostic;
+  - instructions that no path reaches do not count.
 - `.stackmap` directives are stored as written (Q50).
 - Names are spelled as GEN-12 states; primitive keywords and type-parameter names are accepted
-  only if Q52 allows them.
+  too (Q52).
 
 **Commits.**
 
-1. The lexer.
-2. Module directives: `.module`, `.main`, `.requires`, `.exports`, `.opens`, `.section`.
-3. `.class` with its kind, modifiers, `extends` and `implements`; `.field`.
-4. `.method` with its signature, and `.locals`.
-5. Instructions: without operands, with immediates, with references, with labels, and `switch`.
-6. `.try`, `.catch`, `.finally`, `.maxstack`, `.line` and `.stackmap`.
-7. The command `rfla`.
-8. The command `test`, first part: it finds the test files, and checks that each file in
-   `invalid/` fails with its `expect-error`. The job `bytecode` runs it.
+1. The `Export` table: model, writer and reader (Q75).
+2. The `InterfaceImpl` table (Q75).
+3. The Stack column of §5.1, and the stack effects in `Opcode` (Q77).
+4. The lexer, and the codes of bytecode.md §8.2.
+5. Module directives: `.module`, `.main`, `.requires`, `.exports`, `.opens`, `.unsafe`,
+   `.section`.
+6. Types, with the scope of a `TypeRef` (Q76); `.class` with its kind, modifiers, `extends` and
+   `implements`; `.field`.
+7. `.method` with its signature, and `.locals`.
+8. Instructions: without operands, with immediates, with references, with labels, and `switch`;
+   the stack depth.
+9. `.try`, `.catch`, `.finally`, `.maxstack`, `.source`, `.line` and `.stackmap`.
+10. The command `rfla`.
+11. The command `test`, first part: it finds the test files, checks that each file in `invalid/`
+    fails with its `expect-error`, and that each other file assembles into a module that the
+    reader accepts. The job `bytecode` runs it, and `all` runs it before `lean`.
 
 **Exit check.** Every file in `format/` assembles, and every file in `invalid/` fails with its
 expected code and position. Tag `v0.0.3`.
@@ -560,8 +583,8 @@ tests and class initialization.
   `TypeLoadError`.
 - `ceq.ref` compares identity, and two boxes by class and contents (DAT-09). Boxes arrive in
   v0.0.7, which tests that path.
-- Tables added: `InterfaceImpl`, `Override`, `Constant`, and `TypeSpec` for nullable types
-  (`NULLABLE`, BC-03).
+- Tables added: `Override`, `Constant`, and `TypeSpec` for nullable types (`NULLABLE`, BC-03).
+  `InterfaceImpl` comes from v0.0.3 (Q75).
 
 **Commits.**
 

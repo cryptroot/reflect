@@ -868,14 +868,17 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 
 ## 8. Assembly syntax
 
-- **BC-08 [Proposed; references and regions Decided, Q69, Q71]** `.rfla` maps one-to-one to the
-  binary, so `rfld` then `rfla` reproduces a module byte for byte (ex §12.2). Directives:
-  `.module name version`, `.main`, `.requires`, `.exports`, `.opens`, `.source`, `.class`,
-  `.field`, `.method`, `.property`, `.event`, `.override`, `.annotation`, `.locals`, `.maxstack`,
-  `.try`, `.catch`, `.finally`, `.line`, `.stackmap`, `.section`; labels end in `:`; type names
-  use the canonical spelling (GEN-12), with `!0` and `!!0` for type parameters. `.main` names the
-  descriptor's `main` class (VM-12). A reference to another module states the signature that its
-  row holds (Q69), so `rfla` reads no other module. `rfld` prints a section it cannot print as
+- **BC-08 [Proposed; references, regions and module scopes Decided, Q69, Q71, Q76, Q78]** `.rfla`
+  maps one-to-one to the binary, so `rfld` then `rfla` reproduces a module byte for byte (ex §12.2).
+  Directives: `.module name version`, `.main`, `.requires`, `.exports`, `.opens`, `.unsafe`,
+  `.source`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`, `.annotation`,
+  `.locals`, `.maxstack`, `.try`, `.catch`, `.finally`, `.line`, `.stackmap`, `.section`; labels
+  end in `:`; type names use the canonical spelling (GEN-12), with `!0` and `!!0` for type
+  parameters. `.main` names the descriptor's `main` class (VM-12), and `.unsafe` sets the header
+  flag `UNSAFE`. A reference to another module states the signature that its row holds (Q69), so
+  `rfla` reads no other module. A type of another module belongs to the required module whose name
+  is its namespace or the longest prefix of it at a dot; otherwise the text names the module in
+  brackets, `[reflect.core]reflect.meta.Type` (Q76). `rfld` prints a section it cannot print as
   directives, such as an unknown ancillary section (BC-20), as `.section <id> hex "..."`, so the
   round trip covers it too. §8.1 gives the grammar; `.property`, `.event` and `.annotation` join
   it with their tables.
@@ -904,13 +907,14 @@ in either case, and `Char` is any character but `"`, `\` and a line end.
 
 ```text
 File         = ModuleDecl TopLevel* ;
-TopLevel     = Main | Requires | Exports | Opens | Source | Section | Class ;
+TopLevel     = Main | Requires | Exports | Opens | Unsafe | Source | Section | Class ;
 ModuleDecl   = ".module" QName Version ;
 Main         = ".main" TypeName ;
 Requires     = ".requires" ( "transitive" | "static" )* QName ;
 Exports      = ".exports" QName ToModules? ;
 Opens        = ".opens" QName ToModules? ;
 ToModules    = "to" QName ( "," QName )* ;
+Unsafe       = ".unsafe" ;
 Source       = ".source" String Hex ;
 Section      = ".section" Int Hex ;
 
@@ -953,10 +957,11 @@ Operand      = Int | Real | String | Index | Label | Targets | Type | FieldRef |
 Index        = Int | Ident ;
 Targets      = "(" ( Label ( "," Label )* )? ")" ;
 FieldRef     = Type? Type "::" Ident ;
-MethodRef    = ( "static"? ReturnType )? Type "::" Ident TypeArgs? "(" Types? ")" ;
+MethodRef    = ( "static"? ReturnType )? Type "::" Ident TypeArgs? "(" ( Types "..."? )? ")" ;
 
 Type         = ( "ref" | "in" | "out" ) Type | BaseType Suffix* ;
-BaseType     = Primitive | "valuetype"? TypeName TypeArgs? | TypeVar | Intersection ;
+BaseType     = Primitive | "valuetype"? ModuleScope? TypeName TypeArgs? | TypeVar | Intersection ;
+ModuleScope  = "[" QName "]" ;
 TypeVar      = "!" Digits | "!!" Digits ;
 Intersection = "(" Type ( "&" Type )+ ")" ;
 Suffix       = "?" | "[" "]" | "*" ;
@@ -987,9 +992,13 @@ HexDigits    = HexDigit+ ;
   follows its enclosing type after `/` (GEN-12).
 - A name resolves to a type parameter in scope before a type, and a primitive keyword means its
   struct (Q52). `valuetype` marks a value type (Q69).
+- A type that the module does not define belongs to the required module whose name equals its
+  namespace or is the longest prefix of it at a dot. `ModuleScope` names a required module
+  instead, and `rfld` prints it only where that rule gives another module (Q76).
 - The short form of `FieldRef` and `MethodRef`, without the leading field type, `static` or
   return type, refers only to a member of the module being assembled, and `rfld` always prints
-  the full form (Q69). `TypeArgs` after a method name instantiate it (a `MethodSpec`).
+  the full form (Q69). `TypeArgs` after a method name instantiate it (a `MethodSpec`), and `...`
+  after its types marks a variadic method (MEM-10, Q78).
 - `.override` in a method makes the method fill the slot of the method it names (BC-12).
 - A `Label` names the offset of the instruction that follows it. `Region` lines may appear
   anywhere in a body (Q71).

@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
@@ -46,7 +46,7 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [architecture.md](../architecture.md) §3 | the layout gains `.gitattributes`, `docker/dev.ps1`, `docker/dev.sh`, `docker/ci.sh` and `tests/bytecode/` (README §6.1) | done in v0.0.0 |
 | [bootstrapping.md](../bootstrapping.md) BOOT-10 | the package list gains `reflect.stage0.bytecode` and `reflect.stage0.tools` | done in v0.0.0 (Q47) |
 | [bootstrapping.md](../bootstrapping.md) BOOT-11, BOOT-12 | one writer, written in stage0, instead of a Java port of a Reflect writer; the transliterator also prints `reflect.bytecode` | Q47 |
-| [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes | done in v0.0.1, except the `RFA` codes (v0.0.3) |
+| [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes, the Stack column of §5.1 | done in v0.0.1, except the `RFA` codes and the Stack column (v0.0.3, Q77, Q79) |
 | [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | v0.0.3 |
 | [examples.md](../examples.md) §11.1, §11.2 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3); the `.try` blocks become regions in label form, and calls into other modules state their signatures (A.2 item 9) | with [../sketchpad.md](../sketchpad.md) A.6 |
 | [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | done 2026-10-20 (Q57 to Q62) |
@@ -73,6 +73,20 @@ These follow from the plan. Each is made in the stage named, or when its questio
 10. README §7.7 makes VM0 check `permits` at load (v0.0.6), but BC-11 has no table that lists
     the permitted subtypes of a sealed type (DAT-06). Settle before v0.0.6: a `Permits` table, or
     a check that every subtype of a sealed type is in its module. Found 2026-10-20 in v0.0.1.
+11. A `MethodRef` states no `GENERIC` count unless it instantiates the method, so a `MemberRef`
+    row with `GENERIC` that no `MethodSpec` names has no text. Settle with `MethodSpec` in
+    v0.0.9. Found 2026-10-22 in v0.0.3 (Q78).
+12. The reader accepts `TypeRef` and `MemberRef` rows that nothing in the module references, but
+    `rfla` makes these rows only at their first use, so `rfld` cannot print such a module. Settle
+    in v0.0.4: a rule of BC-24 that every such row is referenced, or a directive that declares
+    one. Found 2026-10-22 in v0.0.3 (Q78).
+13. BC-03 keeps the structs of primitives out of signatures, but the reader accepts a `TypeRef`
+    row for `reflect.core.Int32` that an instruction or a base type names. In `.rfla` that name is
+    the primitive (Q52), so only the brackets of Q76 can print the row. Settle in v0.0.4. Found
+    2026-10-22 in v0.0.3 (Q78).
+14. A name that equals a word the grammar takes at its place cannot be written there: a type in
+    the global namespace named `record` or `final` after `.class`, or a parameter type named
+    `scoped`. Settle in v0.0.4, when `rfld` must print every name. Found 2026-10-22 in v0.0.3.
 
 ## B. Questions and answers
 
@@ -375,6 +389,55 @@ before v0.0.9 no definition has any, and a `MemberRef`'s `MVAR` is checked again
 VM0 needs them, with the reader rejecting the others until then. **Answer:** 2026-10-21: Accepted
 as recommended. README §7.3 and §7.10 follow.
 
+### B.7 Batch 11: the v0.0.3 assembler (asked and answered 2026-10-22)
+
+Found while v0.0.3 was planned.
+
+**Q75 (BC-11; README §7.4, §7.7). Tables for the directives of v0.0.3.** README §7.4 commits 2
+and 3 assemble `.exports`, `.opens` and `implements`, but the v0.0.2 model has no `Export` or
+`InterfaceImpl` table; README §7.7 added `InterfaceImpl` in v0.0.6, and no stage added `Export`.
+*Recommendation:* v0.0.3 adds the two tables that its commits name, with their writer and reader
+checks. `Constant`, `Override`, `TypeSpec`, `GenericParam` and `MethodSpec` stay in v0.0.6 and
+v0.0.9; `rfla` parses their syntax and rejects it with one code until then. Alternatives:
+`Export` only, with `implements` rejected until v0.0.6; or no new table. **Answer:** 2026-10-22:
+Accepted as recommended. README §7.4 and §7.7 follow.
+
+**Q76 (BC-08, BC-11, MOD-04). The module of a `TypeRef`.** A `TypeRef` row names its module
+through a `ModuleRef`, but the grammar could not say which required module holds
+`reflect.io.Console`, and `rfla` reads no other module (Q69). *Recommendation:* the scope is the
+required module whose name equals the namespace or is its longest prefix at a dot; when no
+required module matches, or the type is in another one, the text names the module in brackets, as
+CIL does: `[reflect.core]reflect.meta.Type`, since LIB-01 puts namespace `reflect.meta` in
+`reflect.core`. `rfld` prints the brackets only when the prefix rule gives another module, so the
+round trip stays exact. Alternatives: brackets on every reference; a directive that maps a
+namespace to a module. **Answer:** 2026-10-22: Accepted as recommended. BC-08, its grammar
+(`ModuleScope`) and GEN-12 follow.
+
+**Q77 (BC-04, BC-17; README §7.4). Stack effects.** Without `.maxstack`, `rfla` computes the
+stack depth from the stack effect of each instruction, but no rule stated the effects, and
+`rflc0` (v0.1) and the verifier (v0.7) need the same ones. *Recommendation:* a Stack column in the
+opcode table of §5.1, with the effects in `Opcode`, which the document test compares in both
+directions. README §7.4 states the computation: depth 0 at entry, 1 at a catch handler and 0 at a
+finally handler; `leave` empties the stack; two paths into one instruction agree; unreachable code
+does not count. Alternatives: the effects in code only; or `.maxstack` in every body.
+**Answer:** 2026-10-22: Accepted as recommended. README §7.4 follows.
+
+**Q78 (BC-08, UNS-02, MEM-10). Two gaps in the grammar.** The grammar could not express the
+header flag `UNSAFE`, nor a reference to a `VARIADIC` method of another module, so `rfld` could not
+print such a module. *Recommendation:* `.unsafe` sets the header flag, and a `MethodRef` may end
+its types with `...`, as a `Param` does. A.2 records three more gaps for later stages.
+Alternative: leave both to v0.0.4. **Answer:** 2026-10-22: Accepted as recommended. BC-08 and its
+grammar follow (A.2 items 11 to 13).
+
+**Q79 (CMP-02, TST-01; README §6.3). Assembler diagnostics.** *Recommendation:* `rfla` stops at
+the first error, so a file in `invalid/` holds one `expect-error`. Codes are grouped by hundreds:
+`RFA00xx` lexical, `RFA01xx` syntax, `RFA02xx` names, `RFA03xx` content. Content has one code for a
+rule of the format, whose message names the rule, one for a limit of BC-21, one for syntax whose
+table comes in a later stage, and one for a stack depth that cannot be computed. Lines and columns
+count code points from 1, and a tab is one column. bytecode.md §8.2 lists the codes, and the
+document test compares them with the code. Alternatives: every error, with recovery; one code per
+rule of the format. **Answer:** 2026-10-22: Accepted as recommended. README §6.3 and §7.4 follow.
+
 <!-- questions:end -->
 
 ## C. Traceability
@@ -384,7 +447,7 @@ as recommended. README §7.3 and §7.10 follow.
 | these documents | every stage updates the sections it implements; A.1 | architecture.md §0 |
 | the `.rflc` format | v0.0.1, v0.0.2 | BC-02, BC-03, BC-04, BC-10, BC-11, BC-12, BC-17, BC-18, BC-19, BC-20, BC-21, BC-22, BOOT-05 |
 | the `reflect.bytecode` design | v0.0.2 to v0.0.4 | ARC-11, BC-08, Q47 |
-| the assembler | v0.0.3, v0.0.4 | BC-08, TST-09 |
+| the assembler | v0.0.3, v0.0.4 | BC-04, BC-08, BC-11, TST-01, TST-09 |
 | VM0 in stage0 | v0.0.5 to v0.0.9 | BOOT-04, VM-03, VM-06, VM-07, VM-12, VM-13, VM-17, VM-20, VM-21, BC-05, BC-06, BC-14, BC-15, BC-16, BC-23, NUL-01, NUL-05, NUL-07, DAT-09, GEN-02, GEN-04, GEN-09, EXC-05, EXC-06, EXC-07, UNS-03, LIB-03 |
 | exit test | v0.0.4 (round trip), v0.0.5 (runs on VM0), v0.0.9 (the whole suite) | RM-03 |
 | Docker on Windows and Linux, Lean in Docker (instruction, 2026-10-19) | v0.0.0 | BLD-05, BLD-06, TST-05, LEAN-04 |
