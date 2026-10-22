@@ -27,6 +27,14 @@ public final class Assembler {
         "backing"};
     private static final int[] FIELD_FLAGS = {Flags.PUBLIC, Flags.PROTECTED, Flags.PRIVATE, Flags.FIELD_STATIC,
         Flags.FIELD_FINAL, Flags.FIELD_CONST, Flags.FIELD_BACKING};
+    private static final String[] METHOD_WORDS = {"public", "protected", "private", "static", "virtual", "abstract",
+        "final", "native", "extern", "unsafe", "mutating", "const", "precompile", "synthesized"};
+    private static final int[] METHOD_FLAGS = {Flags.PUBLIC, Flags.PROTECTED, Flags.PRIVATE, Flags.METHOD_STATIC,
+        Flags.METHOD_VIRTUAL, Flags.METHOD_ABSTRACT, Flags.METHOD_FINAL, Flags.METHOD_NATIVE, Flags.METHOD_EXTERN,
+        Flags.METHOD_UNSAFE, Flags.METHOD_MUTATING, Flags.METHOD_CONST, Flags.METHOD_PRECOMPILE,
+        Flags.METHOD_SYNTHESIZED};
+    private static final String[] PARAM_WORDS = {"scoped", "this"};
+    private static final int[] PARAM_FLAGS = {Flags.PARAM_SCOPED, Flags.PARAM_THIS};
 
     private final Parser parser;
     private final ModuleDef module;
@@ -212,13 +220,13 @@ public final class Assembler {
         var declared = new Declared(type, base, interfaces, new ArrayList<>());
         classes.add(declared);
         while (!parser.at("}")) {
-            if (parser.atDirective(".field")) {
+            if (parser.atDirective(".field") || parser.atDirective(".method")) {
                 declared.members().add(parser.position());
                 skipMember();
             } else if (parser.atDirective(".class")) {
                 declare(type);
             } else {
-                throw parser.unexpected(".field, .class or }");
+                throw parser.unexpected(".field, .method, .class or }");
             }
         }
         parser.next();
@@ -255,11 +263,18 @@ public final class Assembler {
         return code;
     }
 
-    // Skips a member, which the second reading reads; it stops where the next member could start.
+    // Skips a member, which the second reading reads; it stops where the next member could start,
+    // after the body of a method.
     private void skipMember() {
+        boolean method = parser.atDirective(".method");
         parser.next();
         while (!parser.atKind(Token.END) && !parser.atKind(Token.DIRECTIVE) && !parser.at("{") && !parser.at("}")) {
             parser.next();
+        }
+        if (method && parser.accept("{")) {
+            while (!parser.atKind(Token.END) && !parser.accept("}")) {
+                parser.next();
+            }
         }
     }
 
@@ -284,9 +299,13 @@ public final class Assembler {
             }
             for (int position : declared.members()) {
                 parser.seek(position);
-                field(type);
-                if (!parser.atKind(Token.DIRECTIVE) && !parser.at("}")) {
-                    throw parser.unexpected(".field, .class or }");
+                if (parser.atDirective(".method")) {
+                    method(type);
+                } else {
+                    field(type);
+                    if (!parser.atKind(Token.DIRECTIVE) && !parser.at("}")) {
+                        throw parser.unexpected(".field, .method, .class or }");
+                    }
                 }
             }
         }
@@ -304,6 +323,107 @@ public final class Assembler {
         var field = new FieldDef(flags, name.text(), fieldType);
         check(name, ModuleWriter.fieldProblem(field, "field " + type.qualifiedName() + "::" + name.text(), module.name()));
         type.fields().add(field);
+    }
+
+    // A method named new or static is a constructor or a static initializer (§3.1), and ... after
+    // the type of its last parameter makes it variadic (MEM-10).
+    private void method(TypeDef type) throws AssemblyException {
+        parser.next();
+        int flags = flags(METHOD_WORDS, METHOD_FLAGS);
+        TypeSig returnType = definition(parser.returnType("the return type"), Signatures.RETURN);
+        Token name = parser.identifier("the name of the method");
+        identifier(name, name.text());
+        if (name.text().equals("new") || name.text().equals("static")) {
+            flags |= Flags.METHOD_CONSTRUCTOR;
+        }
+        if (parser.at("<")) {
+            throw Parser.error(Diagnostic.LATER, parser.peek(), "the GenericParam table arrives in v0.0.9");
+        }
+        parser.expect("(");
+        int signatureFlags = (flags & Flags.METHOD_STATIC) != 0 ? SigCode.METHOD_STATIC : 0;
+        var types = new ArrayList<TypeSig>();
+        var params = new ArrayList<ParamDef>();
+        @Nullable Token variadic = null;
+        if (!parser.at(")")) {
+            do {
+                if (variadic != null) {
+                    throw Parser.error(Diagnostic.FORMAT, variadic, "only the last parameter is variadic (BC-03)");
+                }
+                int paramFlags = flags(PARAM_WORDS, PARAM_FLAGS);
+                types.add(definition(parser.type("the type of a parameter"), Signatures.OTHER));
+                if (parser.at("...")) {
+                    variadic = parser.next();
+                    signatureFlags |= SigCode.METHOD_VARIADIC;
+                }
+                params.add(new ParamDef(paramFlags, optionalName("the name of a parameter")));
+            } while (parser.accept(","));
+        }
+        parser.expect(")");
+        parser.expect("{");
+        var method = new MethodDef(flags, name.text(), new MethodSig(signatureFlags, 0, returnType, types));
+        for (ParamDef param : params) {
+            method.params().add(param);
+        }
+        method.setBody(Code.hasBody(flags) ? new MethodBody(0) : null);
+        String owner = "method " + type.qualifiedName() + "::" + name.text();
+        check(name, ModuleWriter.methodProblem(method, owner, module.name()));
+        type.methods().add(method);
+        body(method, owner);
+    }
+
+    // The items of a body up to its }; a method without a body has none.
+    private void body(MethodDef method, String owner) throws AssemblyException {
+        boolean locals = false;
+        while (!parser.at("}")) {
+            Token at = parser.peek();
+            MethodBody body = method.body();
+            if (parser.atDirective(".override")) {
+                throw Parser.error(Diagnostic.LATER, at, "the Override table arrives in v0.0.6");
+            } else if (body == null) {
+                // The writer's message, at the first item of a body that the method cannot have.
+                method.setBody(new MethodBody(0));
+                check(at, ModuleWriter.methodProblem(method, owner, module.name()));
+            } else if (parser.atDirective(".locals")) {
+                if (locals) {
+                    throw Parser.error(Diagnostic.REPEATED, at, "the body has one .locals");
+                }
+                locals = true;
+                locals(body);
+            } else {
+                throw parser.unexpected(".locals, .override or }");
+            }
+        }
+        parser.next();
+    }
+
+    // The types of the locals, and the names that DEBUG holds (§6.1).
+    private void locals(MethodBody body) throws AssemblyException {
+        Token directive = parser.next();
+        parser.expect("(");
+        if (!parser.at(")")) {
+            do {
+                TypeSig type = definition(parser.type("the type of a local"), Signatures.OTHER);
+                String name = optionalName("the name of a local");
+                if (!name.isEmpty()) {
+                    body.localNames().add(new LocalName(body.locals().size(), name));
+                }
+                body.locals().add(type);
+            } while (parser.accept(","));
+        }
+        parser.expect(")");
+        if (!body.locals().isEmpty()) {
+            check(directive, Signatures.localsProblem(body.locals(), ModuleWriter.DEFINITION, module.name()));
+        }
+    }
+
+    // The Ident that names a parameter or a local, or the empty name when none follows.
+    private String optionalName(String what) throws AssemblyException {
+        if (!parser.atKind(Token.WORD)) {
+            return "";
+        }
+        Token name = parser.identifier(what);
+        identifier(name, name.text());
+        return name.text();
     }
 
     // The words of a list of flags, in any order, each once.

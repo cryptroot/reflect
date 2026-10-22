@@ -162,7 +162,7 @@ public final class AssembleTypesTest {
                 "2:20: RFA0202: no required module holds the global namespace of G; name its module in brackets (Q76)");
         unassemblable(M + ".class a.A extends [x]x.Y {\n}", "2:21: RFA0203: the module does not require x");
         unassemblable(M + ".class a.A", "2:11: RFA0101: expected {, found the end of the file");
-        unassemblable(M + ".class a.A {\n", "3:1: RFA0101: expected .field, .class or }, found the end of the file");
+        unassemblable(M + ".class a.A {\n", "3:1: RFA0101: expected .field, .method, .class or }, found the end of the file");
         unassemblable(M + ".main a.B\n.class a.A {\n}", "2:7: RFA0201: the module defines no type a.B");
         String field = M + ".class a.A {\n.field ";
         unassemblable(field + "int x = 1\n}", "3:14: RFA0303: the Constant table arrives in v0.0.6");
@@ -172,7 +172,7 @@ public final class AssembleTypesTest {
         unassemblable(field + "void x\n}", "3:8: RFA0101: void stands only as a return type (BC-03)");
         unassemblable(field + "valuetype a.A x\n}", "3:8: RFA0301: a.A is a reference type, so CLASS names it (BC-03)");
         unassemblable(field + "a.A/B x\n}", "3:8: RFA0201: the module defines no type a.A/B");
-        unassemblable(field + "int x y\n}", "3:14: RFA0101: expected .field, .class or }, found y");
+        unassemblable(field + "int x y\n}", "3:14: RFA0101: expected .field, .method, .class or }, found y");
         unassemblable(field + "int\n}", "4:1: RFA0101: expected the name of the field, found }");
         unassemblable(field + "!0 x\n}", "3:8: RFA0301: VAR 0 names no type parameter of the type (BC-03)");
         unassemblable(field + "reflect.core.Int32<int> x\n}", "3:8: RFA0301: a primitive takes no type arguments (BC-03)");

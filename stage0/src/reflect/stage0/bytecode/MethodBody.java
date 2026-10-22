@@ -9,7 +9,7 @@ import reflect.stage0.lib.List;
  * frames (BC-19); and its line entries and the names of its locals, which DEBUG holds (§6.1).
  */
 public final class MethodBody {
-    private final int maxStack;
+    private int maxStack;
     private final List<TypeSig> locals = new ArrayList<>();
     private final List<Instruction> code = new ArrayList<>();
     private final List<Region> regions = new ArrayList<>();
@@ -23,6 +23,11 @@ public final class MethodBody {
 
     public int maxStack() {
         return maxStack;
+    }
+
+    /** Sets the maximum stack depth, which rfla knows only once it has read the instructions. */
+    public void setMaxStack(int maxStack) {
+        this.maxStack = maxStack;
     }
 
     /** The types of the locals, numbered from 0; a body without locals has none. */

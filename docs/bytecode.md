@@ -1005,6 +1005,9 @@ HexDigits    = HexDigit+ ;
   the full form (Q69). `TypeArgs` after a method name instantiate it (a `MethodSpec`), and `...`
   after its types marks a variadic method (MEM-10, Q78).
 - `.override` in a method makes the method fill the slot of the method it names (BC-12).
+- A `Method` named `new` is a constructor and one named `static` a static initializer, so both
+  get the `CONSTRUCTOR` flag (§3.1). Only the last `Param` takes `...`, which makes the method
+  variadic (MEM-10). A method without a body holds no `BodyItem` but `.override`.
 - A `Label` names the offset of the instruction that follows it. `Region` lines may appear
   anywhere in a body (Q71).
 - `.locals` gives the types of the locals and, in DEBUG, their names; an `Index` names an

@@ -326,9 +326,11 @@ public final class ModuleWriter {
                 if (methodRows.containsKey(method)) {
                     throw new ModuleFormatException(owner + " belongs to two types or appears twice");
                 }
-                checkMethod(method, owner);
-                checkSignature(method, owner);
-                checkBody(method, owner);
+                check(methodProblem(method, owner, module.name()));
+                MethodBody body = method.body();
+                if (body != null) {
+                    check(Code.problem(body, Code.arguments(method.signature()), module.name()), owner);
+                }
                 methods.add(method);
                 methodRows.put(method, methods.size());
                 methodOwners.add(owner);
@@ -390,34 +392,47 @@ public final class ModuleWriter {
                 memberRefSignatures.getOrDefault(right, new byte[0]));
     }
 
-    // The rules that tie a definition's signature to its row: STATIC in both or in neither, no
-    // GENERIC until GenericParam rows exist, and one Param row per parameter (BC-11, BC-24).
-    private void checkSignature(MethodDef method, String owner) throws ModuleFormatException {
+    /**
+     * The first rule that the method breaks, or null: defined flags with at most one visibility, the
+     * name of a constructor, the limit of parameters, its signature, which has STATIC exactly when
+     * the method has, no GENERIC until GenericParam rows exist and one Param row per parameter, and
+     * a body exactly when it is not ABSTRACT, NATIVE or EXTERN (BC-11, BC-21, BC-24). The rules of the
+     * body itself are those of Code.
+     */
+    static @Nullable String methodProblem(MethodDef method, String owner, String module) {
+        String problem = flagsProblem(method.flags(), METHOD_FLAGS, owner);
+        if (problem == null) {
+            problem = visibilityProblem(method.flags(), owner);
+        }
+        String name = constructorName(method.flags(), method.name());
+        if (problem == null && name != null) {
+            problem = owner + ": " + name;
+        }
+        if (problem == null && method.params().size() > Limits.MAX_PARAMS) {
+            problem = owner + " has " + method.params().size() + " parameters, more than the limit of " + Limits.MAX_PARAMS
+                    + " (BC-21)";
+        }
         MethodSig signature = method.signature();
-        check(Signatures.problem(signature, DEFINITION, module.name()), owner);
-        if (((signature.flags() & SigCode.METHOD_STATIC) != 0) != ((method.flags() & Flags.METHOD_STATIC) != 0)) {
-            throw new ModuleFormatException(owner + ": the signature has STATIC exactly when the method has (BC-11)");
+        String types = Signatures.problem(signature, DEFINITION, module);
+        if (problem == null && types != null) {
+            problem = owner + ": " + types;
         }
-        if ((signature.flags() & SigCode.METHOD_GENERIC) != 0) {
-            throw new ModuleFormatException(owner + ": the signature is GENERIC, but the method has no GenericParam"
-                    + " rows (BC-24)");
+        if (problem == null && ((signature.flags() & SigCode.METHOD_STATIC) != 0) != ((method.flags() & Flags.METHOD_STATIC) != 0)) {
+            problem = owner + ": the signature has STATIC exactly when the method has (BC-11)";
         }
-        if (signature.params().size() != method.params().size()) {
-            throw new ModuleFormatException(owner + ": the signature has " + signature.params().size()
-                    + " parameters, but the method has " + method.params().size() + " Param rows (BC-11)");
+        if (problem == null && (signature.flags() & SigCode.METHOD_GENERIC) != 0) {
+            problem = owner + ": the signature is GENERIC, but the method has no GenericParam rows (BC-24)";
         }
-    }
-
-    // A method has a body exactly when it is not ABSTRACT, NATIVE or EXTERN (§3.1).
-    private void checkBody(MethodDef method, String owner) throws ModuleFormatException {
+        if (problem == null && signature.params().size() != method.params().size()) {
+            problem = owner + ": the signature has " + signature.params().size() + " parameters, but the method has "
+                    + method.params().size() + " Param rows (BC-11)";
+        }
         MethodBody body = method.body();
-        if (Code.hasBody(method.flags()) != (body != null)) {
-            throw new ModuleFormatException(owner + (body == null ? " has no body" : " has a body")
-                    + "; a method has one exactly when it is not ABSTRACT, NATIVE or EXTERN (BC-11)");
+        if (problem == null && Code.hasBody(method.flags()) != (body != null)) {
+            problem = owner + (body == null ? " has no body" : " has a body")
+                    + "; a method has one exactly when it is not ABSTRACT, NATIVE or EXTERN (BC-11)";
         }
-        if (body != null) {
-            check(Code.problem(body, Code.arguments(method.signature()), module.name()), owner);
-        }
+        return problem;
     }
 
     private static void check(@Nullable String problem, String owner) throws ModuleFormatException {
@@ -462,19 +477,6 @@ public final class ModuleWriter {
             throw new ModuleFormatException("an instruction names " + name + ", which the module does not list");
         }
         return (table << 24) | row;
-    }
-
-    private static void checkMethod(MethodDef method, String owner) throws ModuleFormatException {
-        checkFlags(method.flags(), METHOD_FLAGS, owner);
-        checkVisibility(method.flags(), owner);
-        String problem = constructorName(method.flags(), method.name());
-        if (problem != null) {
-            throw new ModuleFormatException(owner + ": " + problem);
-        }
-        if (method.params().size() > Limits.MAX_PARAMS) {
-            throw new ModuleFormatException(owner + " has " + method.params().size()
-                    + " parameters, more than the limit of " + Limits.MAX_PARAMS + " (BC-21)");
-        }
     }
 
     /** Why the name does not fit the CONSTRUCTOR and STATIC flags (§3.1), or null when it does. */
@@ -665,10 +667,6 @@ public final class ModuleWriter {
 
     private static void checkFlags(int flags, int defined, String owner) throws ModuleFormatException {
         check(flagsProblem(flags, defined, owner));
-    }
-
-    private static void checkVisibility(int flags, String owner) throws ModuleFormatException {
-        check(visibilityProblem(flags, owner));
     }
 
     private static @Nullable String flagsProblem(int flags, int defined, String owner) {
