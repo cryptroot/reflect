@@ -24,6 +24,11 @@ import reflect.stage0.bytecode.ModuleReader;
 final class Suite {
     private static final String EXPECT_ERROR = "// expect-error:";
 
+    /** Turns .rfla text into a module: rfla's assembler, or in a test one that writes a defect. */
+    interface Assembly {
+        byte[] assemble(byte[] text) throws AssemblyException;
+    }
+
     private Suite() {
     }
 
@@ -42,7 +47,8 @@ final class Suite {
             }
             int failures = 0;
             for (Path file : files) {
-                String failure = check(root.relativize(file).startsWith("invalid"), Files.readAllBytes(file));
+                String failure = check(root.relativize(file).startsWith("invalid"), Files.readAllBytes(file),
+                        Assembler::assemble);
                 if (failure == null) {
                     out.println("PASS " + file);
                 } else {
@@ -59,7 +65,7 @@ final class Suite {
     }
 
     // The failure of one file, or null when it passes.
-    private static String check(boolean invalid, byte[] text) {
+    static String check(boolean invalid, byte[] text, Assembly assembly) {
         List<String> expected = expectedErrors(text);
         if (expected.size() != (invalid ? 1 : 0)) {
             return invalid ? "a file in invalid/ holds one expect-error, not " + expected.size()
@@ -67,7 +73,7 @@ final class Suite {
         }
         byte[] module;
         try {
-            module = Assembler.assemble(text);
+            module = assembly.assemble(text);
         } catch (AssemblyException e) {
             if (!invalid) {
                 return e.getMessage();

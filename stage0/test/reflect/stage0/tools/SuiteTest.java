@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
+import reflect.stage0.bytecode.Assembler;
 import reflect.stage0.test.Test;
 
 import static reflect.stage0.test.Assertions.assertEquals;
@@ -51,6 +52,20 @@ public final class SuiteTest {
         } finally {
             delete(root);
         }
+    }
+
+    @Test
+    public static void testReportsAModuleThatTheReaderRejects() throws Exception {
+        byte[] text = ".module a 0.0.0\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(null, Suite.check(false, text, Assembler::assemble));
+        // rfla gives the reader no module to reject, so this assembly breaks the magic of its module.
+        Suite.Assembly faulty = source -> {
+            byte[] module = Assembler.assemble(source);
+            module[0]++;
+            return module;
+        };
+        assertEquals("the reader rejects the module: offset 0x0: the file does not start with RFLC",
+                Suite.check(false, text, faulty));
     }
 
     @Test
