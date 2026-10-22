@@ -6,7 +6,7 @@ import reflect.stage0.lib.Nullable;
 
 /**
  * A cursor over the tokens of .rfla text, with the rules of §8.1 that read one token or a few:
- * names, integers and versions, strings and hexadecimal bytes. A number token is read as the rule
+ * names, integers, reals and versions, strings and hexadecimal bytes. A number token is read as the rule
  * at its place requires, and a value outside the range of its place is a diagnostic (Q79).
  */
 final class Parser {
@@ -267,6 +267,32 @@ final class Parser {
         return value.bits();
     }
 
+    /** An Int from 0 to 2^64 - 1, as its bits. */
+    long u64(String what) throws AssemblyException {
+        Token token = number(what);
+        Magnitude value = integer(token, what);
+        if (value.negative() && value.magnitude() != 0) {
+            throw outside(token, what, "0", "18446744073709551615");
+        }
+        return value.magnitude();
+    }
+
+    /** Real of §8.1 as the bits of a float: the nearest to a decimal, an infinity, or the u32 after bits. */
+    int r4(String what) throws AssemblyException {
+        if (accept("bits")) {
+            return u32("the bits of a float");
+        }
+        return Float.floatToRawIntBits(Float.parseFloat(real(what)));
+    }
+
+    /** Real of §8.1 as the bits of a double: the nearest to a decimal, an infinity, or the u64 after bits. */
+    long r8(String what) throws AssemblyException {
+        if (accept("bits")) {
+            return u64("the bits of a double");
+        }
+        return Double.doubleToRawLongBits(Double.parseDouble(real(what)));
+    }
+
     /** Version of §8.1: three decimal u32 values joined by dots. */
     int[] version() throws AssemblyException {
         Token token = number("a version");
@@ -313,6 +339,37 @@ final class Parser {
             throw unexpected(what);
         }
         return next();
+    }
+
+    // A Real other than bits, as Java parses it: a decimal of the grammar, which Java's form holds, or
+    // inf and -inf.
+    private String real(String what) throws AssemblyException {
+        if (at("inf") || at("-inf")) {
+            return next().text().equals("inf") ? "Infinity" : "-Infinity";
+        }
+        Token token = number(what);
+        String text = token.text();
+        int end = digitsEnd(text, text.startsWith("-") ? 1 : 0);
+        if (end > 0 && end < text.length() && text.charAt(end) == '.') {
+            end = digitsEnd(text, end + 1);
+        }
+        if (end > 0 && end < text.length() && (text.charAt(end) == 'e' || text.charAt(end) == 'E')) {
+            boolean sign = end + 1 < text.length() && (text.charAt(end + 1) == '+' || text.charAt(end + 1) == '-');
+            end = digitsEnd(text, end + (sign ? 2 : 1));
+        }
+        if (end != text.length()) {
+            throw error(Diagnostic.SYNTAX, token, "expected " + what + ", found " + text);
+        }
+        return text;
+    }
+
+    // The index after the digits that start at start, or -1 when no digit does.
+    private static int digitsEnd(String text, int start) {
+        int end = start;
+        while (end < text.length() && text.charAt(end) >= '0' && text.charAt(end) <= '9') {
+            end++;
+        }
+        return end > start ? end : -1;
     }
 
     // Int of §8.1: a minus, then decimal digits, or 0x and hexadecimal digits.

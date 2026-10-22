@@ -576,6 +576,16 @@ public final class Opcode {
         return entry(code).mnemonic();
     }
 
+    /** The opcode of the instruction with this mnemonic, or -1 when none has it. */
+    public static int code(String mnemonic) {
+        for (Entry entry : ENTRIES) {
+            if (entry.mnemonic().equals(mnemonic)) {
+                return entry.code();
+            }
+        }
+        return -1;
+    }
+
     public static int operands(int code) {
         return entry(code).operands();
     }

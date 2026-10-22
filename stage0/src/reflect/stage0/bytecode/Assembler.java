@@ -13,8 +13,9 @@ import reflect.stage0.lib.Nullable;
  * each rule of the format at the place in the text that breaks it, with the checks that the writer
  * uses; what the writer then rejects is a limit of the whole module, reported at .module.
  *
- * A type may name a type that the text defines later, so rfla reads the text twice: first the
- * module directives and the head of each .class, which declare the types, then the members.
+ * A type may name a type that the text defines later, and code a member that it defines later, so
+ * rfla reads the text three times: first the module directives and the head of each .class, which
+ * declare the types, then the members, then the bodies of the methods.
  */
 public final class Assembler {
     private static final String[] REQUIRES_WORDS = {"transitive", "static"};
@@ -43,7 +44,9 @@ public final class Assembler {
     private final Map<Export, Boolean> exports = new HashMap<>();
     private final Map<String, TypeDef> types = new HashMap<>();
     private final Map<String, TypeRef> typeRefs = new HashMap<>();
+    private final Map<MemberKey, MemberRef> memberRefs = new HashMap<>();
     private final List<Declared> classes = new ArrayList<>();
+    private final List<Body> bodies = new ArrayList<>();
     private final List<Kept> sections = new ArrayList<>();
     private @Nullable TypeName main;
 
@@ -67,6 +70,7 @@ public final class Assembler {
         assembler.directives();
         assembler.resolveMain();
         assembler.members();
+        assembler.bodies();
         return assembler.write();
     }
 
@@ -368,11 +372,21 @@ public final class Assembler {
         String owner = "method " + type.qualifiedName() + "::" + name.text();
         check(name, ModuleWriter.methodProblem(method, owner, module.name()));
         type.methods().add(method);
-        body(method, owner);
+        bodies.add(new Body(method, owner, parser.position()));
     }
 
-    // The items of a body up to its }; a method without a body has none.
+    // The third reading: the bodies, once every member is declared, so code may name any of them.
+    private void bodies() throws AssemblyException {
+        for (Body pending : bodies) {
+            parser.seek(pending.position());
+            body(pending.method(), pending.owner());
+        }
+    }
+
+    // The items of a body up to its }; a method without a body has none. Labels and the names of
+    // arguments and locals resolve once the body is read, since a label or .locals may follow a use.
     private void body(MethodDef method, String owner) throws AssemblyException {
+        var text = new Text(new HashMap<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         boolean locals = false;
         while (!parser.at("}")) {
             Token at = parser.peek();
@@ -389,11 +403,235 @@ public final class Assembler {
                 }
                 locals = true;
                 locals(body);
+            } else if (parser.atKind(Token.WORD) && parser.peekSecond().is(":")) {
+                Label label = label(text, parser.identifier("a label").text());
+                parser.next();
+                if (label.body() != null) {
+                    throw Parser.error(Diagnostic.REPEATED, at, "the label " + at.text() + " marks two places");
+                }
+                label.mark(body, body.code().size());
+            } else if (parser.atKind(Token.WORD)) {
+                instruction(body, text);
             } else {
-                throw parser.unexpected(".locals, .override or }");
+                throw parser.unexpected("an instruction, a label, .locals, .override or }");
             }
         }
         parser.next();
+        MethodBody body = method.body();
+        if (body != null) {
+            resolve(method, body, text);
+        }
+    }
+
+    // Marks the labels and names of the body, then checks each instruction at its mnemonic with the
+    // rules of the writer.
+    private void resolve(MethodDef method, MethodBody body, Text text) throws AssemblyException {
+        for (Token use : text.uses()) {
+            if (label(text, use.text()).body() == null) {
+                throw Parser.error(Diagnostic.NO_LABEL, use, "the body marks no label " + use.text());
+            }
+        }
+        int arguments = Code.arguments(method.signature());
+        List<Instruction> code = body.code();
+        for (int i = 0; i < code.size(); i++) {
+            @Nullable Token name = text.names().get(i);
+            if (name != null) {
+                int opcode = code.get(i).opcode();
+                code.set(i, new Instruction.Index(opcode, variable(method, body, opcode, name)));
+            }
+            String problem = Code.problem(code.get(i), arguments, body.locals().size());
+            check(text.mnemonics().get(i), problem != null ? problem : Code.targetProblem(code.get(i), body));
+        }
+    }
+
+    // The number of the argument or local that has the name: a parameter, which follows this unless the
+    // method is static, or a local that .locals names. Exactly one may have it.
+    private static int variable(MethodDef method, MethodBody body, int opcode, Token name) throws AssemblyException {
+        boolean argument = Code.namesArgument(opcode);
+        int count = 0;
+        int index = -1;
+        if (argument) {
+            int first = Code.arguments(method.signature()) - method.params().size();
+            for (int i = 0; i < method.params().size(); i++) {
+                if (method.params().get(i).name().equals(name.text())) {
+                    count++;
+                    index = first + i;
+                }
+            }
+        } else {
+            for (LocalName local : body.localNames()) {
+                if (local.name().equals(name.text())) {
+                    count++;
+                    index = local.index();
+                }
+            }
+        }
+        if (count != 1) {
+            throw Parser.error(Diagnostic.NO_VARIABLE, name, (argument ? "the method has " : "the body has ")
+                    + (count == 0 ? "no " : "more than one ") + (argument ? "argument" : "local") + " named " + name.text());
+        }
+        return index;
+    }
+
+    // Instruction of §8.1: a mnemonic, then the operands of its operand kind (§5.1).
+    private void instruction(MethodBody body, Text text) throws AssemblyException {
+        Token mnemonic = parser.next();
+        int opcode = Opcode.code(mnemonic.text());
+        if (opcode < 0) {
+            throw Parser.error(Diagnostic.NO_INSTRUCTION, mnemonic, "no instruction is named " + mnemonic.text());
+        }
+        int kind = Opcode.operands(opcode);
+        @Nullable Token name = null;
+        Instruction instruction;
+        if (kind == Opcode.OPERAND_NONE) {
+            instruction = new Instruction.Plain(opcode);
+        } else if (kind == Opcode.OPERAND_I4) {
+            instruction = new Instruction.Value32(opcode, parser.i32("a 32-bit integer"));
+        } else if (kind == Opcode.OPERAND_I8) {
+            instruction = new Instruction.Value64(opcode, parser.i64("a 64-bit integer"));
+        } else if (kind == Opcode.OPERAND_R4) {
+            instruction = new Instruction.Value32(opcode, parser.r4("a float"));
+        } else if (kind == Opcode.OPERAND_R8) {
+            instruction = new Instruction.Value64(opcode, parser.r8("a double"));
+        } else if (kind == Opcode.OPERAND_STR) {
+            instruction = new Instruction.Literal(opcode, parser.string("a string"));
+        } else if (kind == Opcode.OPERAND_N) {
+            name = parser.atKind(Token.WORD) ? parser.identifier("an argument or a local") : null;
+            instruction = new Instruction.Index(opcode, name == null ? parser.u32("an argument or a local") : 0);
+        } else if (kind == Opcode.OPERAND_N_N) {
+            int number = parser.u32("a call number");
+            instruction = new Instruction.Indexes(opcode, number, parser.u32("an argument count"));
+        } else if (kind == Opcode.OPERAND_TOK) {
+            int names = Code.tokenKind(opcode);
+            instruction = names == Code.FIELD ? new Instruction.Field(opcode, fieldRef())
+                    : names == Code.METHOD ? new Instruction.Method(opcode, methodRef())
+                    : new Instruction.Type(opcode, tokenType(parser.type("a type")));
+        } else if (kind == Opcode.OPERAND_TOK_TOK) {
+            TypeHandle type = tokenType(parser.type("a type"));
+            instruction = new Instruction.Constrained(opcode, type, methodRef());
+        } else if (kind == Opcode.OPERAND_OFF) {
+            instruction = new Instruction.Branch(opcode, target(text));
+        } else {
+            parser.expect("(");
+            var targets = new ArrayList<Label>();
+            if (!parser.at(")")) {
+                do {
+                    targets.add(target(text));
+                } while (parser.accept(","));
+            }
+            parser.expect(")");
+            instruction = new Instruction.Switch(opcode, targets);
+        }
+        body.code().add(instruction);
+        text.mnemonics().add(mnemonic);
+        text.names().add(name);
+    }
+
+    // The label that a branch or a switch names; the body marks it before or after the use.
+    private Label target(Text text) throws AssemblyException {
+        Token name = parser.identifier("a label");
+        text.uses().add(name);
+        return label(text, name.text());
+    }
+
+    private static Label label(Text text, String name) {
+        @Nullable Label label = text.labels().get(name);
+        if (label == null) {
+            label = new Label();
+            text.labels().put(name, label);
+        }
+        return label;
+    }
+
+    // FieldRef of §8.1: the type of the field, which the short form leaves out for a field of the module
+    // (Q69), the type that holds the field, and its name.
+    private FieldHandle fieldRef() throws AssemblyException {
+        TypeSyntax first = parser.type("a field");
+        @Nullable TypeSig type = null;
+        TypeSyntax holder = first;
+        if (!parser.at("::")) {
+            type = reference(first, Signatures.OTHER);
+            holder = parser.type("the type that holds the field");
+        }
+        TypeHandle parent = tokenType(holder);
+        parser.expect("::");
+        Token name = parser.identifier("the name of a field");
+        if (parent instanceof TypeDef def) {
+            for (FieldDef field : def.fields()) {
+                if (field.name().equals(name.text()) && (type == null || type.equals(field.type()))) {
+                    return field;
+                }
+            }
+            throw Parser.error(Diagnostic.NO_MEMBER, name, "the module defines no field " + def.qualifiedName() + "::"
+                    + name.text() + (type == null ? "" : " of this type"));
+        }
+        if (type == null) {
+            throw Parser.error(Diagnostic.SYNTAX, first.token(), "a field of another module states its type (Q69)");
+        }
+        identifier(name, name.text());
+        return memberRef(parent, name.text(), new FieldSig(type));
+    }
+
+    // MethodRef of §8.1: static and the return type, which the short form leaves out for a method of the
+    // module (Q69), the type that holds the method, its name and its parameter types.
+    private MethodHandle methodRef() throws AssemblyException {
+        boolean isStatic = parser.accept("static");
+        TypeSyntax first = parser.returnType("a method");
+        @Nullable TypeSig returnType = null;
+        TypeSyntax holder = first;
+        if (isStatic || !parser.at("::")) {
+            returnType = reference(first, Signatures.RETURN);
+            holder = parser.type("the type that holds the method");
+        }
+        TypeHandle parent = tokenType(holder);
+        parser.expect("::");
+        Token name = parser.identifier("the name of a method");
+        if (parser.at("<")) {
+            throw Parser.error(Diagnostic.LATER, parser.peek(), "the MethodSpec table arrives in v0.0.9");
+        }
+        parser.expect("(");
+        int flags = isStatic ? SigCode.METHOD_STATIC : 0;
+        var params = new ArrayList<TypeSig>();
+        if (!parser.at(")")) {
+            do {
+                params.add(reference(parser.type("the type of a parameter"), Signatures.OTHER));
+            } while (parser.accept(","));
+            if (parser.accept("...")) {
+                flags |= SigCode.METHOD_VARIADIC;
+            }
+        }
+        parser.expect(")");
+        if (parent instanceof TypeDef def) {
+            @Nullable MethodSig signature = returnType == null ? null : new MethodSig(flags, 0, returnType, params);
+            for (MethodDef method : def.methods()) {
+                boolean same = signature == null ? method.signature().params().equals(params)
+                        : method.signature().equals(signature);
+                if (method.name().equals(name.text()) && same) {
+                    return method;
+                }
+            }
+            throw Parser.error(Diagnostic.NO_MEMBER, name, "the module defines no method " + def.qualifiedName() + "::"
+                    + name.text() + (signature == null ? " with these parameter types" : " with this signature"));
+        }
+        if (returnType == null) {
+            throw Parser.error(Diagnostic.SYNTAX, first.token(), "a method of another module states its return type (Q69)");
+        }
+        var signature = new MethodSig(flags, 0, returnType, params);
+        check(name, Signatures.problem(signature, ModuleWriter.REFERENCE, module.name()));
+        identifier(name, name.text());
+        return memberRef(parent, name.text(), signature);
+    }
+
+    // One MemberRef row per parent, name and signature (BC-24).
+    private MemberRef memberRef(TypeHandle parent, String name, MemberSig signature) {
+        var key = new MemberKey(parent, name, signature);
+        @Nullable MemberRef ref = memberRefs.get(key);
+        if (ref == null) {
+            ref = new MemberRef(parent, name, signature);
+            memberRefs.put(key, ref);
+            module.memberRefs().add(ref);
+        }
+        return ref;
     }
 
     // The types of the locals, and the names that DEBUG holds (§6.1).
@@ -451,6 +689,13 @@ public final class Assembler {
     private TypeSig definition(TypeSyntax syntax, int position) throws AssemblyException {
         TypeSig type = resolve(syntax);
         check(syntax.token(), Signatures.problem(type, position, ModuleWriter.DEFINITION, module.name()));
+        return type;
+    }
+
+    // The type in this position of a signature that a reference states, checked at its token (BC-03).
+    private TypeSig reference(TypeSyntax syntax, int position) throws AssemblyException {
+        TypeSig type = resolve(syntax);
+        check(syntax.token(), Signatures.problem(type, position, ModuleWriter.REFERENCE, module.name()));
         return type;
     }
 
@@ -658,5 +903,18 @@ public final class Assembler {
 
     // A section of a .section directive.
     private record Kept(Token token, Section section) {
+    }
+
+    // A body that the third reading reads: its method, the owner that messages name, and where it starts.
+    private record Body(MethodDef method, String owner, int position) {
+    }
+
+    // A body as the text gives it: its labels by name, each use of a label, and per instruction its
+    // mnemonic and the name that gives its argument or local, if any.
+    private record Text(Map<String, Label> labels, List<Token> uses, List<Token> mnemonics,
+            List<@Nullable Token> names) {
+    }
+
+    private record MemberKey(TypeHandle parent, String name, MemberSig signature) {
     }
 }

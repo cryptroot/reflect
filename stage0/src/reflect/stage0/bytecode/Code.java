@@ -166,7 +166,7 @@ final class Code {
                     + ref.parent().qualifiedName() + "::" + ref.name() + " is " + KINDS[field ? METHOD : FIELD] + " (BC-04)";
         }
         if (instruction instanceof Instruction.Index index) {
-            boolean argument = opcode == Opcode.LDARG || opcode == Opcode.STARG || opcode == Opcode.LDARGA;
+            boolean argument = namesArgument(opcode);
             int count = argument ? arguments : locals;
             if (index.index() < 0 || index.index() >= count) {
                 return (argument ? "argument " : "local ") + (index.index() & 0xFFFFFFFFL) + " does not exist; the "
@@ -176,9 +176,14 @@ final class Code {
         return null;
     }
 
+    /** Whether the n operand of the instruction names an argument, as for ldarg, starg and ldarga, or a local. */
+    static boolean namesArgument(int opcode) {
+        return opcode == Opcode.LDARG || opcode == Opcode.STARG || opcode == Opcode.LDARGA;
+    }
+
     // A branch lands on an instruction of its own body (BC-17). The reader makes its labels itself, from
     // the offsets, and checks each offset instead.
-    private static @Nullable String targetProblem(Instruction instruction, MethodBody body) {
+    static @Nullable String targetProblem(Instruction instruction, MethodBody body) {
         String problem = null;
         if (instruction instanceof Instruction.Branch branch) {
             problem = targetProblem(branch.target(), body, branch.opcode());

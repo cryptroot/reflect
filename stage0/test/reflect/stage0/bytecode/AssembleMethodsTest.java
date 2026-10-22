@@ -106,7 +106,8 @@ public final class AssembleMethodsTest {
         unassemblable(C + "abstract void m() {\n.locals ()\n}\n}", "4:1: RFA0301: method a.A::m has a body" + body);
         unassemblable(C + "native void m() {\n.override a.A::n()\n}\n}",
                 "4:1: RFA0303: the Override table arrives in v0.0.6");
-        unassemblable(C + "void m() {\n.field int x\n}\n}", "4:1: RFA0101: expected .locals, .override or }, found .field");
+        unassemblable(C + "void m() {\n.field int x\n}\n}",
+                "4:1: RFA0101: expected an instruction, a label, .locals, .override or }, found .field");
         unassemblable(C + "void m() {\n.locals ()\n.locals (int)\n}\n}", "5:1: RFA0104: the body has one .locals");
         unassemblable(C + "void m() {\n.locals int\n}\n}", "4:9: RFA0101: expected (, found int");
         unassemblable(C + "void m() {\n.locals (int x.y)\n}\n}", "4:14: RFA0101: expected the name of a local, found x.y");

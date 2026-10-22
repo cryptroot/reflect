@@ -1060,6 +1060,10 @@ module are `RFA0301`, and the message names the rule.
 | `RFA0201` | `NO_TYPE` | a name of a type that the module does not define, where it must |
 | `RFA0202` | `NO_MODULE` | a type of another module whose namespace names no required module (Q76) |
 | `RFA0203` | `NOT_REQUIRED` | a module in brackets that the module does not require |
+| `RFA0204` | `NO_INSTRUCTION` | a mnemonic that no instruction of §5.1 has |
+| `RFA0205` | `NO_MEMBER` | a field or method that the module does not define, where it must |
+| `RFA0206` | `NO_LABEL` | a label that the body does not mark |
+| `RFA0207` | `NO_VARIABLE` | a name that no argument or local of the method has, or more than one has |
 | `RFA0301` | `FORMAT` | content that breaks a rule of the format, which the message names |
 | `RFA0302` | `LIMIT` | content over a limit of BC-21 |
 | `RFA0303` | `LATER` | syntax whose table arrives in a later stage, which the message names |
