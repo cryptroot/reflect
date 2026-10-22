@@ -84,6 +84,12 @@ fuzzing against the Lean model, and examples.md itself. Conventions:
 - **TST-09 [Proposed]** Every module the suite produces goes through `rfld` then `rfla` and must
   come back byte-identical (BC-08). Hand-written invalid `.rfla` files, each tagged with the rule it
   breaks (`// expect-verify-error: BC-07 uninitialized`), must be rejected by the verifier.
+- **TST-13 [Proposed; `lib/` and `expect-error` Decided, Q49, Q79]** Hand-written `.rfla` tests
+  live in `tests/bytecode/`: `format/` holds modules that are assembled and round-tripped, `lib/`
+  the stub modules of `reflect.core` and `reflect.io`, `run/<area>/` programs with the directives
+  of TST-01, run on VM0, and `invalid/` files that `rfla` must reject. `rfla` stops at the first
+  error, so a file in `invalid/` holds one `// expect-error: RFAnnnn @ line:col`, with a code of
+  bytecode.md §8.2.
 
 ## 8. Collector stress
 

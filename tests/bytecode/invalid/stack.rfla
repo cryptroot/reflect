@@ -1,0 +1,8 @@
+// expect-error: RFA0304 @ 5:9
+.module m 0.0.0
+.class a.A {
+    .method static void m() {
+        pop
+        ret
+    }
+}

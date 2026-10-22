@@ -1,0 +1,84 @@
+.module demo 1.0.0
+.requires reflect.core
+.requires other
+.source "src/A.rfl" hex "1111111111111111111111111111111111111111111111111111111111111111"
+
+.class public demo.A {
+    .field private int count
+    .field private static reflect.core.String name
+    .method public void new() {
+        ldarg 0
+        ldc.i4 0
+        call demo.A::reset(int)
+        pop
+        ret
+    }
+    .method public int reset(int value) {
+        ldarg value
+        stloc total
+        .locals (long total, demo.A self, double)
+        ldloc 1
+        ldloca self
+        starg value
+        ldc.i4 -2147483648
+        ldc.i8 0x7FFFFFFFFFFFFFFF
+        ldc.r4 0.1
+        ldc.r4 -inf
+        ldc.r4 bits 0x7FC00001
+        ldc.r8 2.5e-3
+        ldc.r8 bits 0xFFF8000000000000
+        ldstr "a\tb"
+        ldfld demo.A::count
+        ldsfld reflect.core.String demo.A::name
+        ldsfld reflect.core.String other.Names::first
+        stsfld reflect.core.String other.Names::first
+        ldtype demo.A
+        castclass reflect.core.String
+        call static void other.Log::write(reflect.core.Object?[]...)
+        callvirt reflect.core.String reflect.core.Object::toString()
+        call.constrained demo.S demo.S::hash()
+        newobj void demo.A::new()
+        syscall 1 2
+        ret
+    }
+    .method public static void loop(int n) {
+    TOP:
+        ldarg n
+        brfalse END
+        ldarg 0
+        switch (TOP, END, MID)
+    MID: br TOP
+    END: ret
+    }
+    .method public static int run(int x) {
+        .try T0 T1 .catch reflect.core.Exception H0 H1
+        .line "src/A.rfl" 3
+    T0: ldarg x
+        pop
+        leave END
+    T1:
+    H0: pop
+        leave END
+    H1:
+    F0: endfinally
+    F1:
+    END:
+        .stackmap (i32) ()
+        .line 4
+        ldc.i4 0
+        ret
+        .try T0 H1 .finally F0 F1
+    }
+    .method public static void fixed() {
+        .maxstack 7
+        pop
+        ret
+    }
+}
+
+.class public struct demo.S {
+    .method public int hash() {
+        ldc.i4 7
+        ret
+    }
+}

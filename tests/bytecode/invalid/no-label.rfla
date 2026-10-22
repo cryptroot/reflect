@@ -1,0 +1,7 @@
+// expect-error: RFA0206 @ 5:12
+.module m 0.0.0
+.class a.A {
+    .method static void m() {
+        br NOWHERE
+    }
+}

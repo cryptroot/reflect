@@ -230,6 +230,15 @@ writes no module then. It exits with:
 - 1 after a diagnostic;
 - 2 when its arguments are wrong, or a file cannot be read or written.
 
+`test` checks each `.rfla` file under the directory, in path order: a file in `invalid/` must fail
+with its `expect-error` (§6.3), and any other file must hold none and assemble into a module that
+the reader accepts. It prints `PASS` or `FAIL` with the path of each file, then the counts, and
+exits with:
+
+- 0 when every file passes;
+- 1 when a file fails;
+- 2 when its arguments are wrong, a file cannot be read, or the directory holds no `.rfla` file.
+
 ### 6.3 Test files
 
 `.rfla` tests state their expectations in leading `//` comments, with the directives of TST-01:

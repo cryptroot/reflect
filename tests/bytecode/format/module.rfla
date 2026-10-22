@@ -1,0 +1,12 @@
+.module demo 0.1.2
+.requires transitive static reflect.io
+.requires reflect.core
+.exports demo.zoo to demo.tests, demo.app
+.opens demo.zoo
+.exports demo
+.unsafe
+.section 0x80000002 hex "00fF"
+.main demo.zoo.Zoo
+
+.class public final demo.zoo.Zoo {
+}

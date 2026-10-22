@@ -1,0 +1,42 @@
+.module demo 1.0.0
+.requires reflect.core
+.requires reflect.collections
+.requires other
+
+.class public abstract demo.zoo.Animal extends reflect.core.Object implements demo.zoo.Named {
+    .field protected reflect.core.String name
+    .field public static final int count
+    .class public enum Kind : ubyte {
+        .field public static final valuetype demo.zoo.Animal/Kind DOG
+    }
+}
+
+.class public interface demo.zoo.Named {
+}
+
+.class public final demo.zoo.Zoo extends demo.zoo.Animal implements demo.zoo.Named, reflect.collections.Iterable {
+    .field private demo.zoo.Animal?[] animals
+    .field private reflect.collections.List<? extends demo.zoo.Animal> list
+    .field private reflect.collections.Map<reflect.core.String, int> counts
+    .field private (reflect.core.Object & demo.zoo.Named) both
+    .field private valuetype other.Point point
+    .field private [reflect.core]reflect.meta.Type type
+    .field private ref int byRef
+    .field private byte* pointer
+    .field private backing boolean flag
+    .field private reflect.collections.List<?> any
+    .field private reflect.collections.List<? super reflect.core.String> sink
+    .field private out reflect.core.Object result
+    .field private in long readOnly
+    .field private demo.Pair pair
+}
+
+.class public record struct demo.Pair {
+    .class private ref struct Inner {
+        .class annotation Tag {
+        }
+    }
+}
+
+.class G {
+}

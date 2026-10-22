@@ -6,8 +6,8 @@ trap {
     exit 1
 }
 
-if (-not $Job -or $args.Count -ne 0 -or $Job -cnotin @('stage0', 'unit', 'lean', 'all', 'shell')) {
-    [Console]::Error.WriteLine('Usage: docker/dev.ps1 {stage0|unit|lean|all|shell}')
+if (-not $Job -or $args.Count -ne 0 -or $Job -cnotin @('stage0', 'unit', 'bytecode', 'lean', 'all', 'shell')) {
+    [Console]::Error.WriteLine('Usage: docker/dev.ps1 {stage0|unit|bytecode|lean|all|shell}')
     exit 2
 }
 

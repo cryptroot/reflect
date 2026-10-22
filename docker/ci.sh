@@ -4,7 +4,7 @@ set -eu
 cd /work
 
 if [ "$#" -ne 1 ]; then
-    echo "Usage: sh docker/ci.sh {stage0|unit|lean|all|shell}" >&2
+    echo "Usage: sh docker/ci.sh {stage0|unit|bytecode|lean|all|shell}" >&2
     exit 2
 fi
 
@@ -17,8 +17,13 @@ case "$1" in
         java -cp out/stage0/classes:out/stage0/test-classes \
             reflect.stage0.test.TestRunner out/stage0/test-classes
         if [ "$1" = all ]; then
+            java -jar out/stage0/stage0.jar test tests/bytecode
             sh docker/ci.sh lean
         fi
+        ;;
+    bytecode)
+        sh stage0/build.sh
+        java -jar out/stage0/stage0.jar test tests/bytecode
         ;;
     lean)
         expected="leanprover/lean4:v${REFLECT_LEAN_VERSION:?Lean version is not set}"

@@ -16,6 +16,9 @@ public final class Main {
         if (args[0].equals("rfla")) {
             System.exit(Rfla.run(Arrays.copyOfRange(args, 1, args.length), System.err));
         }
+        if (args[0].equals("test")) {
+            System.exit(Suite.run(Arrays.copyOfRange(args, 1, args.length), System.out, System.err));
+        }
         System.err.println("Unknown command or arguments: " + String.join(" ", args));
         usage(System.err);
         System.exit(2);
@@ -24,6 +27,7 @@ public final class Main {
     private static void usage(PrintStream out) {
         out.println("Usage: stage0 <command> [arguments]");
         out.println("  rfla <in.rfla> -o <out.rflc>    assemble a module");
-        out.println("Commands rfld, vm0 and test arrive in later v0.0.x stages.");
+        out.println("  test <directory>                check the .rfla suite in the directory");
+        out.println("Commands rfld and vm0 arrive in later v0.0.x stages.");
     }
 }

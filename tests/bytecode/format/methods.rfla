@@ -1,0 +1,24 @@
+.module demo 1.0.0
+.requires reflect.core
+
+.class public abstract demo.Shape {
+    .method protected void new(int sides) {
+    }
+    .field private int sides
+    .method public abstract double area() {
+    }
+    .method private static void static() {
+        .locals (int count, reflect.core.String, demo.Shape? last)
+    }
+    .class public Builder {
+        .method public static demo.Shape/Builder make() {
+            .locals ()
+        }
+    }
+    .method public static native reflect.core.String format(scoped this demo.Shape shape, ref int,
+            reflect.core.Object?[]... args) {
+    }
+    .method public final virtual unsafe mutating const precompile synthesized extern int[] all(int,
+            out long result) {
+    }
+}
