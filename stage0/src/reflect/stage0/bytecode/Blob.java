@@ -31,6 +31,19 @@ public final class Blob {
         return left.length == right.length ? 0 : left.length < right.length ? -1 : 1;
     }
 
+    /**
+     * The index of the first byte where the arrays differ, which is the length of the shorter one when
+     * it starts the other, or -1 when they are equal.
+     */
+    public static int firstDifference(byte[] left, byte[] right) {
+        for (int i = 0; i < left.length || i < right.length; i++) {
+            if (i == left.length || i == right.length || left[i] != right[i]) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     @Override
     public boolean equals(@Nullable Object other) {
         return other instanceof Blob blob && compare(bytes, blob.bytes) == 0;

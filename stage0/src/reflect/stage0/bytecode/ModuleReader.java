@@ -10,7 +10,8 @@ import reflect.stage0.lib.Nullable;
  * Reads a module (README §7.3) and checks it: the container (ModuleFile), the heaps, the TABLES
  * directory, each row, column by column, the bodies in CODE, and DEBUG unless it is stale (BC-20).
  * It resolves the heap references in the canonical order of BC-24, so a heap out of that order is
- * rejected. Every error names its file offset.
+ * rejected, and last it writes the model again and compares the bytes. Every error names its file
+ * offset.
  */
 public final class ModuleReader {
     private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.TYPE_DEF, TableId.TYPE_REF,
@@ -104,16 +105,37 @@ public final class ModuleReader {
         idents.checkAllReferenced();
         literals.checkAllReferenced();
         blobs.checkAllReferenced();
+        var kept = new ArrayList<Section>();
         for (int i = 0; i < file.sectionCount(); i++) {
             int id = file.sectionId(i);
             if (id == SectionId.DEBUG && !Debug.stale(file.content(i), file.contentHash())) {
                 Debug.read(file.open(i), methods.size(), bodies);
             } else if (SectionId.isAncillary(id)) {
                 // An unknown ancillary section, or a stale DEBUG, which the module means the same without (BC-20).
-                module.ancillary().add(new Section(id, file.content(i)));
+                kept.add(new Section(id, file.content(i)));
             }
         }
+        checkCanonical(ModuleWriter.write(module));
+        for (Section section : kept) {
+            module.ancillary().add(section);
+        }
         return module;
+    }
+
+    // The canonical form (BC-24): a valid module has one encoding, so writing the model again gives back
+    // each section that the reader read. The checks before name the defects that they find, and this one
+    // the first byte of any other. The sections kept as bytes join the model after it, so the writer
+    // never meets a stale DEBUG whose contentHash is that of the canonical encoding.
+    private void checkCanonical(byte[] canonical) throws ModuleFormatException {
+        ModuleFile written = ModuleFile.read(canonical);
+        for (int i = 0; i < written.sectionCount(); i++) {
+            int index = file.find(written.sectionId(i));
+            int at = Blob.firstDifference(file.content(index), written.content(i));
+            if (at >= 0) {
+                throw new ModuleFormatException(file.open(index).position() + at, "the canonical encoding of the module"
+                        + " differs at this byte (BC-24)");
+            }
+        }
     }
 
     private void readModuleRefs() throws ModuleFormatException {

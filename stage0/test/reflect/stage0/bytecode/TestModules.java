@@ -44,6 +44,17 @@ final class TestModules {
         return ModuleFile.write(0, sections);
     }
 
+    /** The file with one more section. */
+    static byte[] withSection(byte[] file, Section section) throws ModuleFormatException {
+        ModuleFile read = ModuleFile.read(file);
+        var sections = new ArrayList<Section>();
+        for (int i = 0; i < read.sectionCount(); i++) {
+            sections.add(new Section(read.sectionId(i), read.content(i)));
+        }
+        sections.add(section);
+        return ModuleFile.write(read.flags(), sections);
+    }
+
     static byte[] section(byte[] file, int id) throws ModuleFormatException {
         ModuleFile read = ModuleFile.read(file);
         return read.content(read.find(id));

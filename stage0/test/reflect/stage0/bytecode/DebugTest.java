@@ -14,6 +14,7 @@ import static reflect.stage0.bytecode.TestModules.roundTrip;
 import static reflect.stage0.bytecode.TestModules.section;
 import static reflect.stage0.bytecode.TestModules.sectionOffset;
 import static reflect.stage0.bytecode.TestModules.unwritable;
+import static reflect.stage0.bytecode.TestModules.withSection;
 import static reflect.stage0.test.Assertions.assertEquals;
 import static reflect.stage0.test.Assertions.assertTrue;
 
@@ -354,17 +355,6 @@ public final class DebugTest {
             result[i] = values.get(i);
         }
         return result;
-    }
-
-    // The file with one more section.
-    private static byte[] withSection(byte[] file, Section section) throws ModuleFormatException {
-        ModuleFile read = ModuleFile.read(file);
-        var sections = new ArrayList<Section>();
-        for (int i = 0; i < read.sectionCount(); i++) {
-            sections.add(new Section(read.sectionId(i), read.content(i)));
-        }
-        sections.add(section);
-        return ModuleFile.write(read.flags(), sections);
     }
 
     // The file without the section with this ID.

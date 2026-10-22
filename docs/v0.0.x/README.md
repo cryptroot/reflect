@@ -384,7 +384,8 @@ checks.
   alignment, row sizes, the limits (BC-21) and token ranges, and that each branch target is the
   start of an instruction. Then it writes the model again, and it accepts the module only if the
   bytes are equal (the canonical form of §7.2). An unknown ancillary section and a stale DEBUG
-  stay in the model as opaque bytes, so the rewrite check holds for them too.
+  stay in the model as opaque bytes, which tools write back unchanged; the rewrite check leaves
+  them out.
 - SHA-256 and the UTF-8 and UTF-16LE codecs are written in R0-shaped Java. Unit tests compare
   them with `MessageDigest` and `String.getBytes`.
 - A table arrives with the stage that first needs it. v0.0.2 covers `Module`, `ModuleRef`,
@@ -413,9 +414,12 @@ checks.
     source file with its SHA-256. Tests: a stale DEBUG is treated as absent; removing DEBUG gives
     a module that the reader accepts with the same content hash; moving a line changes DEBUG
     only (BC-22).
-12. The canonical check in the reader, with one test per defect: a padded LEB128 value, unsorted
-    rows, a wrong row size, an unreferenced heap entry, a wrong content hash, a branch into the
-    middle of an instruction, a value over a limit.
+12. The canonical check in the reader: it rejects a module that the writer does not give back,
+    at the first byte that differs, and leaves the sections kept as bytes out of the rewrite.
+    Tests: a branch layout that is not the smallest, which no other check finds, alone and with a
+    stale DEBUG. The tests of the commits before reject each other defect at its offset: a padded
+    LEB128 value, unsorted rows, a wrong row size, an unreferenced heap entry, a wrong content
+    hash, a branch into the middle of an instruction, a value over a limit.
 
 **Exit check.** For every module that the unit tests build, write, read and write again gives
 identical bytes, and every defect is rejected with a message that names its offset. Tag

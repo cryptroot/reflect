@@ -91,7 +91,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   trip of BC-08 is exact by construction. A module that breaks one of these rules is invalid, and
   a reader rejects it:
   1. LEB128 values are minimal and fit their field: no value has a redundant last byte, `<i8>`
-     fits 64 bits, and every other LEB128 value fits 32 bits.
+     fits 64 bits, and every other LEB128 value fits 32 bits. Since a branch offset spans other
+     branches, a body can have more than one layout of minimal values; it takes the smallest, in
+     which each branch is as short as in any other.
   2. Padding, `reserved` and every flag that the format does not define are zero.
   3. A section is present only when it has content, and the directory lists the sections by ID
      with no ID twice (BC-02). IDENTS, LITERALS, BLOBS and TABLES are always present, CODE when a
