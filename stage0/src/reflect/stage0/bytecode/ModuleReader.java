@@ -14,8 +14,8 @@ import reflect.stage0.lib.Nullable;
  * offset.
  */
 public final class ModuleReader {
-    private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.TYPE_DEF, TableId.TYPE_REF,
-        TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.MEMBER_REF};
+    private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.EXPORT, TableId.TYPE_DEF,
+        TableId.TYPE_REF, TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.MEMBER_REF};
     private static final int[] TYPE_TOKENS = {TableId.TYPE_DEF, TableId.TYPE_REF, TableId.TYPE_SPEC};
     private static final int[] SCOPE_TOKENS = {TableId.MODULE_REF, TableId.TYPE_REF};
     private static final int[] PARENT_TOKENS = {TableId.TYPE_REF, TableId.TYPE_SPEC};
@@ -56,6 +56,9 @@ public final class ModuleReader {
         int main = row(TableId.MODULE, 1, 5, TableId.TYPE_DEF, true);
         module.setUnsafe((file.flags() & Header.FLAG_UNSAFE) != 0);
         readModuleRefs();
+        for (Export export : readExports()) {
+            module.exports().add(export);
+        }
         List<TypeDefRow> typeDefRows = readTypeDefs();
         int[] fieldRuns = runs(TableId.TYPE_DEF, 7, TableId.FIELD, "Field");
         int[] methodRuns = runs(TableId.TYPE_DEF, 8, TableId.METHOD, "Method");
@@ -151,6 +154,29 @@ public final class ModuleReader {
                     "ModuleRef")));
             previous = name;
         }
+    }
+
+    private List<Export> readExports() throws ModuleFormatException {
+        var exports = new ArrayList<Export>();
+        for (int row = 1; row <= tables.rows(TableId.EXPORT); row++) {
+            String namespace = ident(TableId.EXPORT, row, 0);
+            int kind = value(TableId.EXPORT, row, 1);
+            if (kind != Flags.EXPORTS && kind != Flags.OPENS) {
+                throw new ModuleFormatException(tables.offset(TableId.EXPORT, row, 1), "Export kind " + hex(kind)
+                        + " is not defined (BC-20)");
+            }
+            var current = new Export(namespace, kind, ident(TableId.EXPORT, row, 2));
+            if (row > 1) {
+                int order = ModuleWriter.compareExports(exports.get(row - 2), current);
+                if (order >= 0) {
+                    throw new ModuleFormatException(tables.offset(TableId.EXPORT, row, 0), order == 0
+                            ? "two Export rows have equal keys (BC-24)"
+                            : "the Export rows are not sorted by namespace, kind and target (BC-24)");
+                }
+            }
+            exports.add(current);
+        }
+        return exports;
     }
 
     private List<TypeDefRow> readTypeDefs() throws ModuleFormatException {

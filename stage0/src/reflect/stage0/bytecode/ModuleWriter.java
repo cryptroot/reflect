@@ -35,6 +35,7 @@ public final class ModuleWriter {
     private final HeapWriter blobs = new HeapWriter(SectionId.BLOBS);
     private final List<ModuleRef> moduleRefs = new ArrayList<>();
     private final Map<ModuleRef, Integer> moduleRefRows = new HashMap<>();
+    private final List<Export> exports = new ArrayList<>();
     private final List<TypeDef> typeDefs = new ArrayList<>();
     private final Map<TypeDef, Integer> typeDefRows = new HashMap<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
@@ -60,6 +61,7 @@ public final class ModuleWriter {
     public static byte[] write(ModuleDef module) throws ModuleFormatException {
         var writer = new ModuleWriter(module);
         writer.numberModuleRefs();
+        writer.sortExports();
         writer.numberTypeDefs();
         writer.numberTypeRefs();
         writer.numberMembers();
@@ -83,6 +85,36 @@ public final class ModuleWriter {
             }
             moduleRefRows.put(moduleRefs.get(i), i + 1);
         }
+    }
+
+    // Nothing names an Export row, so its rows need only their order and unique keys (BC-24).
+    private void sortExports() throws ModuleFormatException {
+        for (Export export : module.exports()) {
+            if (export.kind() != Flags.EXPORTS && export.kind() != Flags.OPENS) {
+                throw new ModuleFormatException("Export " + export.namespace() + " has the undefined kind "
+                        + export.kind() + " (BC-20)");
+            }
+            exports.add(export);
+        }
+        exports.sort(ModuleWriter::compareExports);
+        for (int i = 1; i < exports.size(); i++) {
+            if (compareExports(exports.get(i - 1), exports.get(i)) == 0) {
+                Export export = exports.get(i);
+                throw new ModuleFormatException("two Export rows have the key of "
+                        + (export.kind() == Flags.OPENS ? "opens " : "exports ") + export.namespace()
+                        + (export.target().isEmpty() ? "" : " to " + export.target()) + " (BC-24)");
+            }
+        }
+    }
+
+    // The key of BC-11 is every column: the namespace, the kind, then the target, whose empty name,
+    // every module, comes first.
+    static int compareExports(Export left, Export right) {
+        int order = Utf8.compare(left.namespace(), right.namespace());
+        if (order == 0) {
+            order = compareRows(left.kind(), right.kind());
+        }
+        return order != 0 ? order : Utf8.compare(left.target(), right.target());
     }
 
     private void numberTypeDefs() throws ModuleFormatException {
@@ -400,6 +432,13 @@ public final class ModuleWriter {
             for (ModuleRef ref : moduleRefs) {
                 tables.u32(idents.ident(ref.name()));
                 tables.u32(ref.flags());
+            }
+        }
+        if (tables.begin(TableId.EXPORT, exports.size())) {
+            for (Export export : exports) {
+                tables.u32(idents.ident(export.namespace()));
+                tables.u32(export.kind());
+                tables.u32(idents.ident(export.target()));
             }
         }
         if (tables.begin(TableId.TYPE_DEF, typeDefs.size())) {

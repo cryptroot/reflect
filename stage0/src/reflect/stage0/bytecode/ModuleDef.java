@@ -16,6 +16,7 @@ public final class ModuleDef {
     private boolean unsafe;
     private @Nullable TypeDef main;
     private final List<ModuleRef> requires = new ArrayList<>();
+    private final List<Export> exports = new ArrayList<>();
     private final List<TypeDef> types = new ArrayList<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
     private final List<MemberRef> memberRefs = new ArrayList<>();
@@ -66,6 +67,11 @@ public final class ModuleDef {
     /** The ModuleRef rows, in any order. */
     public List<ModuleRef> requires() {
         return requires;
+    }
+
+    /** The Export rows, in any order. */
+    public List<Export> exports() {
+        return exports;
     }
 
     /** The TypeDef rows, nested types included, in any order. */

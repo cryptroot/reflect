@@ -49,6 +49,69 @@ public final class ModuleTableTest {
     }
 
     @Test
+    public static void exportsSortByNamespaceKindAndTarget() throws ModuleFormatException {
+        var module = new ModuleDef("app", 1, 0, 0);
+        module.requires().add(new ModuleRef("reflect.core", 0));
+        module.exports().add(new Export("\uD800\uDC00", Flags.EXPORTS, ""));
+        module.exports().add(new Export("app.b", Flags.EXPORTS, ""));
+        module.exports().add(new Export("app.a", Flags.OPENS, "tests"));
+        module.exports().add(new Export("\uE000", Flags.EXPORTS, ""));
+        module.exports().add(new Export("app.a", Flags.EXPORTS, "tests"));
+        module.exports().add(new Export("", Flags.EXPORTS, ""));
+        module.exports().add(new Export("app.a", Flags.EXPORTS, ""));
+        byte[] file = roundTrip(module);
+        // The names of Export rows follow the ModuleRef names in IDENTS, in row order (BC-24).
+        assertEquals("00 03 61 70 70 0C 72 65 66 6C 65 63 74 2E 63 6F 72 65 05 61 70 70 2E 61 05 74 65 73 74 73 "
+                + "05 61 70 70 2E 62 03 EE 80 80 04 F0 90 80 80", Leb128Test.hex(section(file, SectionId.IDENTS)));
+        // The global namespace, IDENTS 0, comes first, and U+E000 comes before U+10000 in UTF-8.
+        var rows = new StringBuilder();
+        for (int row = 1; row <= 7; row++) {
+            for (int column = 0; column < 3; column++) {
+                rows.append(TestModules.column(file, TableId.EXPORT, row, column)).append(column < 2 ? " " : "; ");
+            }
+        }
+        assertEquals("0 0 0; 18 0 0; 18 0 24; 18 1 24; 30 0 0; 36 0 0; 40 0 0; ", rows.toString());
+        var order = new StringBuilder();
+        for (Export export : ModuleReader.read(file).exports()) {
+            order.append(Leb128Test.hex(export.namespace().getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                    .append(" / ").append(export.kind()).append(" / ").append(export.target()).append("; ");
+        }
+        assertEquals(" / 0 / ; 61 70 70 2E 61 / 0 / ; 61 70 70 2E 61 / 0 / tests; 61 70 70 2E 61 / 1 / tests; "
+                + "61 70 70 2E 62 / 0 / ; EE 80 80 / 0 / ; F0 90 80 80 / 0 / ; ", order.toString());
+    }
+
+    @Test
+    public static void theWriterRejectsRepeatedExportsAndUndefinedKinds() {
+        var targeted = new ModuleDef("a", 0, 0, 0);
+        targeted.exports().add(new Export("a.b", Flags.OPENS, "c"));
+        targeted.exports().add(new Export("a.b", Flags.OPENS, "c"));
+        unwritable(targeted, "two Export rows have the key of opens a.b to c (BC-24)");
+        var everyModule = new ModuleDef("a", 0, 0, 0);
+        everyModule.exports().add(new Export("a.b", Flags.EXPORTS, ""));
+        everyModule.exports().add(new Export("a.b", Flags.EXPORTS, ""));
+        unwritable(everyModule, "two Export rows have the key of exports a.b (BC-24)");
+        var kind = new ModuleDef("a", 0, 0, 0);
+        kind.exports().add(new Export("a.b", 2, ""));
+        unwritable(kind, "Export a.b has the undefined kind 2 (BC-20)");
+    }
+
+    @Test
+    public static void theReaderChecksTheExportRows() throws ModuleFormatException {
+        // The Export rows start at TABLES offset 52: the directory of two tables, then the Module row.
+        int[] module = {1, 0, 0, 0, 0, 0};
+        rows(idents("m", "a"), new TestModules.Tables().rows(TableId.MODULE, module).rows(TableId.EXPORT, 3, 2, 0), 56,
+                "Export kind 0x2 is not defined (BC-20)");
+        rows(idents("m", "b", "a"), new TestModules.Tables().rows(TableId.MODULE, module)
+                .rows(TableId.EXPORT, 3, 0, 0, 5, 0, 0), 64, "the Export rows are not sorted by namespace, kind and target (BC-24)");
+        rows(idents("m", "a"), new TestModules.Tables().rows(TableId.MODULE, module)
+                .rows(TableId.EXPORT, 3, 1, 0, 3, 0, 0), 64, "the Export rows are not sorted by namespace, kind and target (BC-24)");
+        rows(idents("m", "a", "c", "b"), new TestModules.Tables().rows(TableId.MODULE, module)
+                .rows(TableId.EXPORT, 3, 0, 5, 3, 0, 7), 64, "the Export rows are not sorted by namespace, kind and target (BC-24)");
+        rows(idents("m", "a"), new TestModules.Tables().rows(TableId.MODULE, module)
+                .rows(TableId.EXPORT, 3, 0, 0, 3, 0, 0), 64, "two Export rows have equal keys (BC-24)");
+    }
+
+    @Test
     public static void theUnsafeFlagAndUnknownAncillarySectionsRoundTrip() throws ModuleFormatException {
         var module = new ModuleDef("native", 0, 0, 0);
         module.setUnsafe(true);
@@ -87,8 +150,8 @@ public final class ModuleTableTest {
         tables(new TestModules.Tables().rows(TableId.MODULE, module).table(0x18, 1, 4, 0), 16, "unknown table 0x18 (BC-20)");
         tables(new TestModules.Tables().rows(TableId.MODULE, module).table(TableId.SERVICE, 1, 4, 0), 16,
                 "unknown table 0x4 (BC-20)");
-        tables(new TestModules.Tables().rows(TableId.MODULE, module).table(TableId.EXPORT, 1, 12, 1, 0, 0), 16,
-                "this reader does not support table 0x3 yet");
+        tables(new TestModules.Tables().rows(TableId.MODULE, module).table(TableId.TYPE_SPEC, 1, 4, 0), 16,
+                "this reader does not support table 0x7 yet");
         tables(new TestModules.Tables().rows(TableId.MODULE, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0), 0,
                 "the Module table has 2 rows; it has exactly one (BC-24)");
         tables(new TestModules.Tables().table(TableId.MODULE, 0, 24), 8,
