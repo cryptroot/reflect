@@ -215,7 +215,7 @@ final class Code {
         return handle instanceof MemberRef ref ? ref : null;
     }
 
-    private static @Nullable String stackProblem(int maxStack) {
+    static @Nullable String stackProblem(int maxStack) {
         return maxStack >= 0 && maxStack <= Limits.MAX_STACK ? null : "the maximum stack depth of "
                 + (maxStack & 0xFFFFFFFFL) + " exceeds the limit of " + Limits.MAX_STACK + " (BC-21)";
     }

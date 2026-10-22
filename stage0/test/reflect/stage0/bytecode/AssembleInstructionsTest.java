@@ -23,7 +23,9 @@ public final class AssembleInstructionsTest {
                 + "    .field private static reflect.core.String name\n"
                 + "    .method public void new() {\n"
                 + "        ldarg 0\n"
+                + "        ldc.i4 0\n"
                 + "        call demo.A::reset(int)\n"
+                + "        pop\n"
                 + "        ret\n"
                 + "    }\n"
                 + "    .method public int reset(int value) {\n"
@@ -107,9 +109,10 @@ public final class AssembleInstructionsTest {
         a.methods().add(reset);
         a.methods().add(loop);
         s.methods().add(hash);
-        constructor.setBody(body(new Instruction.Index(Opcode.LDARG, 0), new Instruction.Method(Opcode.CALL, reset),
+        constructor.setBody(body(2, new Instruction.Index(Opcode.LDARG, 0), new Instruction.Value32(Opcode.LDC_I4, 0),
+                new Instruction.Method(Opcode.CALL, reset), new Instruction.Plain(Opcode.POP),
                 new Instruction.Plain(Opcode.RET)));
-        MethodBody resetBody = body(new Instruction.Index(Opcode.LDARG, 1), new Instruction.Index(Opcode.STLOC, 0),
+        MethodBody resetBody = body(13, new Instruction.Index(Opcode.LDARG, 1), new Instruction.Index(Opcode.STLOC, 0),
                 new Instruction.Index(Opcode.LDLOC, 1), new Instruction.Index(Opcode.LDLOCA, 1),
                 new Instruction.Index(Opcode.STARG, 1), new Instruction.Value32(Opcode.LDC_I4, Integer.MIN_VALUE),
                 new Instruction.Value64(Opcode.LDC_I8, Long.MAX_VALUE), new Instruction.Value32(Opcode.LDC_R4, 0x3DCCCCCD),
@@ -134,7 +137,7 @@ public final class AssembleInstructionsTest {
         var top = new Label();
         var middle = new Label();
         var end = new Label();
-        MethodBody loopBody = body(new Instruction.Index(Opcode.LDARG, 0), new Instruction.Branch(Opcode.BRFALSE, end),
+        MethodBody loopBody = body(1, new Instruction.Index(Opcode.LDARG, 0), new Instruction.Branch(Opcode.BRFALSE, end),
                 new Instruction.Index(Opcode.LDARG, 0), new Instruction.Switch(Opcode.SWITCH, list()),
                 new Instruction.Index(Opcode.LDARG, 0), new Instruction.Switch(Opcode.SWITCH, list(top, end, middle)),
                 new Instruction.Branch(Opcode.BR, top), new Instruction.Plain(Opcode.RET));
@@ -142,7 +145,7 @@ public final class AssembleInstructionsTest {
         middle.mark(loopBody, 6);
         end.mark(loopBody, 7);
         loop.setBody(loopBody);
-        hash.setBody(body(new Instruction.Value32(Opcode.LDC_I4, 7), new Instruction.Plain(Opcode.RET)));
+        hash.setBody(body(1, new Instruction.Value32(Opcode.LDC_I4, 7), new Instruction.Plain(Opcode.RET)));
         expected.requires().add(core);
         expected.requires().add(other);
         for (TypeRef ref : new TypeRef[] {string, object, names, log}) {
@@ -200,8 +203,8 @@ public final class AssembleInstructionsTest {
                 "7:20: RFA0302: an identifier of 65536 UTF-8 bytes exceeds the limit of 65535 (BC-21)");
     }
 
-    private static MethodBody body(Instruction... code) {
-        var body = new MethodBody(0);
+    private static MethodBody body(int maxStack, Instruction... code) {
+        var body = new MethodBody(maxStack);
         for (Instruction instruction : code) {
             body.code().add(instruction);
         }

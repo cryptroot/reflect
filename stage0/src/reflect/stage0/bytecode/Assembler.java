@@ -420,6 +420,7 @@ public final class Assembler {
         MethodBody body = method.body();
         if (body != null) {
             resolve(method, body, text);
+            body.setMaxStack(depth(method.signature(), body.code(), text.mnemonics()));
         }
     }
 
@@ -471,6 +472,102 @@ public final class Assembler {
                     + (count == 0 ? "no " : "more than one ") + (argument ? "argument" : "local") + " named " + name.text());
         }
         return index;
+    }
+
+    // The maximum stack depth along every path from the first instruction, at depth 0, through the
+    // Stack column of §5.1 (Q77). Two paths into one instruction bring one depth, and code that no path
+    // reaches does not count.
+    private static int depth(MethodSig signature, List<Instruction> code, List<Token> mnemonics)
+            throws AssemblyException {
+        int[] depths = new int[code.size()];
+        for (int i = 1; i < depths.length; i++) {
+            depths[i] = -1;
+        }
+        int[] work = new int[code.size()];
+        // work[0] is the first instruction, at depth 0.
+        int pending = code.isEmpty() ? 0 : 1;
+        int max = 0;
+        while (pending > 0) {
+            int i = work[--pending];
+            Instruction instruction = code.get(i);
+            long pops = pops(instruction, signature, depths[i]);
+            if (pops > depths[i]) {
+                throw Parser.error(Diagnostic.STACK, mnemonics.get(i), Opcode.mnemonic(instruction.opcode())
+                        + " needs a stack depth of " + pops + ", but it is " + depths[i] + " (Q77)");
+            }
+            int after = depths[i] - (int) pops + pushes(instruction);
+            check(mnemonics.get(i), Code.stackProblem(after));
+            max = Math.max(max, after);
+            for (int next : successors(instruction, i, code.size())) {
+                if (depths[next] < 0) {
+                    depths[next] = after;
+                    work[pending++] = next;
+                } else if (depths[next] != after) {
+                    throw Parser.error(Diagnostic.STACK, mnemonics.get(next), "two paths reach "
+                            + Opcode.mnemonic(code.get(next).opcode()) + " with stack depths " + depths[next] + " and "
+                            + after + " (Q77)");
+                }
+            }
+        }
+        return max;
+    }
+
+    // The instructions that may follow: the targets of a branch or a switch, then the next instruction
+    // unless this one does not go on.
+    private static List<Integer> successors(Instruction instruction, int i, int size) {
+        var next = new ArrayList<Integer>();
+        if (instruction instanceof Instruction.Branch branch) {
+            next.add(branch.target().index());
+        } else if (instruction instanceof Instruction.Switch choice) {
+            for (Label target : choice.targets()) {
+                next.add(target.index());
+            }
+        }
+        int opcode = instruction.opcode();
+        boolean stops = opcode == Opcode.BR || opcode == Opcode.LEAVE || opcode == Opcode.RET || opcode == Opcode.THROW
+                || opcode == Opcode.RETHROW || opcode == Opcode.ENDFINALLY;
+        if (!stops && i + 1 < size) {
+            next.add(i + 1);
+        }
+        return next;
+    }
+
+    // The values that the instruction pops: a number of §5.1, or what the method that it names, the method
+    // that holds it, the stack or its second operand gives.
+    private static long pops(Instruction instruction, MethodSig holder, int depth) {
+        int pops = Opcode.pops(instruction.opcode());
+        if (pops >= 0) {
+            return pops;
+        }
+        if (pops == Opcode.STACK_ALL) {
+            return depth;
+        }
+        if (pops == Opcode.STACK_RETURN) {
+            return returns(holder) ? 1 : 0;
+        }
+        if (pops == Opcode.STACK_COUNT) {
+            return ((Instruction.Indexes) instruction).second() & 0xFFFFFFFFL;
+        }
+        MethodSig called = called(instruction);
+        int handle = pops == Opcode.STACK_CLASS_ARGS || pops == Opcode.STACK_CLASS_PARAMS ? 1 : 0;
+        return handle + (pops == Opcode.STACK_ARGS || pops == Opcode.STACK_CLASS_ARGS ? Code.arguments(called)
+                : called.params().size());
+    }
+
+    private static int pushes(Instruction instruction) {
+        int pushes = Opcode.pushes(instruction.opcode());
+        return pushes >= 0 ? pushes : returns(called(instruction)) ? 1 : 0;
+    }
+
+    // The signature of the method that a call or newobj names.
+    private static MethodSig called(Instruction instruction) {
+        MethodHandle method = instruction instanceof Instruction.Constrained constrained ? constrained.method()
+                : ((Instruction.Method) instruction).method();
+        return method instanceof MethodDef def ? def.signature() : (MethodSig) ((MemberRef) method).signature();
+    }
+
+    private static boolean returns(MethodSig signature) {
+        return !(signature.returnType() instanceof TypeSig.Primitive primitive && primitive.code() == SigCode.VOID);
     }
 
     // Instruction of §8.1: a mnemonic, then the operands of its operand kind (§5.1).

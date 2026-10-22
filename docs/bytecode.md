@@ -1011,7 +1011,8 @@ HexDigits    = HexDigit+ ;
 - A `Label` names the offset of the instruction that follows it. `Region` lines may appear
   anywhere in a body (Q71).
 - `.locals` gives the types of the locals and, in DEBUG, their names; an `Index` names an
-  argument or a local by number or by name. `.maxstack` sets the maximum stack depth.
+  argument or a local by number or by name. `.maxstack` sets the maximum stack depth; without it,
+  `rfla` computes the depth from the Stack column of §5.1 along every path through the code (Q77).
 - `.source` declares a source file and its SHA-256. `.line` with a path starts lines in that
   file; without one, it continues the file of the method's previous `.line`.
 - `.section` holds an unknown ancillary section, with its ID in hexadecimal (BC-20).
@@ -1067,6 +1068,7 @@ module are `RFA0301`, and the message names the rule.
 | `RFA0301` | `FORMAT` | content that breaks a rule of the format, which the message names |
 | `RFA0302` | `LIMIT` | content over a limit of BC-21 |
 | `RFA0303` | `LATER` | syntax whose table arrives in a later stage, which the message names |
+| `RFA0304` | `STACK` | a stack depth that `rfla` cannot compute: two paths that bring one instruction different depths, or an instruction that pops more values than the stack holds (Q77) |
 
 ## 9. Binary compatibility
 

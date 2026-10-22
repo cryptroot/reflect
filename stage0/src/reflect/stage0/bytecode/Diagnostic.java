@@ -22,6 +22,7 @@ public final class Diagnostic {
     public static final int FORMAT = 301;
     public static final int LIMIT = 302;
     public static final int LATER = 303;
+    public static final int STACK = 304;
 
     private Diagnostic() {
     }
