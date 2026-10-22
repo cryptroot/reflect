@@ -16,7 +16,7 @@ log is [../sketchpad.md](../sketchpad.md).
 | plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
-| v0.0.2 | model, writer, reader | not started |
+| v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
 | v0.0.3 | assembler; suite runner for rejected files | not started |
 | v0.0.4 | disassembler, round trip | not started |
 | v0.0.5 | VM0 loader and core interpreter | not started |
