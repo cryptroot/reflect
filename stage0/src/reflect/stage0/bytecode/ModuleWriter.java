@@ -40,6 +40,7 @@ public final class ModuleWriter {
     private final Map<TypeDef, Integer> typeDefRows = new HashMap<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
     private final Map<TypeRef, Integer> typeRefRows = new HashMap<>();
+    private final List<InterfaceImplRow> interfaceImpls = new ArrayList<>();
     private final List<FieldDef> fields = new ArrayList<>();
     private final Map<FieldDef, Integer> fieldRows = new HashMap<>();
     private final List<MethodDef> methods = new ArrayList<>();
@@ -64,6 +65,7 @@ public final class ModuleWriter {
         writer.sortExports();
         writer.numberTypeDefs();
         writer.numberTypeRefs();
+        writer.sortInterfaceImpls();
         writer.numberMembers();
         writer.numberMemberRefs();
         return writer.file();
@@ -234,6 +236,39 @@ public final class ModuleWriter {
             return 1;
         }
         return compareTypeRefs((TypeRef) left, (TypeRef) right);
+    }
+
+    // The key of BC-11 is the TypeDef row, then the token of the interface. The interface of a TypeDef
+    // is an interface or an annotation type; the kind of a TypeRef is not known to this module.
+    private void sortInterfaceImpls() throws ModuleFormatException {
+        for (int i = 0; i < typeDefs.size(); i++) {
+            TypeDef type = typeDefs.get(i);
+            for (TypeHandle implemented : type.interfaces()) {
+                int token = typeToken(implemented, "an interface of " + type.qualifiedName());
+                if (implemented instanceof TypeDef def && !interfaceKind(def.kind())) {
+                    throw new ModuleFormatException("type " + type.qualifiedName() + " implements " + def.qualifiedName()
+                            + ", which is not an interface (BC-11)");
+                }
+                interfaceImpls.add(new InterfaceImplRow(i + 1, token, implemented));
+            }
+        }
+        interfaceImpls.sort(ModuleWriter::compareInterfaceImpls);
+        for (int i = 1; i < interfaceImpls.size(); i++) {
+            InterfaceImplRow row = interfaceImpls.get(i);
+            if (compareInterfaceImpls(interfaceImpls.get(i - 1), row) == 0) {
+                throw new ModuleFormatException("type " + typeDefs.get(row.type() - 1).qualifiedName() + " implements "
+                        + row.implemented().qualifiedName() + " twice (BC-24)");
+            }
+        }
+    }
+
+    private static int compareInterfaceImpls(InterfaceImplRow left, InterfaceImplRow right) {
+        int order = compareRows(left.type(), right.type());
+        return order != 0 ? order : compareRows(left.token(), right.token());
+    }
+
+    static boolean interfaceKind(int kind) {
+        return kind == Flags.KIND_INTERFACE || kind == Flags.KIND_ANNOTATION;
     }
 
     // Field and Method rows keep the runs of their types in row order, and Param rows the runs of
@@ -490,6 +525,12 @@ public final class ModuleWriter {
                 tables.u32(idents.ident(param.name()));
             }
         }
+        if (tables.begin(TableId.INTERFACE_IMPL, interfaceImpls.size())) {
+            for (InterfaceImplRow row : interfaceImpls) {
+                tables.u32(row.type());
+                tables.u32(row.token());
+            }
+        }
         if (tables.begin(TableId.MEMBER_REF, memberRefs.size())) {
             for (MemberRef ref : memberRefs) {
                 tables.u32(typeToken(ref.parent(), "the parent of a MemberRef"));
@@ -598,5 +639,9 @@ public final class ModuleWriter {
         if ((visibility & (visibility - 1)) != 0) {
             throw new ModuleFormatException(owner + " has more than one visibility flag (BC-11)");
         }
+    }
+
+    // An InterfaceImpl row: the TypeDef row of the type, the token of the interface, and the interface.
+    private record InterfaceImplRow(int type, int token, TypeHandle implemented) {
     }
 }

@@ -78,6 +78,53 @@ public final class TypeTableTest {
     }
 
     @Test
+    public static void interfaceImplsSortByClassAndInterface() throws Exception {
+        byte[] file = roundTrip(interfaces());
+        // a.Dog, a.Named and a.Pet are TypeDef rows 1 to 3, and reflect.core.Comparable is TypeRef row 1.
+        var rows = new StringBuilder();
+        for (int row = 1; row <= 4; row++) {
+            rows.append(column(file, TableId.INTERFACE_IMPL, row, 0)).append(' ')
+                    .append(Integer.toHexString(column(file, TableId.INTERFACE_IMPL, row, 1))).append("; ");
+        }
+        assertEquals("1 5000002; 1 5000003; 1 6000001; 3 6000001; ", rows.toString());
+        ModuleDef read = ModuleReader.read(file);
+        assertEquals("a.Named a.Pet reflect.core.Comparable", interfaceNames(read.types().get(0)));
+        assertEquals("", interfaceNames(read.types().get(1)));
+        assertEquals("reflect.core.Comparable", interfaceNames(read.types().get(2)));
+        assertTrue(read.types().get(0).interfaces().get(2) == read.typeRefs().get(0));
+    }
+
+    @Test
+    public static void theWriterRejectsInvalidInterfaceImpls() {
+        TypeDef dog = type("a", "Dog");
+        TypeDef pet = new TypeDef("a", "Pet", Flags.KIND_INTERFACE, Flags.PUBLIC, 0, null);
+        dog.interfaces().add(pet);
+        dog.interfaces().add(pet);
+        unwritable(withTypes(dog, pet), "type a.Dog implements a.Pet twice (BC-24)");
+        TypeDef cat = type("a", "Cat");
+        TypeDef animal = type("a", "Animal");
+        cat.interfaces().add(animal);
+        unwritable(withTypes(cat, animal), "type a.Cat implements a.Animal, which is not an interface (BC-11)");
+        TypeDef cow = type("a", "Cow");
+        cow.interfaces().add(new TypeRef(new ModuleRef("reflect.core", 0), "reflect.core", "Comparable"));
+        unwritable(withTypes(cow), "an interface of a.Cow is reflect.core.Comparable, which the module does not list");
+    }
+
+    @Test
+    public static void theReaderRejectsInvalidInterfaceImpls() throws Exception {
+        byte[] file = ModuleWriter.write(interfaces());
+        int impl = TableId.INTERFACE_IMPL;
+        rejected(patch(file, impl, 1, 0, 3), columnOffset(file, impl, 2, 0),
+                "the InterfaceImpl rows are not sorted by class and interface (BC-24)");
+        rejected(patch(file, impl, 4, 0, 1), columnOffset(file, impl, 4, 0), "two InterfaceImpl rows have equal keys (BC-24)");
+        reject(file, impl, 1, 1, 0x05000001, "the InterfaceImpl row names a.Dog, which is not an interface (BC-11)");
+        reject(file, impl, 1, 0, 0, "row 0 of table 0x5 does not exist");
+        reject(file, impl, 1, 1, 0, "token 0x0 does not name a TypeDef, TypeRef or TypeSpec row");
+        reject(file, impl, 1, 1, 0x08000001, "token 0x8000001 does not name a TypeDef, TypeRef or TypeSpec row");
+        reject(file, impl, 1, 1, 0x07000001, "token 0x7000001 names row 1 of table 0x7, which does not exist");
+    }
+
+    @Test
     public static void theWriterRejectsInvalidTypes() {
         unwritable(withTypes(type("a", "A"), type("a", "A")), "two TypeDef rows have the key of a.A (BC-24)");
         TypeDef same = type("a", "A");
@@ -193,6 +240,35 @@ public final class TypeTableTest {
             module.typeRefs().add(ref);
         }
         return module;
+    }
+
+    // a.Dog implements the annotation type a.Named, reflect.core.Comparable and the interface a.Pet,
+    // which implements reflect.core.Comparable too; all are added out of order.
+    private static ModuleDef interfaces() {
+        var module = new ModuleDef("a", 0, 0, 0);
+        var core = new ModuleRef("reflect.core", 0);
+        module.requires().add(core);
+        var comparable = new TypeRef(core, "reflect.core", "Comparable");
+        module.typeRefs().add(comparable);
+        TypeDef dog = type("a", "Dog");
+        TypeDef named = new TypeDef("a", "Named", Flags.KIND_ANNOTATION, Flags.PUBLIC, 0, null);
+        TypeDef pet = new TypeDef("a", "Pet", Flags.KIND_INTERFACE, Flags.PUBLIC, 0, null);
+        dog.interfaces().add(pet);
+        dog.interfaces().add(comparable);
+        dog.interfaces().add(named);
+        pet.interfaces().add(comparable);
+        for (TypeDef type : new TypeDef[] {pet, dog, named}) {
+            module.types().add(type);
+        }
+        return module;
+    }
+
+    private static String interfaceNames(TypeDef type) {
+        var names = new StringBuilder();
+        for (TypeHandle implemented : type.interfaces()) {
+            names.append(names.length() == 0 ? "" : " ").append(implemented.qualifiedName());
+        }
+        return names.toString();
     }
 
     private static TypeDef type(String namespace, String name) {

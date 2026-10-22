@@ -16,6 +16,7 @@ public final class TypeDef implements TypeHandle {
     private final int backing;
     private final @Nullable TypeDef enclosing;
     private @Nullable TypeHandle base;
+    private final List<TypeHandle> interfaces = new ArrayList<>();
     private final List<FieldDef> fields = new ArrayList<>();
     private final List<MethodDef> methods = new ArrayList<>();
 
@@ -59,6 +60,11 @@ public final class TypeDef implements TypeHandle {
 
     public void setBase(@Nullable TypeHandle base) {
         this.base = base;
+    }
+
+    /** The interfaces that the type implements, one InterfaceImpl row each, in any order; the writer sorts them. */
+    public List<TypeHandle> interfaces() {
+        return interfaces;
     }
 
     /** The Field rows of the type, in declaration order. */

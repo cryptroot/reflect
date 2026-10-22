@@ -15,7 +15,7 @@ import reflect.stage0.lib.Nullable;
  */
 public final class ModuleReader {
     private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.EXPORT, TableId.TYPE_DEF,
-        TableId.TYPE_REF, TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.MEMBER_REF};
+        TableId.TYPE_REF, TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.INTERFACE_IMPL, TableId.MEMBER_REF};
     private static final int[] TYPE_TOKENS = {TableId.TYPE_DEF, TableId.TYPE_REF, TableId.TYPE_SPEC};
     private static final int[] SCOPE_TOKENS = {TableId.MODULE_REF, TableId.TYPE_REF};
     private static final int[] PARENT_TOKENS = {TableId.TYPE_REF, TableId.TYPE_SPEC};
@@ -72,6 +72,7 @@ public final class ModuleReader {
         runs(TableId.METHOD, 5, TableId.GENERIC_PARAM, "GenericParam");
         List<MethodDef> methods = readMethods(paramRuns);
         List<ParamDef> params = readParams();
+        readInterfaceImpls();
         for (MemberRef ref : readMemberRefs()) {
             module.memberRefs().add(ref);
         }
@@ -310,6 +311,35 @@ public final class ModuleReader {
             params.add(new ParamDef(flags, ident(TableId.PARAM, row, 1)));
         }
         return params;
+    }
+
+    // Adds the interface of each row to its type, in row order.
+    private void readInterfaceImpls() throws ModuleFormatException {
+        int previousType = 0;
+        int previousToken = 0;
+        for (int row = 1; row <= tables.rows(TableId.INTERFACE_IMPL); row++) {
+            int type = row(TableId.INTERFACE_IMPL, row, 0, TableId.TYPE_DEF, false);
+            int token = token(TableId.INTERFACE_IMPL, row, 1, TYPE_TOKENS, false, "a TypeDef, TypeRef or TypeSpec row");
+            if (row > 1) {
+                int order = ModuleWriter.compareRows(previousType, type);
+                if (order == 0) {
+                    order = ModuleWriter.compareRows(previousToken, token);
+                }
+                if (order >= 0) {
+                    throw new ModuleFormatException(tables.offset(TableId.INTERFACE_IMPL, row, 0), order == 0
+                            ? "two InterfaceImpl rows have equal keys (BC-24)"
+                            : "the InterfaceImpl rows are not sorted by class and interface (BC-24)");
+                }
+            }
+            TypeHandle implemented = typeHandle(token);
+            if (implemented instanceof TypeDef def && !ModuleWriter.interfaceKind(def.kind())) {
+                throw new ModuleFormatException(tables.offset(TableId.INTERFACE_IMPL, row, 1), "the InterfaceImpl row"
+                        + " names " + def.qualifiedName() + ", which is not an interface (BC-11)");
+            }
+            typeDefs.get(type - 1).interfaces().add(implemented);
+            previousType = type;
+            previousToken = token;
+        }
     }
 
     private List<MemberRef> readMemberRefs() throws ModuleFormatException {
