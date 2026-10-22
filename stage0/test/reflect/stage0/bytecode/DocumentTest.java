@@ -32,19 +32,25 @@ public final class DocumentTest {
     private static final Pattern LEADING_NUMBER = Pattern.compile("[0-9][0-9,]*");
     private static final Pattern CODE_SPAN = Pattern.compile("`([^`]+)`");
     private static final Set<String> CHARACTER_CLASSES = Set.of("IdStart", "IdPart", "Digit", "HexDigit", "Char");
+    private static final String OPCODES = "| Opcode | Instruction | Operands | Stack | R0 |";
+    private static final String ARROW = " " + (char) 0x2192 + " ";
 
     @Test
     public static void opcodeTable() throws IOException {
         boolean[] listed = new boolean[0x10000];
         int previous = -1;
-        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Opcode | Instruction | Operands | R0 |")) {
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, OPCODES)) {
             int code = opcode(row, row.code(0));
             row.check(code > previous, "opcodes are not in increasing order");
             row.check(Opcode.isDefined(code), "Opcode does not define " + row.cell(0));
             row.expect("instruction", row.code(1), Opcode.mnemonic(code));
             row.expect("operands", operandKind(row, row.cell(2)), Opcode.operands(code));
-            row.check(row.cell(3).isEmpty() || row.cell(3).equals("R0"), "the R0 column holds R0 or nothing");
-            row.expect("R0 mark", row.cell(3).equals("R0"), Opcode.isR0(code));
+            String[] stack = row.cell(3).split(ARROW, -1);
+            row.check(stack.length == 2, "the stack effect is not the values popped, an arrow and the values pushed");
+            row.expect("values popped", stackCount(row, stack[0]), Opcode.pops(code));
+            row.expect("values pushed", stackCount(row, stack[1]), Opcode.pushes(code));
+            row.check(row.cell(4).isEmpty() || row.cell(4).equals("R0"), "the R0 column holds R0 or nothing");
+            row.expect("R0 mark", row.cell(4).equals("R0"), Opcode.isR0(code));
             listed[code] = true;
             previous = code;
         }
@@ -82,7 +88,7 @@ public final class DocumentTest {
         int constants = 0;
         for (Field field : Opcode.class.getDeclaredFields()) {
             String name = field.getName();
-            if (!isIntConstant(field) || name.startsWith("OPERAND_") || name.equals("PREFIX")) {
+            if (!isIntConstant(field) || name.startsWith("OPERAND_") || name.startsWith("STACK_") || name.equals("PREFIX")) {
                 continue;
             }
             int code = field.getInt(null);
@@ -251,7 +257,7 @@ public final class DocumentTest {
     public static void operandSyntax() throws IOException {
         Map<String, List<String>> rules = grammar();
         var notations = new HashSet<String>();
-        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, "| Opcode | Instruction | Operands | R0 |")) {
+        for (MarkdownTable.Row row : MarkdownTable.read(BYTECODE, OPCODES)) {
             notations.add(row.cell(2));
         }
         var described = new HashSet<String>();
@@ -541,6 +547,24 @@ public final class DocumentTest {
             default -> {
                 row.check(false, "unknown operands: " + cell);
                 yield -1;
+            }
+        };
+    }
+
+    // A number of values, or one of the words of the legend of section 5.1.
+    private static int stackCount(MarkdownTable.Row row, String text) {
+        return switch (text) {
+            case "args" -> Opcode.STACK_ARGS;
+            case "class, args" -> Opcode.STACK_CLASS_ARGS;
+            case "params" -> Opcode.STACK_PARAMS;
+            case "class, params" -> Opcode.STACK_CLASS_PARAMS;
+            case "result" -> Opcode.STACK_RESULT;
+            case "return" -> Opcode.STACK_RETURN;
+            case "all" -> Opcode.STACK_ALL;
+            case "n" -> Opcode.STACK_COUNT;
+            default -> {
+                row.check(text.matches("[0-9]"), "not a stack count: " + text);
+                yield Integer.parseInt(text);
             }
         };
     }
