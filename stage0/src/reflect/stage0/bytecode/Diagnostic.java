@@ -19,6 +19,7 @@ public final class Diagnostic {
     public static final int NO_MEMBER = 205;
     public static final int NO_LABEL = 206;
     public static final int NO_VARIABLE = 207;
+    public static final int NO_SOURCE = 208;
     public static final int FORMAT = 301;
     public static final int LIMIT = 302;
     public static final int LATER = 303;

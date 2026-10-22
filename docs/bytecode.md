@@ -1015,7 +1015,8 @@ HexDigits    = HexDigit+ ;
   `rfla` computes the depth from the Stack column of §5.1 along every path through the code, where a
   catch handler starts with its exception on the stack (Q77).
 - `.source` declares a source file and its SHA-256. `.line` with a path starts lines in that
-  file; without one, it continues the file of the method's previous `.line`.
+  file; without one, it continues the file of the method's previous `.line`. A `.line` and a
+  `.stackmap` describe the instruction that follows them.
 - `.section` holds an unknown ancillary section, with its ID in hexadecimal (BC-20).
 - The type of a field decides how its `Constant` is read; the operand kind of an instruction
   decides how an operand is read.
@@ -1066,6 +1067,7 @@ module are `RFA0301`, and the message names the rule.
 | `RFA0205` | `NO_MEMBER` | a field or method that the module does not define, where it must |
 | `RFA0206` | `NO_LABEL` | a label that the body does not mark |
 | `RFA0207` | `NO_VARIABLE` | a name that no argument or local of the method has, or more than one has |
+| `RFA0208` | `NO_SOURCE` | a `.line` whose file no `.source` declares, or that names no file and follows no `.line` of its method |
 | `RFA0301` | `FORMAT` | content that breaks a rule of the format, which the message names |
 | `RFA0302` | `LIMIT` | content over a limit of BC-21 |
 | `RFA0303` | `LATER` | syntax whose table arrives in a later stage, which the message names |

@@ -36,6 +36,9 @@ public final class Assembler {
         Flags.METHOD_SYNTHESIZED};
     private static final String[] PARAM_WORDS = {"scoped", "this"};
     private static final int[] PARAM_FLAGS = {Flags.PARAM_SCOPED, Flags.PARAM_THIS};
+    // The words of the verification types, in the order of their tags from I32 (BC-19).
+    private static final String[] VERIFICATION_WORDS = {"i32", "i64", "f32", "f64", "null", "ref", "uninit", "byref",
+        "byref.readonly", "ptr", "struct", "class"};
 
     private final Parser parser;
     private final ModuleDef module;
@@ -45,6 +48,7 @@ public final class Assembler {
     private final Map<String, TypeDef> types = new HashMap<>();
     private final Map<String, TypeRef> typeRefs = new HashMap<>();
     private final Map<MemberKey, MemberRef> memberRefs = new HashMap<>();
+    private final Map<String, SourceFile> sources = new HashMap<>();
     private final List<Declared> classes = new ArrayList<>();
     private final List<Body> bodies = new ArrayList<>();
     private final List<Kept> sections = new ArrayList<>();
@@ -89,6 +93,8 @@ public final class Assembler {
                 unsafe();
             } else if (parser.atDirective(".section")) {
                 section();
+            } else if (parser.atDirective(".source")) {
+                source();
             } else if (parser.atDirective(".class")) {
                 declare(null);
             } else {
@@ -184,6 +190,18 @@ public final class Assembler {
             }
         }
         sections.add(new Kept(directive, new Section(id, content)));
+    }
+
+    // A source file that .line names, by its path, with its SHA-256 (§6.1).
+    private void source() throws AssemblyException {
+        parser.next();
+        Token path = parser.peek();
+        var file = new SourceFile(parser.string("the path of a source file"), parser.hex());
+        check(path, Debug.problem(file));
+        if (sources.containsKey(file.path())) {
+            throw Parser.error(Diagnostic.FORMAT, path, "two source files have the path " + file.path() + " (BC-24)");
+        }
+        sources.put(file.path(), file);
     }
 
     // The head of a .class declares its type, and the types nested in it; the base type, the
@@ -386,7 +404,8 @@ public final class Assembler {
     // The items of a body up to its }; a method without a body has none. Labels and the names of
     // arguments and locals resolve once the body is read, since a label or .locals may follow a use.
     private void body(MethodDef method, String owner) throws AssemblyException {
-        var text = new Text(new HashMap<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        var text = new Text(new HashMap<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
+                new ArrayList<>(), new ArrayList<>());
         boolean locals = false;
         @Nullable Token maxStack = null;
         while (!parser.at("}")) {
@@ -414,6 +433,10 @@ public final class Assembler {
                 check(maxStack, Code.stackProblem(body.maxStack()));
             } else if (parser.atDirective(".try")) {
                 region(body, text);
+            } else if (parser.atDirective(".line")) {
+                line(body, text);
+            } else if (parser.atDirective(".stackmap")) {
+                frame(body, text);
             } else if (parser.atKind(Token.WORD) && parser.peekSecond().is(":")) {
                 Label label = label(text, parser.identifier("a label").text());
                 parser.next();
@@ -433,6 +456,11 @@ public final class Assembler {
             resolve(method, body, text);
             if (maxStack == null) {
                 body.setMaxStack(depth(method.signature(), body, text.mnemonics()));
+            }
+            boolean[] places = Frames.places(body);
+            for (int i = 0; i < body.frames().size(); i++) {
+                check(text.frames().get(i), Frames.problem(body.frames().get(i), body, Code.arguments(method.signature()),
+                        places));
             }
         }
     }
@@ -464,6 +492,72 @@ public final class Assembler {
         text.regions().add(directive);
     }
 
+    // Line of §8.1: a line entry at the next instruction, in the file that it names, or else in the file
+    // of the method's previous .line.
+    private void line(MethodBody body, Text text) throws AssemblyException {
+        Token directive = parser.next();
+        List<Line> lines = body.lines();
+        @Nullable SourceFile file = lines.isEmpty() ? null : lines.get(lines.size() - 1).file();
+        if (parser.atKind(Token.STRING)) {
+            Token path = parser.next();
+            file = sources.get(path.text());
+            if (file == null) {
+                throw Parser.error(Diagnostic.NO_SOURCE, path, "no .source declares " + path.text());
+            }
+        } else if (file == null) {
+            throw Parser.error(Diagnostic.NO_SOURCE, directive, "the first .line of a method names its file");
+        }
+        int number = parser.u32("a line number");
+        if (!lines.isEmpty() && lines.get(lines.size() - 1).at().index() == body.code().size()) {
+            throw Parser.error(Diagnostic.REPEATED, directive, "two .line directives precede one instruction");
+        }
+        lines.add(new Line(next(body), file, number));
+        text.lines().add(directive);
+    }
+
+    // StackMap of §8.1: a stack map frame at the next instruction, stored as written (Q50).
+    private void frame(MethodBody body, Text text) throws AssemblyException {
+        Token directive = parser.next();
+        List<Frame> frames = body.frames();
+        if (!frames.isEmpty() && frames.get(frames.size() - 1).at().index() == body.code().size()) {
+            throw Parser.error(Diagnostic.REPEATED, directive, "two .stackmap directives precede one instruction");
+        }
+        Label at = next(body);
+        frames.add(new Frame(at, verificationTypes(), verificationTypes()));
+        text.frames().add(directive);
+    }
+
+    // VTypes of §8.1 in parentheses: each a word, and the type that REF, UNINIT, BYREF, BYREF_READONLY,
+    // STRUCT and CLASS name.
+    private List<Frame.VType> verificationTypes() throws AssemblyException {
+        parser.expect("(");
+        var types = new ArrayList<Frame.VType>();
+        if (!parser.at(")")) {
+            do {
+                int tag = 0;
+                for (int i = 0; i < VERIFICATION_WORDS.length; i++) {
+                    if (parser.at(VERIFICATION_WORDS[i])) {
+                        tag = VerificationType.I32 + i;
+                    }
+                }
+                if (tag == 0) {
+                    throw parser.unexpected("a verification type");
+                }
+                parser.next();
+                types.add(new Frame.VType(tag, VerificationType.hasToken(tag) ? tokenType(parser.type("a type")) : null));
+            } while (parser.accept(","));
+        }
+        parser.expect(")");
+        return types;
+    }
+
+    // A label at the instruction that comes next.
+    private static Label next(MethodBody body) {
+        var label = new Label();
+        label.mark(body, body.code().size());
+        return label;
+    }
+
     // Marks the labels and names of the body, then checks each instruction at its mnemonic with the
     // rules of the writer.
     private void resolve(MethodDef method, MethodBody body, Text text) throws AssemblyException {
@@ -489,6 +583,9 @@ public final class Assembler {
         Regions.Crossing crossing = Regions.crossing(body.regions());
         if (crossing != null) {
             check(text.regions().get(crossing.region()), Regions.crossingProblem(crossing));
+        }
+        for (int i = 0; i < body.lines().size(); i++) {
+            check(text.lines().get(i), Debug.problem(body.lines().get(i), body));
         }
     }
 
@@ -1070,9 +1167,10 @@ public final class Assembler {
     }
 
     // A body as the text gives it: its labels by name, each use of a label, per instruction its mnemonic
-    // and the name that gives its argument or local, if any, and the .try of each region.
+    // and the name that gives its argument or local, if any, and the directive of each region, line
+    // entry and stack map frame.
     private record Text(Map<String, Label> labels, List<Token> uses, List<Token> mnemonics,
-            List<@Nullable Token> names, List<Token> regions) {
+            List<@Nullable Token> names, List<Token> regions, List<Token> lines, List<Token> frames) {
     }
 
     private record MemberKey(TypeHandle parent, String name, MemberSig signature) {
