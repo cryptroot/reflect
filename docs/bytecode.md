@@ -1012,7 +1012,8 @@ HexDigits    = HexDigit+ ;
   anywhere in a body (Q71).
 - `.locals` gives the types of the locals and, in DEBUG, their names; an `Index` names an
   argument or a local by number or by name. `.maxstack` sets the maximum stack depth; without it,
-  `rfla` computes the depth from the Stack column of §5.1 along every path through the code (Q77).
+  `rfla` computes the depth from the Stack column of §5.1 along every path through the code, where a
+  catch handler starts with its exception on the stack (Q77).
 - `.source` declares a source file and its SHA-256. `.line` with a path starts lines in that
   file; without one, it continues the file of the method's previous `.line`.
 - `.section` holds an unknown ancillary section, with its ID in hexadecimal (BC-20).

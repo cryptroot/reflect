@@ -386,8 +386,9 @@ public final class Assembler {
     // The items of a body up to its }; a method without a body has none. Labels and the names of
     // arguments and locals resolve once the body is read, since a label or .locals may follow a use.
     private void body(MethodDef method, String owner) throws AssemblyException {
-        var text = new Text(new HashMap<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+        var text = new Text(new HashMap<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         boolean locals = false;
+        @Nullable Token maxStack = null;
         while (!parser.at("}")) {
             Token at = parser.peek();
             MethodBody body = method.body();
@@ -403,6 +404,16 @@ public final class Assembler {
                 }
                 locals = true;
                 locals(body);
+            } else if (parser.atDirective(".maxstack")) {
+                if (maxStack != null) {
+                    throw Parser.error(Diagnostic.REPEATED, at, "the body has one .maxstack");
+                }
+                parser.next();
+                maxStack = parser.peek();
+                body.setMaxStack(parser.u32("a stack depth"));
+                check(maxStack, Code.stackProblem(body.maxStack()));
+            } else if (parser.atDirective(".try")) {
+                region(body, text);
             } else if (parser.atKind(Token.WORD) && parser.peekSecond().is(":")) {
                 Label label = label(text, parser.identifier("a label").text());
                 parser.next();
@@ -413,15 +424,44 @@ public final class Assembler {
             } else if (parser.atKind(Token.WORD)) {
                 instruction(body, text);
             } else {
-                throw parser.unexpected("an instruction, a label, .locals, .override or }");
+                throw parser.unexpected("an instruction, a label, a directive of a body or }");
             }
         }
         parser.next();
         MethodBody body = method.body();
         if (body != null) {
             resolve(method, body, text);
-            body.setMaxStack(depth(method.signature(), body.code(), text.mnemonics()));
+            if (maxStack == null) {
+                body.setMaxStack(depth(method.signature(), body, text.mnemonics()));
+            }
         }
+    }
+
+    // Region of §8.1: a try and a handler by their labels, which the body marks before or after it.
+    private void region(MethodBody body, Text text) throws AssemblyException {
+        Token directive = parser.next();
+        Label tryStart = target(text);
+        Label tryEnd = target(text);
+        int kind = Flags.REGION_FINALLY;
+        @Nullable TypeHandle type = null;
+        if (parser.atDirective(".catch")) {
+            parser.next();
+            kind = Flags.REGION_CATCH;
+            type = tokenType(parser.type("the type that the handler catches"));
+        } else if (parser.atDirective(".finally")) {
+            parser.next();
+        } else {
+            throw parser.unexpected(".catch or .finally");
+        }
+        Label handlerStart = target(text);
+        var region = new Region(kind, tryStart, tryEnd, handlerStart, target(text), type);
+        for (Region earlier : body.regions()) {
+            if (earlier.equals(region)) {
+                throw Parser.error(Diagnostic.FORMAT, directive, "two exception regions are equal (BC-18)");
+            }
+        }
+        body.regions().add(region);
+        text.regions().add(directive);
     }
 
     // Marks the labels and names of the body, then checks each instruction at its mnemonic with the
@@ -442,6 +482,13 @@ public final class Assembler {
             }
             String problem = Code.problem(code.get(i), arguments, body.locals().size());
             check(text.mnemonics().get(i), problem != null ? problem : Code.targetProblem(code.get(i), body));
+        }
+        for (int i = 0; i < body.regions().size(); i++) {
+            check(text.regions().get(i), Regions.problem(body.regions().get(i), body));
+        }
+        Regions.Crossing crossing = Regions.crossing(body.regions());
+        if (crossing != null) {
+            check(text.regions().get(crossing.region()), Regions.crossingProblem(crossing));
         }
     }
 
@@ -474,11 +521,12 @@ public final class Assembler {
         return index;
     }
 
-    // The maximum stack depth along every path from the first instruction, at depth 0, through the
-    // Stack column of §5.1 (Q77). Two paths into one instruction bring one depth, and code that no path
-    // reaches does not count.
-    private static int depth(MethodSig signature, List<Instruction> code, List<Token> mnemonics)
-            throws AssemblyException {
+    // The maximum stack depth along every path from the first instruction, at depth 0, and from each
+    // handler, at 1 for a catch, which holds its exception, and 0 for a finally, through the Stack column
+    // of §5.1 (Q77). Two paths into one instruction bring one depth, and code that no path reaches does
+    // not count.
+    private static int depth(MethodSig signature, MethodBody body, List<Token> mnemonics) throws AssemblyException {
+        List<Instruction> code = body.code();
         int[] depths = new int[code.size()];
         for (int i = 1; i < depths.length; i++) {
             depths[i] = -1;
@@ -487,6 +535,16 @@ public final class Assembler {
         // work[0] is the first instruction, at depth 0.
         int pending = code.isEmpty() ? 0 : 1;
         int max = 0;
+        for (Region region : body.regions()) {
+            int start = region.handlerStart().index();
+            int depth = region.kind() == Flags.REGION_CATCH ? 1 : 0;
+            if (depths[start] < 0) {
+                depths[start] = depth;
+                work[pending++] = start;
+                max = Math.max(max, depth);
+            }
+            agree(depths[start], depth, code.get(start), mnemonics.get(start));
+        }
         while (pending > 0) {
             int i = work[--pending];
             Instruction instruction = code.get(i);
@@ -502,14 +560,19 @@ public final class Assembler {
                 if (depths[next] < 0) {
                     depths[next] = after;
                     work[pending++] = next;
-                } else if (depths[next] != after) {
-                    throw Parser.error(Diagnostic.STACK, mnemonics.get(next), "two paths reach "
-                            + Opcode.mnemonic(code.get(next).opcode()) + " with stack depths " + depths[next] + " and "
-                            + after + " (Q77)");
                 }
+                agree(depths[next], after, code.get(next), mnemonics.get(next));
             }
         }
         return max;
+    }
+
+    // Two paths into one instruction bring one depth (Q77).
+    private static void agree(int depth, int other, Instruction instruction, Token at) throws AssemblyException {
+        if (depth != other) {
+            throw Parser.error(Diagnostic.STACK, at, "two paths reach " + Opcode.mnemonic(instruction.opcode())
+                    + " with stack depths " + depth + " and " + other + " (Q77)");
+        }
     }
 
     // The instructions that may follow: the targets of a branch or a switch, then the next instruction
@@ -624,7 +687,7 @@ public final class Assembler {
         text.names().add(name);
     }
 
-    // The label that a branch or a switch names; the body marks it before or after the use.
+    // The label that a branch, a switch or a region names; the body marks it before or after the use.
     private Label target(Text text) throws AssemblyException {
         Token name = parser.identifier("a label");
         text.uses().add(name);
@@ -1006,10 +1069,10 @@ public final class Assembler {
     private record Body(MethodDef method, String owner, int position) {
     }
 
-    // A body as the text gives it: its labels by name, each use of a label, and per instruction its
-    // mnemonic and the name that gives its argument or local, if any.
+    // A body as the text gives it: its labels by name, each use of a label, per instruction its mnemonic
+    // and the name that gives its argument or local, if any, and the .try of each region.
     private record Text(Map<String, Label> labels, List<Token> uses, List<Token> mnemonics,
-            List<@Nullable Token> names) {
+            List<@Nullable Token> names, List<Token> regions) {
     }
 
     private record MemberKey(TypeHandle parent, String name, MemberSig signature) {

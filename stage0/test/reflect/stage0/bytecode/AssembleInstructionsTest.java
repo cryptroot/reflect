@@ -162,7 +162,7 @@ public final class AssembleInstructionsTest {
     @Test
     public static void eachInstructionHasItsDiagnostics() {
         unassemblable(B + "foo" + E, "7:1: RFA0204: no instruction is named foo");
-        unassemblable(B + "5" + E, "7:1: RFA0101: expected an instruction, a label, .locals, .override or }, found 5");
+        unassemblable(B + "5" + E, "7:1: RFA0101: expected an instruction, a label, a directive of a body or }, found 5");
         unassemblable(B + "ldc.i4 x" + E, "7:8: RFA0101: expected a 32-bit integer, found x");
         unassemblable(B + "ldc.i4 2147483648" + E,
                 "7:8: RFA0103: 2147483648 is outside the range of a 32-bit integer, from -2147483648 to 2147483647");
