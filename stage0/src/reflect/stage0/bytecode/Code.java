@@ -111,6 +111,13 @@ final class Code {
                 return "frame " + i + ": " + problem;
             }
         }
+        List<Line> lines = body.lines();
+        for (int i = 0; i < lines.size(); i++) {
+            String problem = Debug.problem(lines.get(i), body);
+            if (problem != null) {
+                return "line entry " + i + ": " + problem;
+            }
+        }
         return null;
     }
 
@@ -202,12 +209,12 @@ final class Code {
     }
 
     /**
-     * Encodes a body that the writer has checked. Its LOCALS signature, then the strings of its
+     * Encodes a body that the writer has checked, and returns the code offset of each instruction and
+     * of the end of the code, which DEBUG names (§6.1). Its LOCALS signature, then the strings of its
      * instructions, enter the heaps here, in the canonical order of BC-24.
      */
-    static byte[] body(MethodBody body, HeapWriter blobs, HeapWriter literals, Tokens tokens, String owner)
+    static int[] body(MethodBody body, ByteSink out, HeapWriter blobs, HeapWriter literals, Tokens tokens, String owner)
             throws ModuleFormatException {
-        var out = new ByteSink();
         out.uleb(body.maxStack());
         out.uleb(body.locals().isEmpty() ? 0 : blobs.blob(Signatures.locals(body.locals(), tokens::token)));
         var code = new ByteSink();
@@ -220,7 +227,7 @@ final class Code {
         out.bytes(code.toByteArray());
         Regions.write(body.regions(), starts, out, tokens, owner);
         Frames.write(body.frames(), starts, out, tokens, owner);
-        return out.toByteArray();
+        return starts;
     }
 
     /**
@@ -340,11 +347,15 @@ final class Code {
         }
     }
 
+    /** A body that the reader decoded, with the instruction at each code offset, the end included, and its labels. */
+    record Decoded(MethodBody body, Map<Integer, Integer> starts, Targets targets) {
+    }
+
     /**
      * Decodes the body at the position of the source, which ends where CODE does, for a method with
      * this many arguments. Each error names its offset: a malformed instruction its own.
      */
-    static MethodBody body(ByteSource in, HeapReader blobs, HeapReader literals, Handles handles, int arguments,
+    static Decoded body(ByteSource in, HeapReader blobs, HeapReader literals, Handles handles, int arguments,
             String module) throws ModuleFormatException {
         int at = in.position();
         int maxStack = in.uleb();
@@ -394,7 +405,7 @@ final class Code {
         starts.put(size, body.code().size());
         Regions.read(in, body, starts, targets, handles);
         Frames.read(in, body, starts, targets, handles, arguments);
-        return body;
+        return new Decoded(body, starts, targets);
     }
 
     private static Instruction decode(ByteSource in, HeapReader literals, Handles handles, Targets targets)

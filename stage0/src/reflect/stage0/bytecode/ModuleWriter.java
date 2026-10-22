@@ -8,9 +8,9 @@ import reflect.stage0.lib.Nullable;
 
 /**
  * Writes a module (README §7.3): it sorts the tables by their keys and numbers the rows, makes the
- * heap references in the canonical order of BC-24 while it writes the rows, and lays out the
- * sections. Content that breaks a rule, or exceeds a limit of BC-21, is an error, never a
- * truncated module.
+ * heap references in the canonical order of BC-24 while it writes the rows, lays out the sections,
+ * and writes DEBUG from the line entries of the bodies. Content that breaks a rule, or exceeds a
+ * limit of BC-21, is an error, never a truncated module.
  */
 public final class ModuleWriter {
     static final int MODULE_REF_FLAGS = Flags.REQUIRES_TRANSITIVE | Flags.REQUIRES_STATIC;
@@ -460,12 +460,14 @@ public final class ModuleWriter {
         }
         // The bodies follow one another in the order of their Method rows (BC-17).
         var code = new ByteSink();
+        int[][] starts = new int[methods.size()][];
         for (int i = 0; i < methods.size(); i++) {
             MethodDef method = methods.get(i);
             MethodBody body = method.body();
+            starts[i] = new int[0];
             if (body != null) {
                 tables.set(codeColumns[i], code.size());
-                code.bytes(Code.body(body, blobs, literals, this::token, methodOwners.get(i)));
+                starts[i] = Code.body(body, code, blobs, literals, this::token, methodOwners.get(i));
             }
         }
         var sections = new ArrayList<Section>();
@@ -476,14 +478,26 @@ public final class ModuleWriter {
         if (code.size() > 0) {
             sections.add(new Section(SectionId.CODE, code.toByteArray()));
         }
+        int flags = module.unsafe() ? Header.FLAG_UNSAFE : 0;
+        // DEBUG starts with the contentHash, which leaves the ancillary sections out (BC-22).
+        byte[] hash = ModuleFile.contentHash(flags, sections);
+        byte[] debug = Debug.write(methods, starts, methodOwners, hash);
+        if (debug.length > 0) {
+            sections.add(new Section(SectionId.DEBUG, debug));
+        }
         for (Section section : module.ancillary()) {
+            String id = ModuleFormatException.hex(section.id() & 0xFFFFFFFFL);
             if (!SectionId.isAncillary(section.id())) {
-                throw new ModuleFormatException("section " + ModuleFormatException.hex(section.id() & 0xFFFFFFFFL)
-                        + " is kept as bytes, but it is not ancillary");
+                throw new ModuleFormatException("section " + id + " is kept as bytes, but it is not ancillary");
+            }
+            // A reader would read this DEBUG instead of keeping it (BC-20).
+            if (section.id() == SectionId.DEBUG && !Debug.stale(section.content(), hash)) {
+                throw new ModuleFormatException("section " + id + " is kept as bytes, but it starts with the module's"
+                        + " contentHash, so it is not a stale DEBUG (BC-20)");
             }
             sections.add(section);
         }
-        return ModuleFile.write(module.unsafe() ? Header.FLAG_UNSAFE : 0, sections);
+        return ModuleFile.write(flags, sections);
     }
 
     private int typeDefRow(@Nullable TypeDef type, String what) throws ModuleFormatException {

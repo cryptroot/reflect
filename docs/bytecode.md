@@ -68,8 +68,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
      the header or in a flags column;
   3. skips an unknown ancillary section and keeps its bytes, so tools write it back unchanged and
      the round trip of BC-08 holds;
-  4. treats a known ancillary section that describes critical content as absent when the
-     contentHash at its start differs from the module's: it is a stale copy.
+  4. treats a known ancillary section that describes critical content as absent when it does not
+     start with the module's contentHash: it is a stale copy, and the reader keeps its bytes as in
+     item 3.
 
   From v1.0 the writer stamps the lowest formatMinor its content needs; an ancillary section needs
   no newer minor. Critical content holds no source positions: line tables, local names and source
@@ -93,8 +94,8 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
      fits 64 bits, and every other LEB128 value fits 32 bits.
   2. Padding, `reserved` and every flag that the format does not define are zero.
   3. A section is present only when it has content, and the directory lists the sections by ID
-     with no ID twice (BC-02). IDENTS, LITERALS, BLOBS and TABLES are always present, and CODE
-     when a method has a body.
+     with no ID twice (BC-02). IDENTS, LITERALS, BLOBS and TABLES are always present, CODE when a
+     method has a body, and DEBUG only when a method has a line entry or a named local.
   4. TABLES lists the present tables only, and each row has the size that its table and the
      formatMinor give. `Module` has exactly one row.
   5. A table with a key is sorted by it, and no two of its rows have equal keys; the other tables
@@ -108,8 +109,8 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
      follow the orders of BC-18 and BC-19.
   8. Signatures follow BC-03: a primitive is its code, and `GENERIC` is set exactly when a method
      has type parameters.
-  9. DEBUG lists methods by token, line entries by offset and locals by index, and each file once,
-     in the order of first use.
+  9. DEBUG lists methods by token, line entries by offset and locals by index, and each file that
+     a line entry names once, in the order of first use.
   10. contentHash holds the value of BC-22, and no value exceeds a limit of BC-21.
 
 ## 3. Metadata tables
@@ -813,15 +814,15 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 
 | DEBUG field | Encoding | Content |
 |---|---|---|
-| `contentHash` | 32 bytes | the module's contentHash; a DEBUG whose hash differs is stale (BC-20) |
+| `contentHash` | 32 bytes | the module's contentHash; a DEBUG that does not start with it is stale (BC-20) |
 | `fileCount` | ULEB128 | number of source files |
-| `files` | | per file: its path relative to the module root, with `/` separators, as a ULEB128 length and UTF-8 bytes; then the SHA-256 of the file, 32 bytes |
+| `files` | | per file that a line entry names: its path relative to the module root, not empty and with `/` separators, as a ULEB128 length and UTF-8 bytes; then the SHA-256 of the file, 32 bytes |
 | `methodCount` | ULEB128 | number of methods |
 | `methods` | | per method that has a line entry or a named local, by increasing token: the token of its `Method` row (ULEB128), its lines and its locals |
 
-- Lines: a ULEB128 count, then per entry a code offset, the index of a file in `files` and a
-  line number counted from 1, each ULEB128, by increasing offset. An entry holds from its offset
-  to the offset of the next entry.
+- Lines: a ULEB128 count, then per entry the code offset of an instruction, the index of a file
+  in `files` and a line number counted from 1, each ULEB128, by increasing offset. An entry holds
+  from its offset to the offset of the next entry, or to the end of the code.
 - Locals: a ULEB128 count, then per local its index (ULEB128) and its name, as a ULEB128 length
   and UTF-8 bytes, by increasing index.
 

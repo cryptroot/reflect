@@ -83,7 +83,10 @@ public final class ModuleDef {
         return memberRefs;
     }
 
-    /** Ancillary sections that the reader does not know, written back unchanged (BC-20). */
+    /**
+     * Ancillary sections kept as bytes and written back unchanged: those that the reader does not
+     * know, and a stale DEBUG (BC-20). A current DEBUG comes from the bodies instead.
+     */
     public List<Section> ancillary() {
         return ancillary;
     }

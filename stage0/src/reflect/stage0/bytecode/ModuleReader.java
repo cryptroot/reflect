@@ -1,14 +1,16 @@
 package reflect.stage0.bytecode;
 
 import reflect.stage0.lib.ArrayList;
+import reflect.stage0.lib.HashMap;
 import reflect.stage0.lib.List;
+import reflect.stage0.lib.Map;
 import reflect.stage0.lib.Nullable;
 
 /**
  * Reads a module (README §7.3) and checks it: the container (ModuleFile), the heaps, the TABLES
- * directory, each row, column by column, and the bodies in CODE. It resolves the heap references
- * in the canonical order of BC-24, so a heap out of that order is rejected. Every error names its
- * file offset.
+ * directory, each row, column by column, the bodies in CODE, and DEBUG unless it is stale (BC-20).
+ * It resolves the heap references in the canonical order of BC-24, so a heap out of that order is
+ * rejected. Every error names its file offset.
  */
 public final class ModuleReader {
     private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.TYPE_DEF, TableId.TYPE_REF,
@@ -69,7 +71,8 @@ public final class ModuleReader {
         for (MemberRef ref : readMemberRefs()) {
             module.memberRefs().add(ref);
         }
-        readBodies(methods, token -> rowOf(token, fields, methods, module.memberRefs()));
+        Map<Integer, Code.Decoded> bodies = readBodies(methods, token -> rowOf(token, fields, methods,
+                module.memberRefs()));
         for (int row = 1; row <= typeDefRows.size(); row++) {
             TypeDef type = typeDefs.get(row - 1);
             int base = typeDefRows.get(row - 1).base();
@@ -102,8 +105,12 @@ public final class ModuleReader {
         literals.checkAllReferenced();
         blobs.checkAllReferenced();
         for (int i = 0; i < file.sectionCount(); i++) {
-            if (SectionId.isAncillary(file.sectionId(i))) {
-                module.ancillary().add(new Section(file.sectionId(i), file.content(i)));
+            int id = file.sectionId(i);
+            if (id == SectionId.DEBUG && !Debug.stale(file.content(i), file.contentHash())) {
+                Debug.read(file.open(i), methods.size(), bodies);
+            } else if (SectionId.isAncillary(id)) {
+                // An unknown ancillary section, or a stale DEBUG, which the module means the same without (BC-20).
+                module.ancillary().add(new Section(id, file.content(i)));
             }
         }
         return module;
@@ -293,8 +300,11 @@ public final class ModuleReader {
     }
 
     // The bodies follow one another from CODE offset 0 in the order of their Method rows (BC-17).
-    // They are read after every table, since their heap entries come last (BC-24).
-    private void readBodies(List<MethodDef> methods, Code.Handles rows) throws ModuleFormatException {
+    // They are read after every table, since their heap entries come last (BC-24). Returns them by
+    // row, with the code offsets that DEBUG names.
+    private Map<Integer, Code.Decoded> readBodies(List<MethodDef> methods, Code.Handles rows)
+            throws ModuleFormatException {
+        Map<Integer, Code.Decoded> bodies = new HashMap<>();
         int first = 0;
         for (int row = methods.size(); row >= 1; row--) {
             if (Code.hasBody(methods.get(row - 1).flags())) {
@@ -311,7 +321,7 @@ public final class ModuleReader {
                 throw new ModuleFormatException(directoryEntry(index), "the module has a CODE section, but no method"
                         + " has a body (BC-24)");
             }
-            return;
+            return bodies;
         }
         ByteSource code = file.open(index);
         int start = code.position();
@@ -325,11 +335,14 @@ public final class ModuleReader {
                 throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 3), "the body of the method starts"
                         + " at CODE offset " + hex(offset) + " (BC-17)");
             }
-            method.setBody(Code.body(code, blobs, literals, rows, Code.arguments(method.signature()), moduleName));
+            Code.Decoded decoded = Code.body(code, blobs, literals, rows, Code.arguments(method.signature()), moduleName);
+            method.setBody(decoded.body());
+            bodies.put(row, decoded);
         }
         if (!code.atEnd()) {
             throw new ModuleFormatException(code.position(), "CODE continues after the last body (BC-17)");
         }
+        return bodies;
     }
 
     /**

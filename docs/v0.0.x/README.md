@@ -383,8 +383,8 @@ checks.
 - The reader checks the magic, the format version and flags (BC-20), the directory, bounds,
   alignment, row sizes, the limits (BC-21) and token ranges, and that each branch target is the
   start of an instruction. Then it writes the model again, and it accepts the module only if the
-  bytes are equal (the canonical form of §7.2). An unknown ancillary section stays in the model
-  as opaque bytes, so the rewrite check holds for it too.
+  bytes are equal (the canonical form of §7.2). An unknown ancillary section and a stale DEBUG
+  stay in the model as opaque bytes, so the rewrite check holds for them too.
 - SHA-256 and the UTF-8 and UTF-16LE codecs are written in R0-shaped Java. Unit tests compare
   them with `MessageDigest` and `String.getBytes`.
 - A table arrives with the stage that first needs it. v0.0.2 covers `Module`, `ModuleRef`,

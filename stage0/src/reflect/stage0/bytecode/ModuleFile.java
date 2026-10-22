@@ -59,9 +59,18 @@ public final class ModuleFile {
     }
 
     public byte[] contentHash() {
+        return headerHash(data);
+    }
+
+    /** The contentHash that write gives a file with these sections; ancillary sections do not change it (BC-22). */
+    public static byte[] contentHash(int flags, List<Section> sections) throws ModuleFormatException {
+        return headerHash(write(flags, sections));
+    }
+
+    private static byte[] headerHash(byte[] file) {
         byte[] hash = new byte[Sha256.SIZE];
         for (int i = 0; i < hash.length; i++) {
-            hash[i] = data[Header.CONTENT_HASH_OFFSET + i];
+            hash[i] = file[Header.CONTENT_HASH_OFFSET + i];
         }
         return hash;
     }
