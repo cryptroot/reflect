@@ -187,6 +187,16 @@ final class TestModules {
         assertEquals(message, assertThrows(ModuleFormatException.class, () -> ModuleWriter.write(module)).getMessage());
     }
 
+    /** Assembles .rfla text, which this encodes as UTF-8. */
+    static byte[] assemble(String text) throws AssemblyException {
+        return Assembler.assemble(text.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    /** Expects rfla to reject the text with this diagnostic: line, column, code and message. */
+    static void unassemblable(String text, String message) {
+        assertEquals(message, assertThrows(AssemblyException.class, () -> assemble(text)).getMessage());
+    }
+
     /** Builds TABLES: the directory as given, then the values of the rows. */
     static final class Tables {
         private final ByteSink directory = new ByteSink();

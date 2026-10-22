@@ -1042,7 +1042,8 @@ The operands of an instruction follow its operand kind in §5.1:
 and the line and column where the defect starts, which count code points from 1; a tab is one
 column. The codes are grouped by hundreds: `RFA00xx` for the characters of the text, `RFA01xx` for
 its syntax, `RFA02xx` for names and `RFA03xx` for content. Tests match the code and the position
-(TST-01), so a code keeps its meaning.
+(TST-01), so a code keeps its meaning. Two rows with one key break BC-24, so two `.requires` of one
+module are `RFA0301`, and the message names the rule.
 
 | Code | Name | Defect |
 |---|---|---|
@@ -1050,6 +1051,12 @@ its syntax, `RFA02xx` for names and `RFA03xx` for content. Tests match the code 
 | `RFA0002` | `UNCLOSED` | a string that does not end on its line |
 | `RFA0003` | `ESCAPE` | a backslash that starts no escape of §8.1 |
 | `RFA0004` | `ENCODING` | a byte sequence that is not UTF-8 |
+| `RFA0101` | `SYNTAX` | a token that the grammar does not allow at its place |
+| `RFA0103` | `RANGE` | a number outside the range of its place |
+| `RFA0104` | `REPEATED` | a word or a directive twice where one is allowed |
+| `RFA0201` | `NO_TYPE` | a name of a type that the module does not define, where it must |
+| `RFA0301` | `FORMAT` | content that breaks a rule of the format, which the message names |
+| `RFA0302` | `LIMIT` | content over a limit of BC-21 |
 
 ## 9. Binary compatibility
 

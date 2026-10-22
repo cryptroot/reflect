@@ -9,6 +9,12 @@ public final class Diagnostic {
     public static final int UNCLOSED = 2;
     public static final int ESCAPE = 3;
     public static final int ENCODING = 4;
+    public static final int SYNTAX = 101;
+    public static final int RANGE = 103;
+    public static final int REPEATED = 104;
+    public static final int NO_TYPE = 201;
+    public static final int FORMAT = 301;
+    public static final int LIMIT = 302;
 
     private Diagnostic() {
     }
