@@ -9,8 +9,8 @@ import reflect.stage0.lib.Nullable;
 /**
  * Writes a module (README §7.3): it sorts the tables by their keys and numbers the rows, makes the
  * heap references in the canonical order of BC-24 while it writes the rows, lays out the sections,
- * and writes DEBUG from the line entries of the bodies. Content that breaks a rule, or exceeds a
- * limit of BC-21, is an error, never a truncated module.
+ * and writes DEBUG from the line entries and local names of the bodies. Content that breaks a rule,
+ * or exceeds a limit of BC-21, is an error, never a truncated module.
  */
 public final class ModuleWriter {
     static final int MODULE_REF_FLAGS = Flags.REQUIRES_TRANSITIVE | Flags.REQUIRES_STATIC;

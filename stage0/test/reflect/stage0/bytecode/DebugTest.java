@@ -36,14 +36,16 @@ public final class DebugTest {
         String lib = "07 6C 69 62 2E 72 66 6C " + "BB ".repeat(32);
         // The contentHash and two files: main.rfl, which the first line entry of f names, then lib.rfl,
         // against the order of their paths. Then f, row 1, with lines at code offsets 0 and 3, and h, row
-        // 4, with a line; g has no line entry, and n has no body.
+        // 4, with a line and the names of locals 0 and 1; g has neither, and n has no body.
         assertEquals(Leb128Test.hex(ModuleFile.read(file).contentHash()) + " 02 " + main + lib + "02 81 80 80 48 02 00 00"
-                + " 03 03 01 07 00 84 80 80 48 01 00 00 09 00", Leb128Test.hex(section(file, SectionId.DEBUG)));
+                + " 03 03 01 07 00 84 80 80 48 01 00 00 09 02 00 01 69 01 05 63 6F 75 6E 74",
+                Leb128Test.hex(section(file, SectionId.DEBUG)));
         TypeDef read = ModuleReader.read(file).types().get(0);
         MethodBody f = read.methods().get(0).body();
         MethodBody h = read.methods().get(3).body();
         assertEquals("0 main.rfl 3, 2 lib.rfl 7", lines(f));
         assertEquals("0 main.rfl 9", lines(h));
+        assertEquals("0 i, 1 count", names(h));
         // The entry at ret shares its label with the br that targets ret, and f and h name one SourceFile.
         assertEquals(true, f.lines().get(1).at() == ((Instruction.Branch) f.code().get(1)).target());
         assertEquals(true, h.lines().get(0).file() == f.lines().get(0).file());
@@ -58,6 +60,7 @@ public final class DebugTest {
         byte[] stale = patch(file, TableId.MODULE, 1, 1, 7);
         ModuleDef read = ModuleReader.read(stale);
         assertEquals(true, read.types().get(0).methods().get(0).body().lines().isEmpty());
+        assertEquals(true, read.types().get(0).methods().get(3).body().localNames().isEmpty());
         // The reader keeps the bytes of a stale DEBUG, so the writer gives the file back.
         assertEquals(Leb128Test.hex(section(file, SectionId.DEBUG)), Leb128Test.hex(read.ancillary().get(0).content()));
         assertTrue(Arrays.equals(stale, ModuleWriter.write(read)));
@@ -79,7 +82,8 @@ public final class DebugTest {
         byte[] stripped = strip(file, SectionId.DEBUG);
         assertEquals(Leb128Test.hex(ModuleFile.read(file).contentHash()),
                 Leb128Test.hex(ModuleFile.read(stripped).contentHash()));
-        // The reader accepts the stripped file, which is the file of the module without line entries.
+        // The reader accepts the stripped file, which is the file of the module without line entries and
+        // local names.
         assertEquals(true, ModuleReader.read(stripped).types().get(0).methods().get(0).body().lines().isEmpty());
         assertTrue(Arrays.equals(stripped, ModuleWriter.write(fixture(0, 0xAA, false))));
     }
@@ -117,6 +121,21 @@ public final class DebugTest {
     }
 
     @Test
+    public static void theWriterChecksLocalNames() {
+        String name = "method a.A::m: local name 0: ";
+        unwritableWith(w -> w.body.localNames().add(new LocalName(1, "x")),
+                name + "local 1 does not exist; the body has 1 locals (BC-17)");
+        unwritableWith(w -> w.body.localNames().add(new LocalName(0, "")),
+                name + "the name of local 0 is empty; DEBUG lists only the locals that have a name (BC-17)");
+        unwritableWith(w -> {
+            w.body.localNames().add(new LocalName(0, "x"));
+            w.body.localNames().add(new LocalName(0, "y"));
+        }, "method a.A::m gives local 0 two names (BC-24)");
+        unwritableWith(w -> w.body.localNames().add(new LocalName(0, "x".repeat(65_536))),
+                "method a.A::m: a local name of 65536 UTF-8 bytes exceeds the limit of 65535 (BC-21)");
+    }
+
+    @Test
     public static void theWriterKeepsOnlyAStaleDebugAsBytes() throws Exception {
         var current = new Writing();
         var content = new ByteSink();
@@ -151,7 +170,6 @@ public final class DebugTest {
                 0x01, F, 0x00, 0x00);
         rejectedDebug(45, "DEBUG continues after its last method (BC-17)", 0x01, FILE_A, 0x01, F, 0x01, 0x00, 0x00, 0x01,
                 0x00, 0x00);
-        rejectedDebug(7, "this reader does not support local names yet", 0x00, 0x01, F, 0x00, 0x01, 0x00, 0x01, 'i');
         // n has no body; p and q, rows 2 and 3, have one line entry each, so their tokens start at
         // offsets 36 and 45 after the contentHash.
         byte[] three = threeMethods();
@@ -191,11 +209,30 @@ public final class DebugTest {
                 + " (BC-24)", 0x02, FILE_A, FILE_B, 0x01, F, 0x01, 0x00, 0x00, 0x01, 0x00);
     }
 
+    @Test
+    public static void theReaderChecksLocalNamesAtTheirOffsets() throws Exception {
+        ModuleDef read = ModuleReader.read(debugFile(0x00, 0x01, F, 0x00, 0x02, 0x00, 0x01, 'i', 0x01, 0x01, 'j'));
+        assertEquals("0 i, 1 j", names(read.types().get(0).methods().get(0).body()));
+        // Without files, the token of f ends at 6, the names start at 7 and the first name at 8.
+        rejectedDebug(7, "a list of 5 local names runs past the end of DEBUG", 0x00, 0x01, F, 0x00, 0x05, 0x00);
+        rejectedDebug(9, "a local name of 65536 UTF-8 bytes exceeds the limit of 65535 (BC-21)", 0x00, 0x01, F, 0x00,
+                0x01, 0x00, 0x80, 0x80, 0x04);
+        rejectedDebug(10, "invalid UTF-8 lead byte 0xC0", 0x00, 0x01, F, 0x00, 0x01, 0x00, 0x01, 0xC0);
+        rejectedDebug(8, "local 2 does not exist; the body has 2 locals (BC-17)", 0x00, 0x01, F, 0x00, 0x01, 0x02, 0x01,
+                'i');
+        rejectedDebug(8, "the name of local 0 is empty; DEBUG lists only the locals that have a name (BC-17)", 0x00,
+                0x01, F, 0x00, 0x01, 0x00, 0x00);
+        rejectedDebug(11, "local 0 has two names (BC-24)", 0x00, 0x01, F, 0x00, 0x02, 0x00, 0x01, 'i', 0x00, 0x01, 'j');
+        rejectedDebug(11, "the local names are not sorted by index (BC-24)", 0x00, 0x01, F, 0x00, 0x02, 0x01, 0x01, 'i',
+                0x00, 0x01, 'j');
+    }
+
     // a.A: static void f(): L0: nop; br L2; L2: ret, with the lines (L2, lib.rfl, 7) and (L0, main.rfl,
     // 3), given in that order; static native void n(); static void g(): ret; static void h() with the
-    // locals int and int: L0: nop; ret, with the line (L0, main.rfl, 9). The lines in main.rfl move
-    // down by shift, every byte of its SHA-256 is a, and every byte of that of lib.rfl is 0xBB.
-    // Without debug, the bodies have no line entries.
+    // locals int and int: L0: nop; ret, with the line (L0, main.rfl, 9) and the names of locals 1 and
+    // 0, count and i, given in that order. The lines in main.rfl move down by shift, every byte of its
+    // SHA-256 is a, and every byte of that of lib.rfl is 0xBB. Without debug, the bodies have no line
+    // entries and no local names.
     private static ModuleDef fixture(int shift, int a, boolean debug) {
         var module = new ModuleDef("a", 0, 0, 0);
         // The UNSAFE flag enters the contentHash that DEBUG starts with (BC-22).
@@ -222,6 +259,8 @@ public final class DebugTest {
             f.lines().add(new Line(nop, new SourceFile("main.rfl", hash(a)), 3 + shift));
             // Another SourceFile with the path and the SHA-256 of main.rfl names the same file.
             h.lines().add(new Line(start, new SourceFile("main.rfl", hash(a)), 9 + shift));
+            h.localNames().add(new LocalName(1, "count"));
+            h.localNames().add(new LocalName(0, "i"));
         }
         type.methods().add(withBody("f", f));
         type.methods().add(new MethodDef(Flags.METHOD_STATIC | Flags.METHOD_NATIVE, "n", STATIC_VOID));
@@ -369,6 +408,15 @@ public final class DebugTest {
         for (Line line : body.lines()) {
             text.append(text.length() > 0 ? ", " : "").append(line.at().index()).append(' ').append(line.file().path())
                     .append(' ').append(line.number());
+        }
+        return text.toString();
+    }
+
+    // Each local name as its index and its name.
+    private static String names(MethodBody body) {
+        var text = new StringBuilder();
+        for (LocalName name : body.localNames()) {
+            text.append(text.length() > 0 ? ", " : "").append(name.index()).append(' ').append(name.name());
         }
         return text.toString();
     }

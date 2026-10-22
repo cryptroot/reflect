@@ -118,6 +118,13 @@ final class Code {
                 return "line entry " + i + ": " + problem;
             }
         }
+        List<LocalName> names = body.localNames();
+        for (int i = 0; i < names.size(); i++) {
+            String problem = Debug.problem(names.get(i), body);
+            if (problem != null) {
+                return "local name " + i + ": " + problem;
+            }
+        }
         return null;
     }
 

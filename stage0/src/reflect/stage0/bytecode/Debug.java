@@ -8,11 +8,11 @@ import reflect.stage0.lib.Nullable;
 
 /**
  * Encodes, decodes and checks DEBUG (§6.1): the module's contentHash, the source files, and per
- * method token the line entries of its body. It states their rules once, for the writer and the
- * reader: a line entry at an instruction, with a line from 1 in a source file that has a path and
- * a SHA-256. The writer sorts the entries, lists each file at its first use and writes no DEBUG
- * without content; the reader checks these orders (BC-24), and reads a DEBUG only when it is not
- * stale (BC-20). The names of the locals come later in v0.0.2.
+ * method token the line entries and the local names of its body. It states their rules once, for
+ * the writer and the reader: a line entry at an instruction, with a line from 1 in a source file
+ * that has a path and a SHA-256, and a name that is not empty for a local of the body. The writer
+ * sorts the entries, lists each file at its first use and writes no DEBUG without content; the
+ * reader checks these orders (BC-24), and reads a DEBUG only when it is not stale (BC-20).
  */
 final class Debug {
     private Debug() {
@@ -55,10 +55,22 @@ final class Debug {
         return null;
     }
 
+    /** The first rule that the name breaks in the body, or null. */
+    static @Nullable String problem(LocalName name, MethodBody body) {
+        int locals = body.locals().size();
+        if (name.index() < 0 || name.index() >= locals) {
+            return "local " + (name.index() & 0xFFFFFFFFL) + " does not exist; the body has " + locals + " locals (BC-17)";
+        }
+        if (name.name().isEmpty()) {
+            return "the name of local " + name.index() + " is empty; DEBUG lists only the locals that have a name (BC-17)";
+        }
+        return null;
+    }
+
     /**
      * Encodes DEBUG for the methods, in row order, whose instructions start at these code offsets. It
-     * gives no bytes when no body has a line entry, since DEBUG then has no content (BC-24). The
-     * bodies are checked already.
+     * gives no bytes when no body has a line entry or a local name, since DEBUG then has no content
+     * (BC-24). The bodies are checked already.
      */
     static byte[] write(List<MethodDef> methods, int[][] starts, List<String> owners, byte[] contentHash)
             throws ModuleFormatException {
@@ -68,7 +80,7 @@ final class Debug {
         int count = 0;
         for (int i = 0; i < methods.size(); i++) {
             MethodBody body = methods.get(i).body();
-            if (body == null || body.lines().isEmpty()) {
+            if (body == null || (body.lines().isEmpty() && body.localNames().isEmpty())) {
                 continue;
             }
             String owner = owners.get(i);
@@ -89,8 +101,26 @@ final class Debug {
                 entries.uleb(fileIndex(line.file(), files, indexes));
                 entries.uleb(line.number());
             }
-            // The names of the locals come later in v0.0.2.
-            entries.uleb(0);
+            var names = new ArrayList<LocalName>();
+            for (LocalName name : body.localNames()) {
+                names.add(name);
+            }
+            names.sort((left, right) -> ModuleWriter.compareRows(left.index(), right.index()));
+            entries.uleb(names.size());
+            for (int k = 0; k < names.size(); k++) {
+                LocalName name = names.get(k);
+                if (k > 0 && names.get(k - 1).index() == name.index()) {
+                    throw new ModuleFormatException(owner + " gives local " + name.index() + " two names (BC-24)");
+                }
+                byte[] utf8 = Utf8.encode(name.name());
+                if (utf8.length > Limits.MAX_IDENTIFIER_BYTES) {
+                    throw new ModuleFormatException(owner + ": a local name of " + utf8.length
+                            + " UTF-8 bytes exceeds the limit of " + Limits.MAX_IDENTIFIER_BYTES + " (BC-21)");
+                }
+                entries.uleb(name.index());
+                entries.uleb(utf8.length);
+                entries.bytes(utf8);
+            }
             count++;
         }
         if (count == 0) {
@@ -183,11 +213,8 @@ final class Debug {
             }
             used = readLines(in, decoded, files, used);
             MethodBody body = decoded.body();
-            int namesAt = in.position();
-            if (in.uleb() != 0) {
-                throw new ModuleFormatException(namesAt, "this reader does not support local names yet");
-            }
-            if (body.lines().isEmpty()) {
+            readNames(in, body);
+            if (body.lines().isEmpty() && body.localNames().isEmpty()) {
                 throw new ModuleFormatException(at, "DEBUG lists the method " + hex(token) + ", which has no line entry"
                         + " and no local name (BC-17)");
             }
@@ -248,6 +275,35 @@ final class Debug {
             previous = offset;
         }
         return named;
+    }
+
+    private static void readNames(ByteSource in, MethodBody body) throws ModuleFormatException {
+        int countAt = in.position();
+        int count = in.uleb();
+        // A name takes at least two bytes: an index and a length.
+        if (count < 0 || count > in.remaining() / 2) {
+            throw new ModuleFormatException(countAt, "a list of " + (count & 0xFFFFFFFFL) + " local names runs past the"
+                    + " end of DEBUG");
+        }
+        int previous = -1;
+        for (int i = 0; i < count; i++) {
+            int at = in.position();
+            int index = in.uleb();
+            int lengthAt = in.position();
+            int length = in.uleb();
+            if (length < 0 || length > Limits.MAX_IDENTIFIER_BYTES) {
+                throw new ModuleFormatException(lengthAt, "a local name of " + (length & 0xFFFFFFFFL)
+                        + " UTF-8 bytes exceeds the limit of " + Limits.MAX_IDENTIFIER_BYTES + " (BC-21)");
+            }
+            var name = new LocalName(index, Utf8.decode(in, length));
+            check(at, problem(name, body));
+            if (index <= previous) {
+                throw new ModuleFormatException(at, index == previous ? "local " + index + " has two names (BC-24)"
+                        : "the local names are not sorted by index (BC-24)");
+            }
+            body.localNames().add(name);
+            previous = index;
+        }
     }
 
     private static void check(int at, @Nullable String problem) throws ModuleFormatException {

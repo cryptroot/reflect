@@ -823,8 +823,9 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 - Lines: a ULEB128 count, then per entry the code offset of an instruction, the index of a file
   in `files` and a line number counted from 1, each ULEB128, by increasing offset. An entry holds
   from its offset to the offset of the next entry, or to the end of the code.
-- Locals: a ULEB128 count, then per local its index (ULEB128) and its name, as a ULEB128 length
-  and UTF-8 bytes, by increasing index.
+- Locals: a ULEB128 count, then per named local its index (ULEB128) and its name, as a ULEB128
+  length and UTF-8 bytes, by increasing index. A name is not empty, and BC-21 limits its length as
+  that of an identifier.
 
 ## 7. Verification
 
