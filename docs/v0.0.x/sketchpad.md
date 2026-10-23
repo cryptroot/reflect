@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
@@ -48,6 +48,9 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [bootstrapping.md](../bootstrapping.md) BOOT-11, BOOT-12 | one writer, written in stage0, instead of a Java port of a Reflect writer; the transliterator also prints `reflect.bytecode` | Q47 |
 | [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes, the Stack column of §5.1 | done in v0.0.1; the `RFA` codes and the Stack column in v0.0.3 (Q77, Q79) |
 | [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | done in v0.0.3 (TST-13) |
+| [bytecode.md](../bytecode.md) BC-03, BC-08, BC-11, §8.1 | names that are identifiers (Q83), `@` (Q82), brackets for the module itself and for a primitive's struct (Q81), `BYREF` only at the top of a signature (Q84), one member per name and signature (Q85), `.typeref` and `.memberref` (Q80), and the canonical text, BC-25 (Q86) | v0.0.4 |
+| [type-system.md](../type-system.md) GEN-12 | brackets before a primitive's struct, and the module's own name before its own struct (Q81) | v0.0.4 |
+| [testing.md](../testing.md) §7 | the round trip of each `.rfla` file in `test` (TST-09, TST-13) | v0.0.4 |
 | [examples.md](../examples.md) §11.1, §11.2 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3); the `.try` blocks become regions in label form, and calls into other modules state their signatures (A.2 item 9) | with [../sketchpad.md](../sketchpad.md) A.6 |
 | [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | done 2026-10-20 (Q57 to Q62) |
 
@@ -75,18 +78,30 @@ These follow from the plan. Each is made in the stage named, or when its questio
     a check that every subtype of a sealed type is in its module. Found 2026-10-20 in v0.0.1.
 11. A `MethodRef` states no `GENERIC` count unless it instantiates the method, so a `MemberRef`
     row with `GENERIC` that no `MethodSpec` names has no text. Settle with `MethodSpec` in
-    v0.0.9. Found 2026-10-22 in v0.0.3 (Q78).
+    v0.0.9. Found 2026-10-22 in v0.0.3 (Q78). Q80 keeps it for v0.0.9; until then `rfld`
+    reports such a row.
 12. The reader accepts `TypeRef` and `MemberRef` rows that nothing in the module references, but
     `rfla` makes these rows only at their first use, so `rfld` cannot print such a module. Settle
     in v0.0.4: a rule of BC-24 that every such row is referenced, or a directive that declares
-    one. Found 2026-10-22 in v0.0.3 (Q78).
+    one. Found 2026-10-22 in v0.0.3 (Q78). Settled 2026-10-23 with Q80: `.typeref` and
+    `.memberref`.
 13. BC-03 keeps the structs of primitives out of signatures, but the reader accepts a `TypeRef`
     row for `reflect.core.Int32` that an instruction or a base type names. In `.rfla` that name is
     the primitive (Q52), so only the brackets of Q76 can print the row. Settle in v0.0.4. Found
-    2026-10-22 in v0.0.3 (Q78).
+    2026-10-22 in v0.0.3 (Q78). Settled 2026-10-23 with Q81: brackets name the struct's row.
 14. A name that equals a word the grammar takes at its place cannot be written there: a type in
     the global namespace named `record` or `final` after `.class`, or a parameter type named
     `scoped`. Settle in v0.0.4, when `rfld` must print every name. Found 2026-10-22 in v0.0.3.
+    Settled 2026-10-23 with Q82: `@`.
+15. The writer and the reader accept any UTF-8 string as a name, such as an empty type name or
+    a type name with a dot, but `.rfla` spells only identifiers and dotted names. Found
+    2026-10-23 while v0.0.4 was planned. Settled 2026-10-23 with Q83.
+16. The reader accepts `BYREF` inside another type, such as an array of `ref int`, which `.rfla`
+    cannot spell, since `ref` binds before suffixes. Found 2026-10-23 while v0.0.4 was planned.
+    Settled 2026-10-23 with Q84.
+17. Two fields of a type can share a name and a type, and two methods a name and a signature,
+    so a reference cannot tell them apart. Found 2026-10-23 while v0.0.4 was planned. Settled
+    2026-10-23 with Q85.
 
 ## B. Questions and answers
 
@@ -437,6 +452,93 @@ table comes in a later stage, and one for a stack depth that cannot be computed.
 count code points from 1, and a tab is one column. bytecode.md §8.2 lists the codes, and the
 document test compares them with the code. Alternatives: every error, with recovery; one code per
 rule of the format. **Answer:** 2026-10-22: Accepted as recommended. README §6.3 and §7.4 follow.
+
+### B.8 Batch 12: the v0.0.4 disassembler (asked and answered 2026-10-23)
+
+Found while v0.0.4 was planned. Q80 to Q82 settle A.2 items 12 to 14, and Q83 to Q85 the gaps
+found then, A.2 items 15 to 17.
+
+**Q80 (BC-08, BC-24; A.2 items 11, 12). Rows that nothing references.** The reader accepts a
+`TypeRef` or `MemberRef` row that nothing in the module names, but `rfla` makes these rows only at
+their first use, so `rfld` cannot print such a module. *Recommendation:* BC-24 gains a rule that a
+column, a signature or an instruction names every such row, as with heap entries, and an
+instruction names a `GENERIC` method only through a `MethodSpec`. Alternative: directives
+`.typeref` and `.memberref` that declare a row. **Answer:** 2026-10-23: Alternative chosen.
+`.typeref` declares a `TypeRef` row by its name, with the module in brackets where Q76 needs it,
+and `.memberref` a `MemberRef` row by the full form of a `FieldRef` or `MethodRef`. `rfld` writes
+them only for rows that no column, signature, instruction or other row names. A `GENERIC`
+`MemberRef` still has no text, so A.2 item 11 waits for v0.0.9, and `rfld` reports such a row
+until then.
+
+**Q81 (BC-03, BC-08, GEN-12, MOD-03; A.2 item 13). The struct of a primitive in a token.** `rfla`
+rejects a token that names `reflect.core.Int32`: without brackets the name is the primitive, which
+needs a `TypeSpec` row (v0.0.6), and with brackets the signature check rejects it. The reader
+accepts the `TypeRef` row, and in module `reflect.core` a token of the `TypeDef` row.
+*Recommendation:* a primitive is always its code, in tokens as in signatures, so the writer and the
+reader reject such a row and such a token. Alternative: accept the `TypeRef` row, and `rfla` and
+`rfld` write it with brackets. **Answer:** 2026-10-23: Alternative chosen. A token may name the
+`TypeRef` row of a primitive's struct, `[reflect.core]reflect.core.Int32`; a signature still names
+the primitive by its code (BC-03). A follow-up question covered the module's own `TypeDef` of the
+struct: brackets that hold the module's own name name a type of the module, and `rfld` writes them
+only before a primitive's struct. A `requires` cycle is an error (MOD-03), so `rfla`, the writer and
+the reader reject a module that requires itself, and the brackets keep one meaning.
+
+**Q82 (BC-08; A.2 item 14). Names that are words of the grammar.** `.class record {` reads
+`record` as the kind. `record`, `scoped` and `sealed` are contextual keywords (LEX-03), and
+`annotation` and `i32` are not keywords in source, so valid source can give such names.
+*Recommendation:* `@` before a name makes it a name, never a word of the grammar, as in C#. `rfld`
+writes `@` before a type name or a module name of one segment that is a quoted word of §8.1, and
+the document test compares its list with the grammar. Member, parameter and local names follow a
+type, so they never need it. Alternative: a format rule that no global type and no module has such
+a name, which rejects modules compiled from valid source. **Answer:** 2026-10-23: Accepted as
+recommended.
+
+**Q83 (BC-11; A.2 item 15). Names that are not identifiers.** The writer and the reader accept any
+UTF-8 string as a name: an empty type name, `a b`, or a type name with a dot, which reads as a
+namespace. *Recommendation:* a type, field, method, parameter, `MemberRef` and local name is an
+`Ident` of §8.1, and a module name, a namespace and an `Export` target a `QName`. The empty name
+stands only for namespace 0, a parameter without a name and an export to every module. Source
+identifiers (LEX-02) and the `$` names of the compiler fit this rule. Alternative: a quoted form
+for any name, as ILASM's `'...'`, with quoted segments in dotted names. **Answer:** 2026-10-23:
+Accepted as recommended.
+
+**Q84 (BC-03; A.2 item 16). `ref` inside another type.** The reader accepts `ARRAY` or `PTR` of
+`BYREF`, but `ref` binds before suffixes in `.rfla`, so such a type has no text. A type argument, a
+wildcard bound or a `ref` of `ref` can hold `BYREF` too, and no language gives such types.
+*Recommendation:* `BYREF` stands only as a type that a signature lists (depth 1), as in CIL.
+Alternative: parentheses in `.rfla`, such as `(ref int)[]`. **Answer:** 2026-10-23: Accepted as
+recommended.
+
+**Q85 (BC-11; A.2 item 17). Two members with one name and signature.** `rfla`, the writer and the
+reader accept two fields of a type with one name and type, or two methods with one name and
+signature. A reference names a member by them (Q69), so `rfld` would print a reference to the
+second as one to the first. *Recommendation:* no two `Field` rows of a type have the same name and
+type, and no two `Method` rows the same name and signature; `rfla` reports `RFA0301` at the second.
+Overloads, and fields of one name with other types, stay valid, as in CIL. Alternative: names
+unique per type, as in source. **Answer:** 2026-10-23: Accepted as recommended.
+
+**Q86 (BC-08; README §7.5). The canonical text.** README §7.5 fixed the order, the indentation and
+the numbering of labels, but not the form of operands, types and directives. *Recommendation:*
+1. `.maxstack` in every body, since the binary holds it, so a body whose depth `rfla` cannot
+   compute still round-trips.
+2. Operands as the binary holds them: argument and local numbers; integers in decimal; `.section`
+   IDs, `bits` and hex strings in uppercase hexadecimal; floats as the shortest decimal that reads
+   back to the same bits, `inf`, `-inf`, and `bits` for NaN; strings with the escapes of §8.1, and
+   `\u` for each code unit outside printable ASCII.
+3. Types in full: primitives by struct name (GEN-12, Q52); `valuetype` before each value type in a
+   signature, the module's own types too, and never in a token; member references in full form
+   (Q69).
+4. The order: `.module`, `.unsafe`, `.main`, `.requires`, one `.exports` or `.opens` per row, the
+   classes by `TypeDef` row with nested classes after the fields and methods of their enclosing
+   class, then `.source` in DEBUG order and `.section` by ID. In a body: `.maxstack`, `.locals`,
+   then before each instruction its label, `.line`, with the path when the file changes, and
+   `.stackmap`; the `.try` lines after the code, in the order of BC-18.
+5. Labels `L0`, `L1` and so on, only at branch targets and region bounds, numbered in code order;
+   one blank line before each top-level class and before the directives after the classes.
+
+Alternatives: no `.maxstack` where `rfla` computes the same depth; non-ASCII characters in strings
+as they are. **Answer:** 2026-10-23: Accepted as recommended. With Q80, `.typeref` and `.memberref`
+follow the classes, before `.source`. BC-25 states the canonical text.
 
 <!-- questions:end -->
 

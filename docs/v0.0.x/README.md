@@ -507,7 +507,23 @@ module.
 
 - The output follows the order of the binary: one directive or instruction per line, four spaces
   of indentation, LF line ends, labels numbered in code order, and names spelled as GEN-12
-  states.
+  states. BC-25 states the canonical text in full (Q86).
+- Every module that the reader accepts gets a text, so the format closes the gaps of
+  [sketchpad.md](sketchpad.md) A.2 items 12 to 17:
+  - a name is an `Ident` of [bytecode.md](../bytecode.md) §8.1, and a module name, a namespace
+    and an `Export` target a `QName` (Q83);
+  - `@` before a name makes it a name, never a word of the grammar, and `rfld` writes it before a
+    type name or a module name of one segment that is such a word (Q82);
+  - a primitive's struct in brackets names its `TypeDef` or `TypeRef` row, which a token may name;
+    brackets that hold the module's own name name a type of the module, so a module does not
+    require itself (Q81, MOD-03);
+  - `BYREF` stands only at the top of a type that a signature lists (Q84);
+  - no two fields of a type share a name and a type, and no two methods a name and a signature
+    (Q85);
+  - `.typeref` and `.memberref` declare the `TypeRef` and `MemberRef` rows that nothing else names
+    (Q80).
+- The one exception is a `GENERIC` `MemberRef`, which has no text until `MethodSpec` arrives
+  (A.2 item 11), so `rfld` reports it until v0.0.9.
 - The round trip of one test file:
   1. Assemble the file to bytes A.
   2. Disassemble A to text T.
@@ -518,11 +534,18 @@ module.
 
 **Commits.**
 
-1. Module directives, `.section` for an unknown ancillary section included, and type names.
-2. Members and signatures.
-3. Code, labels, exception regions, stack maps and line numbers.
-4. The command `rfld`.
-5. The round trip in the command `test`.
+1. Names that are identifiers (Q83).
+2. `@` before a name (Q82).
+3. Brackets for the module itself and for a primitive's struct, and a module that requires
+   itself (Q81).
+4. `BYREF` only at the top of a signature (Q84).
+5. One member per name and signature (Q85).
+6. `.typeref` and `.memberref` (Q80).
+7. Module directives, `.section` for an unknown ancillary section included, and type names.
+8. Members and signatures.
+9. Code, labels, exception regions, stack maps and line numbers.
+10. The command `rfld`.
+11. The round trip in the command `test`.
 
 **Exit check.** The round trip holds for every test file, on both hosts. Tag `v0.0.4`.
 
