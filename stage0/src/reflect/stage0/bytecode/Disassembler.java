@@ -2,6 +2,7 @@ package reflect.stage0.bytecode;
 
 import reflect.stage0.lib.ArrayList;
 import reflect.stage0.lib.HashMap;
+import reflect.stage0.lib.List;
 import reflect.stage0.lib.Map;
 import reflect.stage0.lib.Nullable;
 
@@ -25,6 +26,12 @@ public final class Disassembler {
     // The words of the TypeDef kinds, from CLASS, which has none.
     private static final String[] KIND_WORDS = {"", "interface ", "struct ", "ref struct ", "record ", "record struct ",
         "enum ", "annotation "};
+    private static final String[] FIELD_WORDS = {"public", "protected", "private", "static", "final", "const", "backing"};
+    // CONSTRUCTOR, bit 7, has no word: the name new or static gives it (§3.1).
+    private static final String[] METHOD_WORDS = {"public", "protected", "private", "static", "virtual", "abstract",
+        "final", "", "native", "extern", "unsafe", "mutating", "const", "precompile", "synthesized"};
+    private static final String[] PARAM_WORDS = {"scoped", "this"};
+    private static final String[] BYREF_WORDS = {"ref ", "in ", "out "};
     private static final String INDENT = "    ";
     private static final String HEX = "0123456789ABCDEF";
 
@@ -34,6 +41,8 @@ public final class Disassembler {
     private final Map<String, TypeDef> types = new HashMap<>();
     private final Map<TypeRef, Boolean> namedTypes = new HashMap<>();
     private final Map<MemberRef, Boolean> namedMembers = new HashMap<>();
+    private final Map<FieldDef, TypeDef> fieldOwners = new HashMap<>();
+    private final Map<MethodDef, TypeDef> methodOwners = new HashMap<>();
 
     private Disassembler(ModuleDef module) {
         this.module = module;
@@ -53,8 +62,8 @@ public final class Disassembler {
     }
 
     // The TypeRef and MemberRef rows that a column, a signature or an instruction names; .typeref and
-    // .memberref declare the others (Q80).
-    private void collect() {
+    // .memberref declare the others (Q80). A GENERIC MemberRef has no text before MethodSpec (v0.0.9).
+    private void collect() throws ModuleFormatException {
         for (TypeDef type : module.types()) {
             if (type.enclosing() == null) {
                 types.put(topName(type.namespace(), type.name()), type);
@@ -64,9 +73,11 @@ public final class Disassembler {
                 name(implemented);
             }
             for (FieldDef field : type.fields()) {
+                fieldOwners.put(field, type);
                 name(field.type());
             }
             for (MethodDef method : type.methods()) {
+                methodOwners.put(method, type);
                 name(method.signature());
                 MethodBody body = method.body();
                 if (body != null) {
@@ -84,7 +95,12 @@ public final class Disassembler {
             if (ref.signature() instanceof FieldSig field) {
                 name(field.type());
             } else {
-                name((MethodSig) ref.signature());
+                var method = (MethodSig) ref.signature();
+                if ((method.flags() & SigCode.METHOD_GENERIC) != 0) {
+                    throw new ModuleFormatException("the MemberRef " + ref.parent().qualifiedName() + "::" + ref.name()
+                            + " is GENERIC, which a MethodRef cannot state before the MethodSpec table arrives in v0.0.9");
+                }
+                name(method);
             }
         }
     }
@@ -189,6 +205,11 @@ public final class Disassembler {
                 trailing.add(".typeref " + typeName(ref));
             }
         }
+        for (MemberRef ref : module.memberRefs()) {
+            if (!namedMembers.containsKey(ref)) {
+                trailing.add(".memberref " + (ref.signature() instanceof FieldSig ? fieldRef(ref) : methodRef(ref)));
+            }
+        }
         for (Section section : module.ancillary()) {
             trailing.add(".section " + ModuleFormatException.hex(section.id() & 0xFFFFFFFFL) + " hex \""
                     + hex(section.content()) + "\"");
@@ -217,12 +238,116 @@ public final class Disassembler {
             head.append(i == 0 ? " implements " : ", ").append(typeName(type.interfaces().get(i)));
         }
         line(depth, head.append(" {").toString());
+        for (FieldDef field : type.fields()) {
+            line(depth + 1, ".field " + words(field.flags(), FIELD_WORDS) + type(field.type()) + " " + field.name());
+        }
+        for (MethodDef method : type.methods()) {
+            method(method, depth + 1);
+        }
         for (TypeDef nested : module.types()) {
             if (nested.enclosing() == type) {
                 type(nested, depth + 1);
             }
         }
         line(depth, "}");
+    }
+
+    // A .method with its flags, return type, name and parameters; ... after the type of the last
+    // parameter of a variadic method (MEM-10).
+    private void method(MethodDef method, int depth) {
+        MethodSig signature = method.signature();
+        var head = new StringBuilder(".method ").append(words(method.flags(), METHOD_WORDS))
+                .append(type(signature.returnType())).append(' ').append(method.name()).append('(');
+        List<TypeSig> types = signature.params();
+        for (int i = 0; i < types.size(); i++) {
+            ParamDef param = method.params().get(i);
+            head.append(i == 0 ? "" : ", ").append(words(param.flags(), PARAM_WORDS)).append(type(types.get(i)))
+                    .append(variadic(signature, i) ? "..." : "").append(param.name().isEmpty() ? "" : " " + param.name());
+        }
+        line(depth, head.append(") {").toString());
+        line(depth, "}");
+    }
+
+    // FieldRef of §8.1 in its full form (Q69): the type of the field, then the type that holds it.
+    private String fieldRef(FieldHandle field) {
+        if (field instanceof FieldDef def) {
+            return type(def.type()) + " " + typeName(fieldOwners.get(def)) + "::" + def.name();
+        }
+        var ref = (MemberRef) field;
+        return type(((FieldSig) ref.signature()).type()) + " " + typeName(ref.parent()) + "::" + ref.name();
+    }
+
+    // MethodRef of §8.1 in its full form (Q69): static, the return type, the type that holds the method,
+    // its name and its parameter types.
+    private String methodRef(MethodHandle method) {
+        TypeHandle holder;
+        String name;
+        MethodSig signature;
+        if (method instanceof MethodDef def) {
+            holder = methodOwners.get(def);
+            name = def.name();
+            signature = def.signature();
+        } else {
+            var ref = (MemberRef) method;
+            holder = ref.parent();
+            name = ref.name();
+            signature = (MethodSig) ref.signature();
+        }
+        var text = new StringBuilder((signature.flags() & SigCode.METHOD_STATIC) != 0 ? "static " : "")
+                .append(type(signature.returnType())).append(' ').append(typeName(holder)).append("::").append(name)
+                .append('(');
+        for (int i = 0; i < signature.params().size(); i++) {
+            text.append(i == 0 ? "" : ", ").append(type(signature.params().get(i))).append(variadic(signature, i) ? "..." : "");
+        }
+        return text.append(')').toString();
+    }
+
+    private static boolean variadic(MethodSig signature, int param) {
+        return (signature.flags() & SigCode.METHOD_VARIADIC) != 0 && param == signature.params().size() - 1;
+    }
+
+    // A type as a signature holds it (BC-03): a primitive by its struct (Q52), and valuetype before a value
+    // type, the module's own too (Q69).
+    private String type(TypeSig type) {
+        if (type instanceof TypeSig.Primitive primitive) {
+            return primitive.code() == SigCode.VOID ? "void" : Signatures.primitiveName(primitive.code());
+        }
+        if (type instanceof TypeSig.Named named) {
+            return (named.valueType() ? "valuetype " : "") + typeName(named.type());
+        }
+        if (type instanceof TypeSig.GenericInst generic) {
+            var text = new StringBuilder(type(generic.type()));
+            for (int i = 0; i < generic.arguments().size(); i++) {
+                text.append(i == 0 ? "<" : ", ").append(type(generic.arguments().get(i)));
+            }
+            return text.append('>').toString();
+        }
+        if (type instanceof TypeSig.TypeVar variable) {
+            return (variable.method() ? "!!" : "!") + unsigned(variable.index());
+        }
+        if (type instanceof TypeSig.NullableRef nullable) {
+            return type(nullable.type()) + "?";
+        }
+        if (type instanceof TypeSig.ArrayOf array) {
+            return type(array.element()) + "[]";
+        }
+        if (type instanceof TypeSig.PointerTo pointer) {
+            return type(pointer.element()) + "*";
+        }
+        if (type instanceof TypeSig.ByRef byRef) {
+            return BYREF_WORDS[byRef.kind()] + type(byRef.type());
+        }
+        if (type instanceof TypeSig.Wildcard wildcard) {
+            TypeSig bound = wildcard.bound();
+            return bound == null ? "?" : (wildcard.kind() == SigCode.WILDCARD_EXTENDS ? "? extends " : "? super ")
+                    + type(bound);
+        }
+        var text = new StringBuilder("(");
+        List<TypeSig> components = ((TypeSig.Intersection) type).components();
+        for (int i = 0; i < components.size(); i++) {
+            text.append(i == 0 ? "" : " & ").append(type(components.get(i)));
+        }
+        return text.append(')').toString();
     }
 
     // A type as a token names it: by its name, with the module in brackets where the name alone means

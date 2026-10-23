@@ -1114,10 +1114,11 @@ module are `RFA0301`, and the message names the rule.
   in LF, each level of nesting indents by four spaces, and `rfld` prints no comments.
   1. The text follows the order of the binary. `.module` comes first, then `.unsafe`, `.main`,
      `.requires` per `ModuleRef` row and `.exports` or `.opens` per `Export` row. Each top-level
-     type follows in `TypeDef` row order after one blank line, and its nested types come inside it,
-     in row order. After one more blank line come `.typeref` per `TypeRef` row that no column,
-     signature, instruction or other `TypeRef` row names (Q80), and `.section` per section kept as
-     bytes, by ID.
+     type follows in `TypeDef` row order after one blank line, with its `.field` and `.method` rows in
+     row order, then its nested types in row order. After one more blank line come `.typeref` per
+     `TypeRef` row that no column, signature, instruction or other `TypeRef` row names, `.memberref`
+     per `MemberRef` row that no instruction names (Q80), and `.section` per section kept as bytes,
+     by ID.
   2. A token names a type by its qualified name (GEN-12), with its module in brackets where the name
      alone means another row or the primitive: where the prefix rule of BC-08 gives another module
      or none, where the module defines a top-level type of that name, and before the struct of a
@@ -1125,9 +1126,15 @@ module are `RFA0301`, and the message names the rule.
   3. `@` comes before a type name or a module name that is a quoted word of §8.1 (Q82); nested type
      names after `/`, namespaces, member names, parameter names and local names follow a type or a
      `/`, so they need none.
-  4. Flags and kinds are words, in the order of their bits. Versions are three unsigned decimal
-     numbers; `.section` IDs are uppercase hexadecimal after `0x`, and hex strings are pairs of
-     uppercase hexadecimal digits.
+  4. Flags and kinds are words, in the order of their bits; `CONSTRUCTOR` has none, since the name
+     `new` or `static` gives it. Versions are three unsigned decimal numbers; `.section` IDs are
+     uppercase hexadecimal after `0x`, and hex strings are pairs of uppercase hexadecimal digits.
+  5. A signature spells a primitive by its struct (Q52), and `void` as `void`. It puts `valuetype`
+     before each value type, the module's own too; a token holds no such bit, so it has none. `...`
+     follows the type of the last parameter of a variadic method, and `!n` and `!!n` name type
+     parameters by number.
+  6. A reference to a field or a method takes its full form (Q69): the field's type, or `static` and
+     the return type, before the type that holds it.
 
 ## 9. Binary compatibility
 
