@@ -309,10 +309,10 @@ package-private (MOD-08).
 
 ## 4. Signatures
 
-- **BC-03 [Proposed; primitives in tokens Decided, Q81]** A type signature is a code byte followed
-  by its operands. A signature in BLOBS starts with its kind, `FIELD`, `METHOD`, `LOCALS` or
-  `INSTANTIATION`; a `TypeSpec` blob is a bare type. `<tok>` is a ULEB128 token of a `TypeDef` or
-  `TypeRef` row; `<n>` and `<count>` are ULEB128.
+- **BC-03 [Proposed; primitives in tokens and `BYREF` Decided, Q81, Q84]** A type signature is a
+  code byte followed by its operands. A signature in BLOBS starts with its kind, `FIELD`, `METHOD`,
+  `LOCALS` or `INSTANTIATION`; a `TypeSpec` blob is a bare type. `<tok>` is a ULEB128 token of a
+  `TypeDef` or `TypeRef` row; `<n>` and `<count>` are ULEB128.
 
   | Code | Name | Meaning | Operands |
   |---|---|---|---|
@@ -392,6 +392,9 @@ package-private (MOD-08).
     element, a bound, a type argument, a component, or the type of `NULLABLE` or `BYREF`. The
     named type of a `GENERICINST` keeps the depth of the instantiation. `int[][]` has depth 3,
     and BC-21 limits the depth to 255.
+  - `BYREF` has depth 1: it stands only as a type that a signature lists, that of a field, a
+    parameter, a return value or a local, never inside another type, as in CIL (Q84). An array, a
+    pointer, a type argument, a bound and a `BYREF` hold no `BYREF`, so `.rfla` spells every type.
 
 ## 5. Instruction set
 

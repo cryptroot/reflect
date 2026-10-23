@@ -101,6 +101,17 @@ public final class SignatureTest {
                 NULLABLE);
         field(new TypeSig.NullableRef(new TypeSig.PointerTo(INT)), NULLABLE);
         field(new TypeSig.ByRef(3, INT), "BYREF kind 0x3 is not defined (BC-20)");
+        String byRef = "BYREF stands only as a type that a signature lists, never inside another type (BC-03)";
+        field(new TypeSig.ByRef(SigCode.BYREF_REF, INT), null);
+        field(new TypeSig.ArrayOf(new TypeSig.ByRef(SigCode.BYREF_REF, INT)), byRef);
+        field(new TypeSig.PointerTo(new TypeSig.ByRef(SigCode.BYREF_IN, INT)), byRef);
+        field(new TypeSig.ByRef(SigCode.BYREF_REF, new TypeSig.ByRef(SigCode.BYREF_OUT, INT)), byRef);
+        types = new Types();
+        field(types, types.list(new TypeSig.ByRef(SigCode.BYREF_REF, INT)), byRef);
+        types = new Types();
+        field(types, types.list(new TypeSig.Wildcard(SigCode.WILDCARD_EXTENDS, new TypeSig.ByRef(SigCode.BYREF_REF,
+                types.named("Object")))), byRef);
+        method(new MethodSig(0, 0, new TypeSig.ArrayOf(new TypeSig.ByRef(SigCode.BYREF_REF, INT)), list()), byRef);
         types = new Types();
         field(types, types.list(new TypeSig.Wildcard(3, null)), "WILDCARD kind 0x3 is not defined (BC-20)");
         types = new Types();
@@ -236,6 +247,8 @@ public final class SignatureTest {
         signature(0, NULLABLE, 0x20, 0x15, 0x08);
         signature(0, "VAR 0 names no type parameter of the type (BC-03)", 0x20, 0x13, 0x00);
         signature(0, "BYREF kind 0x3 is not defined (BC-20)", 0x20, 0x18, 0x03, 0x08);
+        signature(0, "BYREF stands only as a type that a signature lists, never inside another type (BC-03)", 0x20, 0x16,
+                0x18, 0x00, 0x08);
         signature(2, "ULEB128 value is not minimal", 0x20, 0x13, 0x80, 0x00);
         // 255 arrays put the int at depth 256; 254 put it at 255, the limit.
         int[] deep = new int[257];

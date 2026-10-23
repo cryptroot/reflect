@@ -7,10 +7,10 @@ import reflect.stage0.lib.Nullable;
 /**
  * Encodes and decodes the signatures of BC-03, every type code included (Q74), and states their
  * structural rules once, for the writer and the reader: VOID only as a return type, WILDCARD only
- * as a type argument, NULLABLE only around a type with a nullable form, GENERICINST and
- * INTERSECTION with enough operands, an array as the variadic parameter, defined kinds and flags,
- * VAR and MVAR within the type parameters in scope, no primitive by its struct name, and the
- * nesting depth of BC-21.
+ * as a type argument, BYREF only as a type that the signature lists (Q84), NULLABLE only around a
+ * type with a nullable form, GENERICINST and INTERSECTION with enough operands, an array as the
+ * variadic parameter, defined kinds and flags, VAR and MVAR within the type parameters in scope, no
+ * primitive by its struct name, and the nesting depth of BC-21.
  */
 final class Signatures {
     /** The positions of a type: VOID stands only in RETURN, WILDCARD only in ARGUMENT. */
@@ -146,6 +146,9 @@ final class Signatures {
         if (type instanceof TypeSig.ByRef byRef) {
             if (byRef.kind() < SigCode.BYREF_REF || byRef.kind() > SigCode.BYREF_OUT) {
                 return "BYREF kind " + hex(byRef.kind()) + " is not defined (BC-20)";
+            }
+            if (depth > 1) {
+                return "BYREF stands only as a type that a signature lists, never inside another type (BC-03)";
             }
             return problem(byRef.type(), OTHER, scope, module, depth + 1);
         }
