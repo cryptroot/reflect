@@ -14,6 +14,7 @@ import reflect.stage0.lib.Nullable;
 import reflect.stage0.test.Test;
 
 import static reflect.stage0.test.Assertions.assertEquals;
+import static reflect.stage0.test.Assertions.assertThrows;
 import static reflect.stage0.test.Assertions.assertTrue;
 
 public final class VmTest {
@@ -137,6 +138,28 @@ public final class VmTest {
         // surrogate, which UTF-8 cannot hold, so U+FFFD replaces it.
         assertEquals(new Run(0, null, "" + (char) 0xC4 + (char) 0xFFFD + "\n", ""),
                 run(program("        ldstr \"\\u00C4\\uD800\"\n" + PRINTLN + "        ret\n", "")));
+    }
+
+    @Test
+    public static void anOverflowOfTheStackIsAFault() throws Exception {
+        // Until v0.0.8, an unbounded recursion ends the run with the fault of Q94, after the line before it.
+        String down = "    .method static void down() {\n        call static void m.App::down()\n        ret\n    }\n";
+        assertEquals(new Run(1, "reflect.core.StackOverflowError", "before\n", "reflect.core.StackOverflowError: the"
+                + " calls fill the 256 MiB stack of VM0\n"), run(program("        ldstr \"before\"\n" + PRINTLN
+                + "        call static void m.App::down()\n        ret\n", down)));
+    }
+
+    @Test
+    public static void anErrorOfTheRunReachesTheCaller() throws Exception {
+        // main runs on a thread of its own (Q93); an error that ends it, such as OutOfMemoryError, reaches the
+        // caller of run unchanged.
+        var error = new AssertionError("from the module source");
+        byte[] module = assemble(program("        ret\n", ""));
+        var out = new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8);
+        assertEquals(error, assertThrows(AssertionError.class, () -> Vm.run(new ModuleData("m.rflc", module),
+                name -> {
+                    throw error;
+                }, null, List.of(), out, out)));
     }
 
     // A module m whose main class m.App has this main and these other members.

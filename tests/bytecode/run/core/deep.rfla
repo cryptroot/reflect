@@ -1,0 +1,35 @@
+// expect-output: sum(100000) = 5000050000
+.module deep 0.0.0
+.main deep.App
+.requires reflect.core
+.requires reflect.io
+
+// A recursion 100,000 calls deep. main runs on a thread with a stack of 256 MiB, and the JVM's
+// default stack of 1 MiB holds about 2,000 calls of VM0 (README §7.6, Q93).
+.class public final deep.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldstr    "sum(100000) = "
+        ldc.i4   100000
+        call     static long deep.App::sum(int)
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    // sum(n) = n + sum(n - 1), with sum(0) = 0: n + 1 calls, each inside the one before.
+    .method static long sum(int n) {
+        ldarg    n
+        brtrue   MORE
+        ldc.i8   0
+        ret
+    MORE:
+        ldarg    n
+        conv.i32.i64
+        ldarg    n
+        ldc.i4   1
+        sub.i32
+        call     static long deep.App::sum(int)
+        add.i64
+        ret
+    }
+}

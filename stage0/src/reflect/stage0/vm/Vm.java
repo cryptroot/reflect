@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 import reflect.stage0.bytecode.Flags;
 import reflect.stage0.bytecode.MemberRef;
@@ -29,6 +31,11 @@ public final class Vm {
     public record Result(int exitCode, @Nullable String uncaught) {
     }
 
+    // The stack of the thread that runs main (Q93). In the build image a call of VM0 takes about 180 to 310
+    // bytes of it, so 256 MiB holds at least 860,000 calls, and the JVM's default of 1 MiB about 2,000
+    // (sketchpad D.6).
+    private static final long STACK_SIZE = 256L << 20;
+
     private final PrintStream out;
     private final PrintStream err;
     private final Map<TypeDef, RuntimeType> types = new IdentityHashMap<>();
@@ -41,24 +48,43 @@ public final class Vm {
 
     /**
      * Runs the main module with the modules of the source: the main class is mainClass, a qualified name
-     * of GEN-12, or else that of the module (.main). A Stop exits with 2 and a fault with 1 (Q89).
+     * of GEN-12, or else that of the module (.main). main runs on a new thread with a stack of 256 MiB
+     * (Q93). A Stop exits with 2 and a fault with 1 (Q89).
      */
     public static Result run(ModuleData main, ModuleSource source, @Nullable String mainClass, List<String> args,
             PrintStream out, PrintStream err) {
         var vm = new Vm(out, err);
         try {
+            return CompletableFuture.supplyAsync(() -> vm.start(main, source, mainClass, args),
+                    task -> Thread.ofPlatform().name("vm0 main").stackSize(STACK_SIZE).start(task)).join();
+        } catch (CompletionException e) {
+            // start gives each run a result, so only an error such as OutOfMemoryError ends the thread without
+            // one. It reaches the caller as it did when main ran on the caller's thread.
+            if (e.getCause() instanceof Error error) {
+                throw error;
+            }
+            throw e;
+        }
+    }
+
+    private Result start(ModuleData main, ModuleSource source, @Nullable String mainClass, List<String> args) {
+        try {
             Modules modules = Modules.load(main, source);
-            RuntimeMethod entry = vm.entry(modules.main(), mainClass);
-            Interpreter.invoke(vm, entry, new Object[] {args.toArray(new String[0])});
+            RuntimeMethod entry = entry(modules.main(), mainClass);
+            Interpreter.invoke(this, entry, new Object[] {args.toArray(new String[0])});
             return new Result(0, null);
         } catch (Stop e) {
-            vm.report("vm0: " + e.getMessage());
+            report("vm0: " + e.getMessage());
             return new Result(2, null);
         } catch (Fault e) {
-            vm.report(e.type() + ": " + e.getMessage());
+            report(e.type() + ": " + e.getMessage());
             return new Result(1, e.type());
+        } catch (StackOverflowError e) {
+            // A fault until v0.0.8 (Q94). The JVM has unwound the stack to here, so the report has room.
+            report(Fault.STACK_OVERFLOW_ERROR + ": the calls fill the " + (STACK_SIZE >> 20) + " MiB stack of VM0");
+            return new Result(1, Fault.STACK_OVERFLOW_ERROR);
         } catch (RuntimeException e) {
-            vm.report("vm0: VM0 failed: " + e);
+            report("vm0: VM0 failed: " + e);
             return new Result(2, null);
         } finally {
             out.flush();
