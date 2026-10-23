@@ -230,6 +230,15 @@ writes no module then. It exits with:
 - 1 after a diagnostic;
 - 2 when its arguments are wrong, or a file cannot be read or written.
 
+`rfld` prints the canonical text of BC-25 to standard output, as UTF-8 bytes. Two kinds of file
+have no text: a file that the reader rejects, and before v0.0.9 a module with a `GENERIC`
+`MemberRef` (§7.5). For such a file, `rfld` prints the reason after the path of the file, as
+`in.rflc: offset 0x0: ...`, and prints no text. It exits with:
+
+- 0 when it prints the text;
+- 1 when the file has no text;
+- 2 when its arguments are wrong, the file cannot be read, or the text cannot be written.
+
 `test` checks each `.rfla` file under the directory, in path order: a file in `invalid/` must fail
 with its `expect-error` (§6.3), and any other file must hold none and assemble into a module that
 the reader accepts. It prints `PASS` or `FAIL` with the path of each file, then the counts, and
