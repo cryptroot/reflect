@@ -10,7 +10,7 @@ import reflect.stage0.lib.Nullable;
  * Encodes, decodes and checks DEBUG (§6.1): the module's contentHash, the source files, and per
  * method token the line entries and the local names of its body. It states their rules once, for
  * the writer and the reader: a line entry at an instruction, with a line from 1 in a source file
- * that has a path and a SHA-256, and a name that is not empty for a local of the body. The writer
+ * that has a path and a SHA-256, and a name that is an identifier for a local of the body. The writer
  * sorts the entries, lists each file at its first use and writes no DEBUG without content; the
  * reader checks these orders (BC-24), and reads a DEBUG only when it is not stale (BC-20).
  */
@@ -64,7 +64,7 @@ final class Debug {
         if (name.name().isEmpty()) {
             return "the name of local " + name.index() + " is empty; DEBUG lists only the locals that have a name (BC-17)";
         }
-        return null;
+        return ModuleWriter.nameProblem("name of local " + name.index(), name.name(), false, false);
     }
 
     /**

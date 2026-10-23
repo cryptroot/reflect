@@ -49,7 +49,7 @@ public final class ModuleReader {
             throw new ModuleFormatException(file.open(file.find(SectionId.TABLES)).position(), "the Module table has "
                     + rows + " rows; it has exactly one (BC-24)");
         }
-        moduleName = ident(TableId.MODULE, 1, 0);
+        moduleName = nameOf(TableId.MODULE, 1, 0, "module name", true, false);
         var module = new ModuleDef(moduleName, value(TableId.MODULE, 1, 1), value(TableId.MODULE, 1, 2),
                 value(TableId.MODULE, 1, 3));
         flags(TableId.MODULE, 1, 4, 0, "Module");
@@ -145,7 +145,7 @@ public final class ModuleReader {
     private void readModuleRefs() throws ModuleFormatException {
         String previous = "";
         for (int row = 1; row <= tables.rows(TableId.MODULE_REF); row++) {
-            String name = ident(TableId.MODULE_REF, row, 0);
+            String name = nameOf(TableId.MODULE_REF, row, 0, "ModuleRef name", true, false);
             if (row > 1 && Utf8.compare(previous, name) >= 0) {
                 throw new ModuleFormatException(tables.offset(TableId.MODULE_REF, row, 0), Utf8.compare(previous, name) == 0
                         ? "two ModuleRef rows have the name " + name + " (BC-24)"
@@ -165,12 +165,13 @@ public final class ModuleReader {
                 throw new ModuleFormatException(tables.offset(TableId.EXPORT, row, 0), "the Export row names the global"
                         + " namespace, which no module exports (MOD-01)");
             }
+            check(tables.offset(TableId.EXPORT, row, 0), ModuleWriter.nameProblem("Export namespace", namespace, true, false));
             int kind = value(TableId.EXPORT, row, 1);
             if (kind != Flags.EXPORTS && kind != Flags.OPENS) {
                 throw new ModuleFormatException(tables.offset(TableId.EXPORT, row, 1), "Export kind " + hex(kind)
                         + " is not defined (BC-20)");
             }
-            var current = new Export(namespace, kind, ident(TableId.EXPORT, row, 2));
+            var current = new Export(namespace, kind, nameOf(TableId.EXPORT, row, 2, "Export target", true, true));
             if (row > 1) {
                 int order = ModuleWriter.compareExports(exports.get(row - 2), current);
                 if (order >= 0) {
@@ -187,8 +188,8 @@ public final class ModuleReader {
     private List<TypeDefRow> readTypeDefs() throws ModuleFormatException {
         var rows = new ArrayList<TypeDefRow>();
         for (int row = 1; row <= tables.rows(TableId.TYPE_DEF); row++) {
-            String name = ident(TableId.TYPE_DEF, row, 0);
-            String namespace = ident(TableId.TYPE_DEF, row, 1);
+            String name = nameOf(TableId.TYPE_DEF, row, 0, "TypeDef name", false, false);
+            String namespace = nameOf(TableId.TYPE_DEF, row, 1, "TypeDef namespace", true, true);
             int kind = value(TableId.TYPE_DEF, row, 2);
             if (kind < Flags.KIND_CLASS || kind > Flags.KIND_ANNOTATION) {
                 throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, 2), "TypeDef kind "
@@ -226,8 +227,8 @@ public final class ModuleReader {
         var rows = new ArrayList<TypeRefRow>();
         for (int row = 1; row <= tables.rows(TableId.TYPE_REF); row++) {
             int scope = token(TableId.TYPE_REF, row, 0, SCOPE_TOKENS, false, "a ModuleRef or TypeRef row");
-            String namespace = ident(TableId.TYPE_REF, row, 1);
-            String name = ident(TableId.TYPE_REF, row, 2);
+            String namespace = nameOf(TableId.TYPE_REF, row, 1, "TypeRef namespace", true, true);
+            String name = nameOf(TableId.TYPE_REF, row, 2, "TypeRef name", false, false);
             if (scope >>> 24 == TableId.TYPE_REF && !namespace.isEmpty()) {
                 throw new ModuleFormatException(tables.offset(TableId.TYPE_REF, row, 1), "a nested type has namespace 0 (BC-11)");
             }
@@ -260,7 +261,7 @@ public final class ModuleReader {
             if ((flags & Flags.FIELD_CONST) != 0 && (flags & Flags.FIELD_STATIC) == 0) {
                 throw new ModuleFormatException(tables.offset(TableId.FIELD, row, 0), "a const field is also STATIC (BC-11)");
             }
-            String name = ident(TableId.FIELD, row, 1);
+            String name = nameOf(TableId.FIELD, row, 1, "Field name", false, false);
             ByteSource source = blobSource(TableId.FIELD, row, 2);
             int at = source.position();
             TypeSig type = Signatures.field(source, this::handleOf);
@@ -275,7 +276,7 @@ public final class ModuleReader {
         for (int row = 1; row <= tables.rows(TableId.METHOD); row++) {
             int flags = flags(TableId.METHOD, row, 0, ModuleWriter.METHOD_FLAGS, "Method");
             visibility(TableId.METHOD, row, 0, flags);
-            String name = ident(TableId.METHOD, row, 1);
+            String name = nameOf(TableId.METHOD, row, 1, "Method name", false, false);
             String problem = ModuleWriter.constructorName(flags, name);
             if (problem != null) {
                 throw new ModuleFormatException(tables.offset(TableId.METHOD, row, 1), problem);
@@ -312,7 +313,7 @@ public final class ModuleReader {
         var params = new ArrayList<ParamDef>();
         for (int row = 1; row <= tables.rows(TableId.PARAM); row++) {
             int flags = flags(TableId.PARAM, row, 0, ModuleWriter.PARAM_FLAGS, "Param");
-            params.add(new ParamDef(flags, ident(TableId.PARAM, row, 1)));
+            params.add(new ParamDef(flags, nameOf(TableId.PARAM, row, 1, "Param name", false, true)));
         }
         return params;
     }
@@ -351,7 +352,7 @@ public final class ModuleReader {
         var rows = new ArrayList<MemberRefRow>();
         for (int row = 1; row <= tables.rows(TableId.MEMBER_REF); row++) {
             int parent = token(TableId.MEMBER_REF, row, 0, PARENT_TOKENS, false, "a TypeRef or TypeSpec row");
-            String name = ident(TableId.MEMBER_REF, row, 1);
+            String name = nameOf(TableId.MEMBER_REF, row, 1, "MemberRef name", false, false);
             ByteSource source = blobSource(TableId.MEMBER_REF, row, 2);
             int at = source.position();
             byte[] bytes = source.slice(at, at + source.remaining()).bytes(source.remaining());
@@ -525,6 +526,14 @@ public final class ModuleReader {
 
     private String ident(int table, int row, int column) throws ModuleFormatException {
         return idents.ident(value(table, row, column), tables.offset(table, row, column));
+    }
+
+    // A name in the form that its column takes (Q83), checked at the column.
+    private String nameOf(int table, int row, int column, String what, boolean dotted, boolean optional)
+            throws ModuleFormatException {
+        String name = ident(table, row, column);
+        check(tables.offset(table, row, column), ModuleWriter.nameProblem(what, name, dotted, optional));
+        return name;
     }
 
     private ByteSource blobSource(int table, int row, int column) throws ModuleFormatException {

@@ -277,6 +277,33 @@ final class Lexer {
         return c == '$' || Character.isUnicodeIdentifierPart(c) && !Character.isIdentifierIgnorable(c);
     }
 
+    /** Whether the text is an Ident of §8.1, which the lexer reads as one word without a dot (Q83). */
+    static boolean isIdentifier(String text) {
+        if (text.isEmpty() || !identifierStart(text.codePointAt(0))) {
+            return false;
+        }
+        for (int i = Character.charCount(text.codePointAt(0)); i < text.length(); i += Character.charCount(text.codePointAt(i))) {
+            if (!identifierPart(text.codePointAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether the text is a QName of §8.1: identifiers joined by dots (Q83). */
+    static boolean isQualifiedName(String text) {
+        int start = 0;
+        for (int i = 0; i <= text.length(); i++) {
+            if (i == text.length() || text.charAt(i) == '.') {
+                if (!isIdentifier(text.substring(start, i))) {
+                    return false;
+                }
+                start = i + 1;
+            }
+        }
+        return true;
+    }
+
     static int hexDigit(char c) {
         return c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
     }

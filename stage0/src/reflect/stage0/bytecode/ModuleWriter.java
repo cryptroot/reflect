@@ -60,6 +60,7 @@ public final class ModuleWriter {
     }
 
     public static byte[] write(ModuleDef module) throws ModuleFormatException {
+        check(nameProblem("module name", module.name(), true, false));
         var writer = new ModuleWriter(module);
         writer.numberModuleRefs();
         writer.sortExports();
@@ -77,6 +78,7 @@ public final class ModuleWriter {
                 throw new ModuleFormatException("the module lists the ModuleRef " + ref.name() + " twice");
             }
             checkFlags(ref.flags(), MODULE_REF_FLAGS, "ModuleRef " + ref.name());
+            check(nameProblem("ModuleRef name", ref.name(), true, false));
             moduleRefRows.put(ref, 0);
             moduleRefs.add(ref);
         }
@@ -99,6 +101,8 @@ public final class ModuleWriter {
             if (export.namespace().isEmpty()) {
                 throw new ModuleFormatException("an Export row names the global namespace, which no module exports (MOD-01)");
             }
+            check(nameProblem("Export namespace", export.namespace(), true, false));
+            check(nameProblem("Export target", export.target(), true, true));
             exports.add(export);
         }
         exports.sort(ModuleWriter::compareExports);
@@ -154,16 +158,22 @@ public final class ModuleWriter {
     }
 
     /**
-     * The first rule that the type breaks on its own, or null: a defined kind, defined flags with at
-     * most one visibility, a backing type exactly for an enum, and namespace 0 when nested (BC-11).
-     * That the module lists it, and its enclosing type, the writer checks.
+     * The first rule that the type breaks on its own, or null: its name and namespace (Q83), a defined
+     * kind, defined flags with at most one visibility, a backing type exactly for an enum, and namespace
+     * 0 when nested (BC-11). That the module lists it, and its enclosing type, the writer checks.
      */
     static @Nullable String typeProblem(TypeDef type) {
         String owner = "type " + type.name();
-        if (type.kind() < Flags.KIND_CLASS || type.kind() > Flags.KIND_ANNOTATION) {
+        String problem = nameProblem("TypeDef name", type.name(), false, false);
+        if (problem == null) {
+            problem = nameProblem("TypeDef namespace", type.namespace(), true, true);
+        }
+        if (problem == null && (type.kind() < Flags.KIND_CLASS || type.kind() > Flags.KIND_ANNOTATION)) {
             return owner + " has the undefined kind " + type.kind() + " (BC-20)";
         }
-        String problem = flagsProblem(type.flags(), TYPE_FLAGS, owner);
+        if (problem == null) {
+            problem = flagsProblem(type.flags(), TYPE_FLAGS, owner);
+        }
         if (problem == null) {
             problem = visibilityProblem(type.flags(), owner);
         }
@@ -180,9 +190,12 @@ public final class ModuleWriter {
         return problem;
     }
 
-    /** The first rule that the field breaks, or null: defined flags with at most one visibility, CONST with STATIC, and its type. */
+    /** The first rule that the field breaks, or null: its name, defined flags with at most one visibility, CONST with STATIC, and its type. */
     static @Nullable String fieldProblem(FieldDef field, String owner, String module) {
-        String problem = flagsProblem(field.flags(), FIELD_FLAGS, owner);
+        String problem = nameProblem("Field name", field.name(), false, false);
+        if (problem == null) {
+            problem = flagsProblem(field.flags(), FIELD_FLAGS, owner);
+        }
         if (problem == null) {
             problem = visibilityProblem(field.flags(), owner);
         }
@@ -230,6 +243,8 @@ public final class ModuleWriter {
         }
         for (TypeRef ref : typeRefs) {
             String owner = "TypeRef " + ref.name();
+            check(nameProblem("TypeRef name", ref.name(), false, false));
+            check(nameProblem("TypeRef namespace", ref.namespace(), true, true));
             TypeScope scope = ref.scope();
             if (scope instanceof ModuleRef required) {
                 if (!moduleRefRows.containsKey(required)) {
@@ -340,6 +355,7 @@ public final class ModuleWriter {
                         throw new ModuleFormatException("a parameter of " + owner + " belongs to two methods or appears twice");
                     }
                     checkFlags(param.flags(), PARAM_FLAGS, "parameter " + param.name() + " of " + owner);
+                    check(nameProblem("Param name", param.name(), false, true));
                     params.add(param);
                     paramRows.put(param, params.size());
                 }
@@ -360,6 +376,7 @@ public final class ModuleWriter {
             if (!typeRefRows.containsKey(parent)) {
                 throw new ModuleFormatException(owner + " has a parent that the module does not list");
             }
+            check(nameProblem("MemberRef name", ref.name(), false, false));
             MemberSig signature = ref.signature();
             if (signature instanceof FieldSig field) {
                 check(Signatures.problem(field.type(), Signatures.OTHER, REFERENCE, module.name()), owner);
@@ -393,14 +410,17 @@ public final class ModuleWriter {
     }
 
     /**
-     * The first rule that the method breaks, or null: defined flags with at most one visibility, the
-     * name of a constructor, the limit of parameters, its signature, which has STATIC exactly when
+     * The first rule that the method breaks, or null: its name, defined flags with at most one visibility,
+     * the name of a constructor, the limit of parameters, its signature, which has STATIC exactly when
      * the method has, no GENERIC until GenericParam rows exist and one Param row per parameter, and
      * a body exactly when it is not ABSTRACT, NATIVE or EXTERN (BC-11, BC-21, BC-24). The rules of the
      * body itself are those of Code.
      */
     static @Nullable String methodProblem(MethodDef method, String owner, String module) {
-        String problem = flagsProblem(method.flags(), METHOD_FLAGS, owner);
+        String problem = nameProblem("Method name", method.name(), false, false);
+        if (problem == null) {
+            problem = flagsProblem(method.flags(), METHOD_FLAGS, owner);
+        }
         if (problem == null) {
             problem = visibilityProblem(method.flags(), owner);
         }
@@ -477,6 +497,13 @@ public final class ModuleWriter {
             throw new ModuleFormatException("an instruction names " + name + ", which the module does not list");
         }
         return (table << 24) | row;
+    }
+
+    /** Why the name does not fit its column, or null: an Ident, or a QName where dotted, and empty only where optional (Q83). */
+    static @Nullable String nameProblem(String what, String name, boolean dotted, boolean optional) {
+        boolean fits = name.isEmpty() ? optional : dotted ? Lexer.isQualifiedName(name) : Lexer.isIdentifier(name);
+        return fits ? null : "the " + what + " is \"" + name + "\", not " + (dotted ? "a dotted name of identifiers"
+                : "an identifier") + " (BC-11)";
     }
 
     /** Why the name does not fit the CONSTRUCTOR and STATIC flags (§3.1), or null when it does. */

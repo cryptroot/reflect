@@ -34,10 +34,10 @@ public final class ModuleTableTest {
         var module = new ModuleDef("app", 1, 0, 0);
         module.requires().add(new ModuleRef("reflect.io", Flags.REQUIRES_TRANSITIVE));
         module.requires().add(new ModuleRef("\uD800\uDC00", 0));
-        module.requires().add(new ModuleRef("\uE000", Flags.REQUIRES_STATIC));
+        module.requires().add(new ModuleRef("\uF900", Flags.REQUIRES_STATIC));
         module.requires().add(new ModuleRef("reflect.core", Flags.REQUIRES_TRANSITIVE | Flags.REQUIRES_STATIC));
-        // String.compareTo puts U+10000, a surrogate pair, before U+E000; UTF-8 puts it after.
-        assertTrue("\uD800\uDC00".compareTo("\uE000") < 0);
+        // String.compareTo puts U+10000, a surrogate pair, before U+F900; UTF-8 puts it after.
+        assertTrue("\uD800\uDC00".compareTo("\uF900") < 0);
         ModuleDef read = ModuleReader.read(roundTrip(module));
         var order = new StringBuilder();
         for (ModuleRef ref : read.requires()) {
@@ -45,7 +45,7 @@ public final class ModuleTableTest {
                     .append(" flags ").append(ref.flags()).append("; ");
         }
         assertEquals("72 65 66 6C 65 63 74 2E 63 6F 72 65 flags 3; 72 65 66 6C 65 63 74 2E 69 6F flags 1; "
-                + "EE 80 80 flags 2; F0 90 80 80 flags 0; ", order.toString());
+                + "EF A4 80 flags 2; F0 90 80 80 flags 0; ", order.toString());
     }
 
     @Test
@@ -55,14 +55,14 @@ public final class ModuleTableTest {
         module.exports().add(new Export("\uD800\uDC00", Flags.EXPORTS, ""));
         module.exports().add(new Export("app.b", Flags.EXPORTS, ""));
         module.exports().add(new Export("app.a", Flags.OPENS, "tests"));
-        module.exports().add(new Export("\uE000", Flags.EXPORTS, ""));
+        module.exports().add(new Export("\uF900", Flags.EXPORTS, ""));
         module.exports().add(new Export("app.a", Flags.EXPORTS, "tests"));
         module.exports().add(new Export("app.a", Flags.EXPORTS, ""));
         byte[] file = roundTrip(module);
         // The names of Export rows follow the ModuleRef names in IDENTS, in row order (BC-24).
         assertEquals("00 03 61 70 70 0C 72 65 66 6C 65 63 74 2E 63 6F 72 65 05 61 70 70 2E 61 05 74 65 73 74 73 "
-                + "05 61 70 70 2E 62 03 EE 80 80 04 F0 90 80 80", Leb128Test.hex(section(file, SectionId.IDENTS)));
-        // Every module, the empty target, comes first, and U+E000 comes before U+10000 in UTF-8.
+                + "05 61 70 70 2E 62 03 EF A4 80 04 F0 90 80 80", Leb128Test.hex(section(file, SectionId.IDENTS)));
+        // Every module, the empty target, comes first, and U+F900 comes before U+10000 in UTF-8.
         var rows = new StringBuilder();
         for (int row = 1; row <= 6; row++) {
             for (int column = 0; column < 3; column++) {
@@ -76,7 +76,7 @@ public final class ModuleTableTest {
                     .append(" / ").append(export.kind()).append(" / ").append(export.target()).append("; ");
         }
         assertEquals("61 70 70 2E 61 / 0 / ; 61 70 70 2E 61 / 0 / tests; 61 70 70 2E 61 / 1 / tests; "
-                + "61 70 70 2E 62 / 0 / ; EE 80 80 / 0 / ; F0 90 80 80 / 0 / ; ", order.toString());
+                + "61 70 70 2E 62 / 0 / ; EF A4 80 / 0 / ; F0 90 80 80 / 0 / ; ", order.toString());
     }
 
     @Test

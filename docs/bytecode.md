@@ -236,6 +236,11 @@ u32, in the order given:
 
 - IDENTS offset 0 holds the empty identifier. A type in the global namespace and a nested type
   have namespace 0; a nested type takes its namespace from its outermost enclosing type.
+- Each name has the form that `.rfla` spells (Q83): the name of a type, a field, a method, a
+  parameter, a `MemberRef` and a local in DEBUG is an `Ident` of §8.1, and a module name, a
+  namespace and the target of an `Export` row are a `QName`. Only a namespace, the name of a
+  parameter and the target of an `Export` row may be empty: the global namespace, a parameter
+  without a name and an export to every module.
 - `fields`, `methods`, `params` and `typeParams` give the first row of the owner's run of rows.
   The run ends where the next owner's run starts, or at the end of the table. An empty run starts
   where the next one does, so a column whose table has no rows holds 1. `GenericParam` rows owned
