@@ -32,6 +32,9 @@ public final class Disassembler {
         "final", "", "native", "extern", "unsafe", "mutating", "const", "precompile", "synthesized"};
     private static final String[] PARAM_WORDS = {"scoped", "this"};
     private static final String[] BYREF_WORDS = {"ref ", "in ", "out "};
+    // The words of the verification types, in the order of their tags from I32 (BC-19).
+    private static final String[] VERIFICATION_WORDS = {"i32", "i64", "f32", "f64", "null", "ref", "uninit", "byref",
+        "byref.readonly", "ptr", "struct", "class"};
     private static final String INDENT = "    ";
     private static final String HEX = "0123456789ABCDEF";
 
@@ -210,6 +213,9 @@ public final class Disassembler {
                 trailing.add(".memberref " + (ref.signature() instanceof FieldSig ? fieldRef(ref) : methodRef(ref)));
             }
         }
+        for (SourceFile file : sourceFiles()) {
+            trailing.add(".source " + string(file.path()) + " hex \"" + hex(file.hash()) + "\"");
+        }
         for (Section section : module.ancillary()) {
             trailing.add(".section " + ModuleFormatException.hex(section.id() & 0xFFFFFFFFL) + " hex \""
                     + hex(section.content()) + "\"");
@@ -265,7 +271,214 @@ public final class Disassembler {
                     .append(variadic(signature, i) ? "..." : "").append(param.name().isEmpty() ? "" : " " + param.name());
         }
         line(depth, head.append(") {").toString());
+        MethodBody body = method.body();
+        if (body != null) {
+            body(body, depth + 1);
+        }
         line(depth, "}");
+    }
+
+    // The source files that line entries name, in the order of DEBUG: by first use, methods in row order.
+    private List<SourceFile> sourceFiles() {
+        var files = new ArrayList<SourceFile>();
+        Map<String, Boolean> paths = new HashMap<>();
+        for (TypeDef type : module.types()) {
+            for (MethodDef method : type.methods()) {
+                MethodBody body = method.body();
+                if (body == null) {
+                    continue;
+                }
+                for (Line entry : body.lines()) {
+                    if (!paths.containsKey(entry.file().path())) {
+                        paths.put(entry.file().path(), true);
+                        files.add(entry.file());
+                    }
+                }
+            }
+        }
+        return files;
+    }
+
+    // A body: .maxstack, .locals with the names that DEBUG holds, then before each instruction its label,
+    // its line entry and its stack map frame, a label at the end of the code, and the regions in the
+    // order of BC-18. A .line names its file when the file changes.
+    private void body(MethodBody body, int depth) {
+        line(depth, ".maxstack " + unsigned(body.maxStack()));
+        List<TypeSig> locals = body.locals();
+        if (!locals.isEmpty()) {
+            var names = new String[locals.size()];
+            for (LocalName local : body.localNames()) {
+                names[local.index()] = local.name();
+            }
+            var text = new StringBuilder(".locals (");
+            for (int i = 0; i < locals.size(); i++) {
+                text.append(i == 0 ? "" : ", ").append(type(locals.get(i))).append(names[i] == null ? "" : " " + names[i]);
+            }
+            line(depth, text.append(')').toString());
+        }
+        List<Instruction> code = body.code();
+        int[] labels = labels(body);
+        var lines = new Line[code.size()];
+        for (Line entry : body.lines()) {
+            lines[entry.at().index()] = entry;
+        }
+        var frames = new Frame[code.size()];
+        for (Frame frame : body.frames()) {
+            frames[frame.at().index()] = frame;
+        }
+        String path = "";
+        for (int i = 0; i <= code.size(); i++) {
+            if (labels[i] >= 0) {
+                line(depth - 1, "L" + labels[i] + ":");
+            }
+            if (i == code.size()) {
+                break;
+            }
+            Line entry = lines[i];
+            if (entry != null) {
+                String file = entry.file().path();
+                line(depth, ".line " + (file.equals(path) ? "" : string(file) + " ") + unsigned(entry.number()));
+                path = file;
+            }
+            Frame frame = frames[i];
+            if (frame != null) {
+                line(depth, ".stackmap " + verificationTypes(frame.slots()) + " " + verificationTypes(frame.stack()));
+            }
+            line(depth, instruction(code.get(i), labels));
+        }
+        for (Region region : body.regions()) {
+            TypeHandle caught = region.type();
+            line(depth, ".try L" + labels[region.tryStart().index()] + " L" + labels[region.tryEnd().index()]
+                    + (caught == null ? " .finally" : " .catch " + typeName(caught)) + " L"
+                    + labels[region.handlerStart().index()] + " L" + labels[region.handlerEnd().index()]);
+        }
+    }
+
+    // The label of each place of the code, the end included, numbered in code order: the targets of
+    // branches and switches and the bounds of regions; -1 where none stands.
+    private static int[] labels(MethodBody body) {
+        List<Instruction> code = body.code();
+        var marked = new boolean[code.size() + 1];
+        for (Instruction instruction : code) {
+            if (instruction instanceof Instruction.Branch branch) {
+                marked[branch.target().index()] = true;
+            } else if (instruction instanceof Instruction.Switch choice) {
+                for (Label target : choice.targets()) {
+                    marked[target.index()] = true;
+                }
+            }
+        }
+        for (Region region : body.regions()) {
+            marked[region.tryStart().index()] = true;
+            marked[region.tryEnd().index()] = true;
+            marked[region.handlerStart().index()] = true;
+            marked[region.handlerEnd().index()] = true;
+        }
+        var labels = new int[marked.length];
+        int next = 0;
+        for (int i = 0; i < marked.length; i++) {
+            labels[i] = marked[i] ? next++ : -1;
+        }
+        return labels;
+    }
+
+    // A mnemonic, then the operands of its operand kind (§5.1) as the binary holds them.
+    private String instruction(Instruction instruction, int[] labels) {
+        String mnemonic = Opcode.mnemonic(instruction.opcode());
+        int kind = Opcode.operands(instruction.opcode());
+        if (instruction instanceof Instruction.Value32 value) {
+            return mnemonic + " " + (kind == Opcode.OPERAND_I4 ? String.valueOf(value.value()) : real32(value.value()));
+        }
+        if (instruction instanceof Instruction.Value64 value) {
+            return mnemonic + " " + (kind == Opcode.OPERAND_I8 ? String.valueOf(value.value()) : real64(value.value()));
+        }
+        if (instruction instanceof Instruction.Literal literal) {
+            return mnemonic + " " + string(literal.text());
+        }
+        if (instruction instanceof Instruction.Index index) {
+            return mnemonic + " " + unsigned(index.index());
+        }
+        if (instruction instanceof Instruction.Indexes indexes) {
+            return mnemonic + " " + unsigned(indexes.first()) + " " + unsigned(indexes.second());
+        }
+        if (instruction instanceof Instruction.Type type) {
+            return mnemonic + " " + typeName(type.type());
+        }
+        if (instruction instanceof Instruction.Field field) {
+            return mnemonic + " " + fieldRef(field.field());
+        }
+        if (instruction instanceof Instruction.Method method) {
+            return mnemonic + " " + methodRef(method.method());
+        }
+        if (instruction instanceof Instruction.Constrained constrained) {
+            return mnemonic + " " + typeName(constrained.type()) + " " + methodRef(constrained.method());
+        }
+        if (instruction instanceof Instruction.Branch branch) {
+            return mnemonic + " L" + labels[branch.target().index()];
+        }
+        if (instruction instanceof Instruction.Switch choice) {
+            var text = new StringBuilder(mnemonic).append(" (");
+            for (int i = 0; i < choice.targets().size(); i++) {
+                text.append(i == 0 ? "L" : ", L").append(labels[choice.targets().get(i).index()]);
+            }
+            return text.append(')').toString();
+        }
+        return mnemonic;
+    }
+
+    // VTypes of §8.1 in parentheses: a word per tag, and the type that a tag with a token names.
+    private String verificationTypes(List<Frame.VType> types) {
+        var text = new StringBuilder("(");
+        for (int i = 0; i < types.size(); i++) {
+            Frame.VType type = types.get(i);
+            TypeHandle named = type.type();
+            text.append(i == 0 ? "" : ", ").append(VERIFICATION_WORDS[type.tag() - VerificationType.I32])
+                    .append(named == null ? "" : " " + typeName(named));
+        }
+        return text.append(')').toString();
+    }
+
+    // Real of §8.1: the shortest decimal that reads back to the same float, an infinity, or the bits of a NaN.
+    private static String real32(int bits) {
+        float value = Float.intBitsToFloat(bits);
+        if (Float.isNaN(value)) {
+            return "bits " + ModuleFormatException.hex(bits & 0xFFFFFFFFL);
+        }
+        return Float.isInfinite(value) ? (value > 0 ? "inf" : "-inf") : Float.toString(value);
+    }
+
+    private static String real64(long bits) {
+        double value = Double.longBitsToDouble(bits);
+        if (Double.isNaN(value)) {
+            return "bits " + ModuleFormatException.hex(bits);
+        }
+        return Double.isInfinite(value) ? (value > 0 ? "inf" : "-inf") : Double.toString(value);
+    }
+
+    // String of §8.1: printable ASCII as it is, and an escape for each other code unit, with four hexadecimal
+    // digits where §8.1 has no shorter one.
+    private static String string(String value) {
+        var text = new StringBuilder("\"");
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '"' || c == '\\') {
+                text.append('\\').append(c);
+            } else if (c == '\n') {
+                text.append("\\n");
+            } else if (c == '\t') {
+                text.append("\\t");
+            } else if (c == '\r') {
+                text.append("\\r");
+            } else if (c == 0) {
+                text.append("\\0");
+            } else if (c >= 0x20 && c < 0x7F) {
+                text.append(c);
+            } else {
+                text.append("\\u").append(HEX.charAt((c >> 12) & 0xF)).append(HEX.charAt((c >> 8) & 0xF))
+                        .append(HEX.charAt((c >> 4) & 0xF)).append(HEX.charAt(c & 0xF));
+            }
+        }
+        return text.append('"').toString();
     }
 
     // FieldRef of §8.1 in its full form (Q69): the type of the field, then the type that holds it.
