@@ -12,6 +12,11 @@ import reflect.stage0.lib.Nullable;
  * i64, Float for f32, Double for f64, and String or null for a reference.
  */
 final class Interpreter {
+    // The canonical NaN of each format (NUM-04, MA-01, Q92): the positive quiet NaN with payload 0. Java's
+    // arithmetic gives other NaNs, such as 0xFFF8000000000000 for 0.0 / 0.0 on x86-64 (sketchpad D.6).
+    private static final float NAN32 = Float.intBitsToFloat(0x7FC00000);
+    private static final double NAN64 = Double.longBitsToDouble(0x7FF8000000000000L);
+
     private Interpreter() {
     }
 
@@ -157,49 +162,52 @@ final class Interpreter {
                         stack[sp - 1] = i64(stack[sp - 1]) >>> b;
                     }
                     // Java's float and double arithmetic is IEEE 754 with round to nearest (NUM-04), and its
-                    // remainder truncates the quotient, as BC-04 asks.
+                    // remainder truncates the quotient, as BC-04 asks. A NaN result is the canonical NaN
+                    // (MA-01, Q92), and neg changes only the sign bit.
                     case Opcode.ADD_F32 -> {
                         float b = f32(stack[--sp]);
-                        stack[sp - 1] = f32(stack[sp - 1]) + b;
+                        stack[sp - 1] = canonical(f32(stack[sp - 1]) + b);
                     }
                     case Opcode.SUB_F32 -> {
                         float b = f32(stack[--sp]);
-                        stack[sp - 1] = f32(stack[sp - 1]) - b;
+                        stack[sp - 1] = canonical(f32(stack[sp - 1]) - b);
                     }
                     case Opcode.MUL_F32 -> {
                         float b = f32(stack[--sp]);
-                        stack[sp - 1] = f32(stack[sp - 1]) * b;
+                        stack[sp - 1] = canonical(f32(stack[sp - 1]) * b);
                     }
                     case Opcode.DIV_F32 -> {
                         float b = f32(stack[--sp]);
-                        stack[sp - 1] = f32(stack[sp - 1]) / b;
+                        stack[sp - 1] = canonical(f32(stack[sp - 1]) / b);
                     }
                     case Opcode.REM_F32 -> {
                         float b = f32(stack[--sp]);
-                        stack[sp - 1] = f32(stack[sp - 1]) % b;
+                        stack[sp - 1] = canonical(f32(stack[sp - 1]) % b);
                     }
-                    case Opcode.NEG_F32 -> stack[sp - 1] = -f32(stack[sp - 1]);
+                    case Opcode.NEG_F32 -> stack[sp - 1] = Float.intBitsToFloat(Float.floatToRawIntBits(f32(stack[sp - 1]))
+                            ^ 0x80000000);
                     case Opcode.ADD_F64 -> {
                         double b = f64(stack[--sp]);
-                        stack[sp - 1] = f64(stack[sp - 1]) + b;
+                        stack[sp - 1] = canonical(f64(stack[sp - 1]) + b);
                     }
                     case Opcode.SUB_F64 -> {
                         double b = f64(stack[--sp]);
-                        stack[sp - 1] = f64(stack[sp - 1]) - b;
+                        stack[sp - 1] = canonical(f64(stack[sp - 1]) - b);
                     }
                     case Opcode.MUL_F64 -> {
                         double b = f64(stack[--sp]);
-                        stack[sp - 1] = f64(stack[sp - 1]) * b;
+                        stack[sp - 1] = canonical(f64(stack[sp - 1]) * b);
                     }
                     case Opcode.DIV_F64 -> {
                         double b = f64(stack[--sp]);
-                        stack[sp - 1] = f64(stack[sp - 1]) / b;
+                        stack[sp - 1] = canonical(f64(stack[sp - 1]) / b);
                     }
                     case Opcode.REM_F64 -> {
                         double b = f64(stack[--sp]);
-                        stack[sp - 1] = f64(stack[sp - 1]) % b;
+                        stack[sp - 1] = canonical(f64(stack[sp - 1]) % b);
                     }
-                    case Opcode.NEG_F64 -> stack[sp - 1] = -f64(stack[sp - 1]);
+                    case Opcode.NEG_F64 -> stack[sp - 1] = Double.longBitsToDouble(Double.doubleToRawLongBits(
+                            f64(stack[sp - 1])) ^ 0x8000000000000000L);
                     // A comparison pushes the i32 1 or 0. Java compares floats per IEEE 754, so a NaN is
                     // unordered, and 0.0 equals -0.0 (NUM-04).
                     case Opcode.CEQ_I32 -> {
@@ -284,6 +292,7 @@ final class Interpreter {
                     }
                     // Java's casts give the conversions of BC-04: integers wrap, an integer becomes the nearest
                     // float, and a float becomes an integer by truncation, saturated, with NaN as 0 (NUM-03).
+                    // Between f32 and f64, a NaN becomes the canonical NaN (MA-01, Q92).
                     case Opcode.CONV_I32_I8 -> stack[sp - 1] = (int) (byte) i32(stack[sp - 1]);
                     case Opcode.CONV_I32_I16 -> stack[sp - 1] = (int) (short) i32(stack[sp - 1]);
                     case Opcode.CONV_I32_U16 -> stack[sp - 1] = (int) (char) i32(stack[sp - 1]);
@@ -295,10 +304,10 @@ final class Interpreter {
                     case Opcode.CONV_I64_F64 -> stack[sp - 1] = (double) i64(stack[sp - 1]);
                     case Opcode.CONV_F32_I32 -> stack[sp - 1] = (int) f32(stack[sp - 1]);
                     case Opcode.CONV_F32_I64 -> stack[sp - 1] = (long) f32(stack[sp - 1]);
-                    case Opcode.CONV_F32_F64 -> stack[sp - 1] = (double) f32(stack[sp - 1]);
+                    case Opcode.CONV_F32_F64 -> stack[sp - 1] = canonical((double) f32(stack[sp - 1]));
                     case Opcode.CONV_F64_I32 -> stack[sp - 1] = (int) f64(stack[sp - 1]);
                     case Opcode.CONV_F64_I64 -> stack[sp - 1] = (long) f64(stack[sp - 1]);
-                    case Opcode.CONV_F64_F32 -> stack[sp - 1] = (float) f64(stack[sp - 1]);
+                    case Opcode.CONV_F64_F32 -> stack[sp - 1] = canonical((float) f64(stack[sp - 1]));
                     case Opcode.CALL -> {
                         if (links[pc] == null) {
                             RuntimeMethod callee = vm.method(method.type().module(), ((Instruction.Method) instruction).method());
@@ -335,6 +344,14 @@ final class Interpreter {
 
     private static long i64(Object value) {
         return (Long) value;
+    }
+
+    private static float canonical(float value) {
+        return value != value ? NAN32 : value;
+    }
+
+    private static double canonical(double value) {
+        return value != value ? NAN64 : value;
     }
 
     private static float f32(Object value) {

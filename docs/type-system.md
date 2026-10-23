@@ -233,10 +233,16 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
     unsigned operands; `>>>` is always logical;
   - float-to-integer conversion saturates and maps NaN to 0 unchecked (Java) and throws checked;
   - inside `checked`, `operator checked +` wins over `operator +` (ex §4.6).
-- **NUM-04 [Proposed]** Strict IEEE 754: round-to-nearest-even, no fused multiply-add except
-  `Math.fma`, no extended precision. `==` follows IEEE (`NaN != NaN`, `0.0 == -0.0`); `equals`
-  compares bits after canonicalizing NaN. `Math` is written in Reflect, never a host library, so
-  `const` evaluation in `rflc` and run time agree bit for bit.
+- **NUM-04 [Proposed; NaN results Decided, Q92]** Strict IEEE 754: round-to-nearest-even, no fused
+  multiply-add except `Math.fma`, no extended precision. `==` follows IEEE (`NaN != NaN`,
+  `0.0 == -0.0`); `equals` compares bits after canonicalizing NaN. `Math` is written in Reflect,
+  never a host library, so `const` evaluation in `rflc` and run time agree bit for bit. An
+  operation that returns a NaN returns the canonical NaN of its format, the positive quiet NaN
+  with payload 0: `0x7FC00000` for `float` and `0x7FF8000000000000` for `double` (MA-01, Q92).
+  This holds for `+`, `-`, `*`, `/`, `%`, square root, `Math.fma` and the conversions between
+  `float` and `double`, so a folded constant, an interpreter and compiled code give the same bits.
+  Negation changes only the sign bit; loads, stores, calls, boxing, bit conversions and
+  reinterpretation keep every bit.
 - **NUM-05 [Decided, details Proposed; text of numbers Decided, Q87]** Strings:
   - `String` is a final, immutable sequence of UTF-16 code units (unpaired surrogates allowed);
     `length` is a property; `charAt(i)` and `s[i]` return `char`;
@@ -650,8 +656,9 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   item). A box is a value converted to `Object` or an interface (DAT-01):
   - `ceq.ref`, and so `==` on `Object` or interface operands and `Object.referenceEquals`, is
     true for two boxes of the same class with the same contents: primitive fields by bit pattern
-    (JEP 401), so `(Object) 0.0 == (Object) -0.0` is false; struct fields recursively; reference
-    fields by `ceq.ref`;
+    (JEP 401), so `(Object) 0.0 == (Object) -0.0` is false, while two NaN results of arithmetic
+    give equal boxes, since NUM-04 gives both the canonical NaN (MA-01); struct fields
+    recursively; reference fields by `ceq.ref`;
   - a box has no identity hash: `Object.hashCode()` of a box hashes its contents, consistently
     with `ceq.ref`;
   - `WeakReference` is declared `WeakReference<T extends class>`, and a box as its referent, or as

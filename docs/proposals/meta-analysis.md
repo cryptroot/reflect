@@ -59,7 +59,7 @@ Findings:
    binds `rflc0` in v0.1.
 4. Two of the ten are gaps in the baseline today, independent of any proposal: the bits of a NaN
    result are observable but not specified (MA-01), and NUL-03 narrowing misses a write by a
-   static initialiser (MA-02).
+   static initialiser (MA-02). Q92 closed MA-01 on 2026-10-23.
 5. Three proposals add four checked subsets, next to the baseline's `const` methods and
    `@Uninterruptible` regions. One checker can serve all six (MA-04, §6.1).
 6. Hardware GPU access waits for the backend decision of GPU-02, and also for the C-library gate if
@@ -235,7 +235,12 @@ The judgements follow [headroom.md](../headroom.md) §0: *want* means plan for i
 is cheap; *keep open* means the step only avoids ruling it out. *Decide by* is the first stage that
 builds on the choice.
 
-- **MA-01 [Proposed]** One NaN rule for every floating-point format.
+- **MA-01 [Decided, Q92]** One NaN rule for every floating-point format.
+  - *Went to:* NUM-04, which gives `float` and `double` the positive quiet NaN with payload 0,
+    `0x7FC00000` and `0x7FF8000000000000`, and DAT-09 and BC-04, which cite it (Q92 of
+    [v0.0.x/sketchpad.md](../v0.0.x/sketchpad.md)). VM0 follows it from v0.0.5
+    ([v0.0.x/README.md](../v0.0.x/README.md) §7.6). WID-07, SIMD-04 and GPU-09 follow when their
+    proposals are adopted, and WID-17 still fixes the bits of binary128 and of other lane formats.
   - *Today:* NUM-04 fixes rounding, contraction, extended precision, `==` and `equals`, but not the
     bits of a NaN that an operation returns. IEEE 754 does not fix them either (IEEE 754-2019
     §6.2). DAT-09 compares boxes by bit pattern, so safe code can observe these bits. `.rfla`
@@ -278,7 +283,6 @@ builds on the choice.
     commit 5). Tests can observe the bits from v0.0.7 (box comparison, §7.8 commit 4). `rflc0`
     writes folded float constants into modules from v0.1, and `const` methods add results in v0.5
     (REFL-11).
-  - *Goes to:* NUM-04, DAT-09, WID-07, SIMD-04, GPU-09.
 - **MA-02 [Proposed]** A narrowed field read uses the value that was tested.
   - *Today:* NUL-03 narrows "other fields of `this` until the next call, assignment or event
     raise". Each use can read the field again.
@@ -896,3 +900,4 @@ Document issues:
 | Date | Change |
 |---|---|
 | 2026-10-21 | Created. The six proposals moved from `docs/` to `docs/proposals/`, with their links. Entries MA-01 to MA-16. Roadmap entry for the WID and SIMD proposal. Revised the same day after an adversarial review of every citation, quotation and count. |
+| 2026-10-23 | MA-01 closed by Q92 of [v0.0.x/sketchpad.md](../v0.0.x/sketchpad.md): NUM-04 gives the canonical NaN of `float` and `double`, and DAT-09 and BC-04 cite it. |

@@ -34,7 +34,7 @@ public final class Vm {
     private final Map<TypeDef, RuntimeType> types = new IdentityHashMap<>();
     private final Map<String, String> literals = new HashMap<>();
 
-    private Vm(PrintStream out, PrintStream err) {
+    Vm(PrintStream out, PrintStream err) {
         this.out = out;
         this.err = err;
     }

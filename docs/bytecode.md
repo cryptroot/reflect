@@ -402,15 +402,16 @@ package-private (MOD-08).
 
 ## 5. Instruction set
 
-- **BC-04 [Proposed; encoding Decided, Q67, Q68; shift counts Decided, Q91]** Opcodes are one
-  byte; `0xFE` prefixes a second byte. Arithmetic is typed like the JVM's, so the interpreter never
-  inspects stack types;
-  `boolean`, `byte`, `short` and `char` values widen to `i32` on the stack and narrow with `conv`
-  on store, and unsigned values share the slots of their signed widths. An instruction exists
-  only where it changes the result: equality and stores ignore signedness (`ceq.i32` serves
-  `u32`, `stelem.i8` serves `u8`), and conversions exist only where bits change. Other pairs
-  compose: a `double` narrows to `byte` through `conv.f64.i32` then `conv.i32.i8`, which gives
-  Java's result, 44 for `(byte) 300.0` (NUM-03). Operands: `<tok>` is a ULEB128 token, `<n>` a
+- **BC-04 [Proposed; encoding Decided, Q67, Q68; shift counts and NaN Decided, Q91, Q92]** Opcodes
+  are one byte; `0xFE` prefixes a second byte. Arithmetic is typed like the JVM's, so the
+  interpreter never inspects stack types; `boolean`, `byte`, `short` and `char` values widen to
+  `i32` on the stack and narrow with `conv` on store, and unsigned values share the slots of their
+  signed widths. An instruction exists only where it changes the result: equality and stores ignore
+  signedness (`ceq.i32` serves `u32`, `stelem.i8` serves `u8`), and conversions exist only where
+  bits change. Other pairs compose: a `double` narrows to `byte` through `conv.f64.i32` then
+  `conv.i32.i8`, which gives Java's result, 44 for `(byte) 300.0` (NUM-03). Float arithmetic and the
+  conversions between `f32` and `f64` give the canonical NaN of NUM-04 for every NaN result, and
+  `neg` changes only the sign bit (MA-01, Q92). Operands: `<tok>` is a ULEB128 token, `<n>` a
   ULEB128 index, `<str>` a ULEB128 offset into LITERALS, `<i4>` and `<i8>` SLEB128 constants,
   `<r4>` and `<r8>` IEEE 754 bit patterns of 4 and 8 bytes, `<off>` an SLEB128 branch offset from
   the next instruction; `switch` takes a ULEB128 count, then that many `<off>`, each from the
