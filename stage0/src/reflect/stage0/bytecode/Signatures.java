@@ -254,6 +254,11 @@ final class Signatures {
         return 0;
     }
 
+    /** The name of the struct of the primitive with this code, such as reflect.core.Int32 for I32 (GEN-12). */
+    static String primitiveName(int code) {
+        return CORE + "." + PRIMITIVE_STRUCTS[code - SigCode.BOOLEAN];
+    }
+
     // A primitive is its code, never CLASS or VALUETYPE of reflect.core.Int32 and the like (BC-03).
     private static @Nullable String primitiveStruct(TypeSig.Named named, String module) {
         TypeHandle type = named.type();

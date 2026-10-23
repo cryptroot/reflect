@@ -1107,6 +1107,28 @@ module are `RFA0301`, and the message names the rule.
 | `RFA0303` | `LATER` | syntax whose table arrives in a later stage, which the message names |
 | `RFA0304` | `STACK` | a stack depth that `rfla` cannot compute: two paths that bring one instruction different depths, or an instruction that pops more values than the stack holds (Q77) |
 
+### 8.3 Canonical text
+
+- **BC-25 [Decided, Q86]** `rfld` prints the canonical text of a module: the text that `rfla`
+  assembles back to the same bytes (BC-08), and that `rfld` then prints again unchanged. Lines end
+  in LF, each level of nesting indents by four spaces, and `rfld` prints no comments.
+  1. The text follows the order of the binary. `.module` comes first, then `.unsafe`, `.main`,
+     `.requires` per `ModuleRef` row and `.exports` or `.opens` per `Export` row. Each top-level
+     type follows in `TypeDef` row order after one blank line, and its nested types come inside it,
+     in row order. After one more blank line come `.typeref` per `TypeRef` row that no column,
+     signature, instruction or other `TypeRef` row names (Q80), and `.section` per section kept as
+     bytes, by ID.
+  2. A token names a type by its qualified name (GEN-12), with its module in brackets where the name
+     alone means another row or the primitive: where the prefix rule of BC-08 gives another module
+     or none, where the module defines a top-level type of that name, and before the struct of a
+     primitive. The module's own name stands in brackets before its own struct (Q81).
+  3. `@` comes before a type name or a module name that is a quoted word of §8.1 (Q82); nested type
+     names after `/`, namespaces, member names, parameter names and local names follow a type or a
+     `/`, so they need none.
+  4. Flags and kinds are words, in the order of their bits. Versions are three unsigned decimal
+     numbers; `.section` IDs are uppercase hexadecimal after `0x`, and hex strings are pairs of
+     uppercase hexadecimal digits.
+
 ## 9. Binary compatibility
 
 - **BC-06 [Proposed]** Instance calls into another module always use `callvirt`, which the VM

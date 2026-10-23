@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -330,19 +332,7 @@ public final class DocumentTest {
 
     // Maps each rule of section 8.1 to the rules and character classes on its right side.
     private static Map<String, List<String>> grammar() throws IOException {
-        List<String> lines = Files.readAllLines(BYTECODE, StandardCharsets.UTF_8);
-        int start = lines.indexOf("### 8.1 Grammar");
-        if (start < 0) {
-            throw new AssertionError(BYTECODE + " has no section 8.1 Grammar");
-        }
-        while (!lines.get(start).equals("```text")) {
-            start++;
-        }
-        var text = new StringBuilder();
-        for (int i = start + 1; !lines.get(i).equals("```"); i++) {
-            text.append(lines.get(i)).append('\n');
-        }
-        List<String> tokens = grammarTokens(text.toString());
+        List<String> tokens = grammarTokens(grammarText());
         var rules = new LinkedHashMap<String, List<String>>();
         int i = 0;
         while (i < tokens.size()) {
@@ -368,6 +358,35 @@ public final class DocumentTest {
             throw new AssertionError("Grammar: no rule File");
         }
         return rules;
+    }
+
+    // The text of the grammar of section 8.1, without its fence.
+    private static String grammarText() throws IOException {
+        List<String> lines = Files.readAllLines(BYTECODE, StandardCharsets.UTF_8);
+        int start = lines.indexOf("### 8.1 Grammar");
+        if (start < 0) {
+            throw new AssertionError(BYTECODE + " has no section 8.1 Grammar");
+        }
+        while (!lines.get(start).equals("```text")) {
+            start++;
+        }
+        var text = new StringBuilder();
+        for (int i = start + 1; !lines.get(i).equals("```"); i++) {
+            text.append(lines.get(i)).append('\n');
+        }
+        return text.toString();
+    }
+
+    @Test
+    public static void rfldEscapesTheQuotedWordsOfTheGrammar() throws IOException {
+        var words = new TreeSet<String>();
+        for (String token : grammarTokens(grammarText())) {
+            boolean quoted = token.startsWith("\"") || token.startsWith("'");
+            if (quoted && Character.isLetter(token.charAt(1))) {
+                words.add(token.substring(1, token.length() - 1));
+            }
+        }
+        assertEquals(words, new TreeSet<>(Arrays.asList(Disassembler.WORDS)));
     }
 
     // Quoted terminals become one token each, which keeps their characters out of the rule structure.
