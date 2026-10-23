@@ -8,6 +8,8 @@
 .class public final reflect.core.String extends reflect.core.Object {
     .method public static native reflect.core.String valueOf(reflect.core.Object? value) {
     }
+    .method public static native reflect.core.String valueOf(int value) {
+    }
     .method public static native reflect.core.String concat(reflect.core.String first,
             reflect.core.String second) {
     }

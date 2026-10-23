@@ -30,6 +30,7 @@ final class Interpreter {
 
     private static @Nullable Object execute(Vm vm, RuntimeMethod method, Instruction[] code, Object[] arguments) {
         Object[] links = method.links();
+        Object[] locals = method.zeros().clone();
         Object[] stack = new Object[method.maxStack()];
         int sp = 0;
         int pc = 0;
@@ -40,6 +41,8 @@ final class Interpreter {
                 }
                 Instruction instruction = code[pc];
                 switch (instruction.opcode()) {
+                    case Opcode.NOP -> {
+                    }
                     case Opcode.LDC_I4 -> stack[sp++] = ((Instruction.Value32) instruction).value();
                     case Opcode.LDSTR -> {
                         if (links[pc] == null) {
@@ -47,7 +50,62 @@ final class Interpreter {
                         }
                         stack[sp++] = links[pc];
                     }
+                    case Opcode.DUP -> {
+                        stack[sp] = stack[sp - 1];
+                        sp++;
+                    }
+                    case Opcode.POP -> stack[--sp] = null;
                     case Opcode.LDARG -> stack[sp++] = arguments[((Instruction.Index) instruction).index()];
+                    case Opcode.STARG -> arguments[((Instruction.Index) instruction).index()] = stack[--sp];
+                    case Opcode.LDLOC -> stack[sp++] = locals[((Instruction.Index) instruction).index()];
+                    case Opcode.STLOC -> locals[((Instruction.Index) instruction).index()] = stack[--sp];
+                    case Opcode.ADD_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) + b;
+                    }
+                    case Opcode.SUB_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) - b;
+                    }
+                    case Opcode.MUL_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) * b;
+                    }
+                    case Opcode.DIV_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) / b;
+                    }
+                    case Opcode.REM_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) % b;
+                    }
+                    case Opcode.NEG_I32 -> stack[sp - 1] = -i32(stack[sp - 1]);
+                    case Opcode.AND_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) & b;
+                    }
+                    case Opcode.OR_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) | b;
+                    }
+                    case Opcode.XOR_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) ^ b;
+                    }
+                    case Opcode.NOT_I32 -> stack[sp - 1] = ~i32(stack[sp - 1]);
+                    // Java masks the count of a shift to its low 5 bits, as BC-04 does.
+                    case Opcode.SHL_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) << b;
+                    }
+                    case Opcode.SHR_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) >> b;
+                    }
+                    case Opcode.SHR_UN_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) >>> b;
+                    }
                     case Opcode.CALL -> {
                         if (links[pc] == null) {
                             RuntimeMethod callee = vm.method(method.type().module(), ((Instruction.Method) instruction).method());
@@ -75,6 +133,11 @@ final class Interpreter {
             // than maxStack: VM0 has none, so it meets such code only when it runs it.
             throw new Stop(where(method, pc) + ": the code is invalid: " + e);
         }
+    }
+
+    // An i32 of the stack; boolean, byte, short and char values are i32 values there too (BC-04).
+    private static int i32(Object value) {
+        return (Integer) value;
     }
 
     // The place of an instruction in messages: the method, then its index from 0.

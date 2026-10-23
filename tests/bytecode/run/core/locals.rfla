@@ -1,0 +1,50 @@
+// expect-output: 0
+// expect-output: null
+// expect-output: 7
+// expect-output: 7
+// expect-output: 1
+// expect-output: 3
+.module locals 0.0.0
+.main locals.App
+.requires reflect.core
+.requires reflect.io
+
+.class public final locals.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (int count, reflect.core.String text)
+        nop
+        // A local holds the zero value of its type before its first store (BC-17).
+        ldloc    count
+        call     static void locals.App::show(int)
+        ldloc    text
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   7
+        dup
+        stloc    count
+        call     static void locals.App::show(int)
+        ldloc    count
+        call     static void locals.App::show(int)
+        ldc.i4   1
+        ldc.i4   2
+        pop
+        call     static void locals.App::show(int)
+        ldc.i4   2
+        ldc.i4   3
+        call     static void locals.App::second(int, int)
+        ret
+    }
+    .method static void show(int value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    // starg replaces the first argument with the second.
+    .method static void second(int first, int second) {
+        ldarg    second
+        starg    first
+        ldarg    first
+        call     static void locals.App::show(int)
+        ret
+    }
+}

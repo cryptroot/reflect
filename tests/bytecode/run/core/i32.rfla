@@ -1,0 +1,120 @@
+// expect-output: -2147483648
+// expect-output: 2147483647
+// expect-output: 1410065408
+// expect-output: -3
+// expect-output: -3
+// expect-output: -2147483648
+// expect-output: 1
+// expect-output: -1
+// expect-output: 0
+// expect-output: -5
+// expect-output: -2147483648
+// expect-output: 8
+// expect-output: 14
+// expect-output: 6
+// expect-output: -6
+// expect-output: 2
+// expect-output: -2147483648
+// expect-output: -4
+// expect-output: 4
+// expect-output: 15
+// expect-output: -1
+.module i32 0.0.0
+.main i32.App
+.requires reflect.core
+.requires reflect.io
+
+// The i32 arithmetic of BC-04 and NUM-03: integers wrap, division truncates toward zero, a remainder
+// takes the sign of the dividend, and the count of a shift is masked to 5 bits.
+.class public final i32.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   2147483647
+        ldc.i4   1
+        add.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -2147483648
+        ldc.i4   1
+        sub.i32
+        call     static void i32.App::show(int)
+        ldc.i4   100000
+        ldc.i4   100000
+        mul.i32
+        call     static void i32.App::show(int)
+        ldc.i4   7
+        ldc.i4   -2
+        div.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -7
+        ldc.i4   2
+        div.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -2147483648
+        ldc.i4   -1
+        div.i32
+        call     static void i32.App::show(int)
+        ldc.i4   7
+        ldc.i4   -2
+        rem.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -7
+        ldc.i4   2
+        rem.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -2147483648
+        ldc.i4   -1
+        rem.i32
+        call     static void i32.App::show(int)
+        ldc.i4   5
+        neg.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -2147483648
+        neg.i32
+        call     static void i32.App::show(int)
+        ldc.i4   12
+        ldc.i4   10
+        and.i32
+        call     static void i32.App::show(int)
+        ldc.i4   12
+        ldc.i4   10
+        or.i32
+        call     static void i32.App::show(int)
+        ldc.i4   12
+        ldc.i4   10
+        xor.i32
+        call     static void i32.App::show(int)
+        ldc.i4   5
+        not.i32
+        call     static void i32.App::show(int)
+        ldc.i4   1
+        ldc.i4   33
+        shl.i32
+        call     static void i32.App::show(int)
+        ldc.i4   1
+        ldc.i4   31
+        shl.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -8
+        ldc.i4   1
+        shr.i32
+        call     static void i32.App::show(int)
+        ldc.i4   16
+        ldc.i4   34
+        shr.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -8
+        ldc.i4   28
+        shr.un.i32
+        call     static void i32.App::show(int)
+        ldc.i4   -1
+        ldc.i4   32
+        shr.un.i32
+        call     static void i32.App::show(int)
+        ret
+    }
+    .method static void show(int value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

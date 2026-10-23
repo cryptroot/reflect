@@ -25,9 +25,12 @@ final class Natives {
     private record Entry(String module, Native code) {
     }
 
+    // The text of a number is Java's (NUM-05, Q87).
     private static final Map<String, Entry> TABLE = Map.of(
             "static reflect.core.String reflect.core.String::valueOf(reflect.core.Object?)",
             new Entry("reflect.core", Natives::valueOf),
+            "static reflect.core.String reflect.core.String::valueOf(int)",
+            new Entry("reflect.core", (vm, arguments) -> Integer.toString((Integer) arguments[0])),
             "static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)",
             new Entry("reflect.core", (vm, arguments) -> ((String) arguments[0]).concat((String) arguments[1])),
             "static void reflect.io.Console::write(int, reflect.core.String)",

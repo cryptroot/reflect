@@ -753,7 +753,7 @@ returns a value; `all` is every value on the stack; `n` is the second operand.
 
 ## 6. Method bodies
 
-- **BC-17 [Proposed]** A body in the CODE section holds: maximum stack depth, the local variable
+- **BC-17 [Proposed; locals Decided, Q91]** A body in the CODE section holds: maximum stack depth, the local variable
   signature (a blob), the instruction bytes, exception regions and stack maps. Its line table and
   local names are in DEBUG, keyed by the method's token, so a body never refers to DEBUG (BC-20).
   The bodies follow one another in the order of their `Method` rows from CODE offset 0, without
@@ -770,6 +770,10 @@ returns a value; `all` is every value on the stack; `n` is the second operand.
   | `regions` | | the regions (BC-18) |
   | `frameCount` | ULEB128 | number of stack map frames |
   | `frames` | | the frames (BC-19) |
+
+  A local holds the zero value of its type, 0, 0.0 or null, until the first store to it, as CIL's
+  `localsinit` gives: a frame of BC-19 gives each local a verification type, and has none for an
+  unset local (Q91).
 
 - **BC-18 [Proposed]** An exception region is `(kind, tryStart, tryEnd, handlerStart, handlerEnd,
   type)` with kind `catch` or `finally`; multi-catch writes one region per type; the type token

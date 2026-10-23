@@ -111,6 +111,9 @@ public final class VmTest {
                 run(program("        ldstr \"x\"\n", "")));
         assertEquals(new Run(2, null, "", "vm0: VM0 does not run the static initializer of m.App yet\n"),
                 run(program("        ret\n", "    .method static void static() {\n        ret\n    }\n")));
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: VM0 does not run locals of value types yet\n"),
+                run(program("        .locals (valuetype m.E e)\n        ret\n", "")
+                + ".class public enum m.E : int {\n}\n"));
         // Code that a verifier would reject: two integers where a call takes strings, and a stack deeper than
         // maxStack.
         Run cast = run(program("        ldc.i4 1\n        ldc.i4 2\n        call static reflect.core.String"

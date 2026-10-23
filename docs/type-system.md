@@ -237,12 +237,14 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
   `Math.fma`, no extended precision. `==` follows IEEE (`NaN != NaN`, `0.0 == -0.0`); `equals`
   compares bits after canonicalizing NaN. `Math` is written in Reflect, never a host library, so
   `const` evaluation in `rflc` and run time agree bit for bit.
-- **NUM-05 [Decided, details Proposed]** Strings:
+- **NUM-05 [Decided, details Proposed; text of numbers Decided, Q87]** Strings:
   - `String` is a final, immutable sequence of UTF-16 code units (unpaired surrogates allowed);
     `length` is a property; `charAt(i)` and `s[i]` return `char`;
   - `==` compares values through `String`'s `operator ==` (ex §8.5); identity needs
     `Object.referenceEquals`;
   - `+` concatenates, converting the other operand with `String.valueOf(Object?)`;
+  - `String.valueOf` gives Java's text of a number (Q87): an `int` in signed decimal, such as
+    `-12`;
   - literals are interned; strings are valid `switch` constants;
   - interpolation lowers to appends on a stack-allocated builder; format specifiers follow .NET
     custom numeric formats (`{pct:0.0}`) and are culture-invariant.
