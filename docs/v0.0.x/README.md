@@ -217,11 +217,18 @@ Inside the container (job `shell`):
 | `java -jar out/stage0/stage0.jar vm0 run [--module-path P] [--main C] app.rflc [args]` | run a module on VM0 (VM-12) |
 | `java -jar out/stage0/stage0.jar test tests/bytecode` | run the `.rfla` suite |
 
-`vm0 run` exits with:
+`vm0 run` takes its options before the module file, and gives the words after it to `main`. The
+module path lists directories, which the platform's path separator divides, `:` in the container
+(Q88). VM0 writes the console of the program and its own messages as UTF-8 bytes. It exits with
+(Q89):
 
 - the result of `int main`, the argument of `Runtime.exit`, or 0;
-- 1 after an uncaught exception;
-- 2 when a module cannot be read.
+- 1 after an uncaught exception, and until v0.0.8 after a fault; VM0 prints the type and the
+  message, as `Throwable.toString` gives them, such as
+  `reflect.core.TypeLoadError: VM0 has no native ...`;
+- 2 when its arguments are wrong, or when VM0 cannot start or run the module: a module that cannot
+  be read, a module graph that does not resolve, no `main` class or method, or code that VM0 cannot
+  run, such as an instruction outside R0. VM0 prints the reason after `vm0: `.
 
 `rfla` prints its diagnostic after the path of the file, as `in.rfla:3:5: RFA0101: ...`, and
 writes no module then. It exits with:

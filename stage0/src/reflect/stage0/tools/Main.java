@@ -19,6 +19,9 @@ public final class Main {
         if (args[0].equals("rfld")) {
             System.exit(Rfld.run(Arrays.copyOfRange(args, 1, args.length), System.out, System.err));
         }
+        if (args[0].equals("vm0")) {
+            System.exit(Vm0.run(Arrays.copyOfRange(args, 1, args.length), System.out, System.err));
+        }
         if (args[0].equals("test")) {
             System.exit(Suite.run(Arrays.copyOfRange(args, 1, args.length), System.out, System.err));
         }
@@ -31,7 +34,8 @@ public final class Main {
         out.println("Usage: stage0 <command> [arguments]");
         out.println("  rfla <in.rfla> -o <out.rflc>    assemble a module");
         out.println("  rfld <in.rflc>                  disassemble a module to standard output");
+        out.println("  vm0 run [--module-path <dirs>] [--main <class>] <app.rflc> [args]");
+        out.println("                                  run a module on VM0");
         out.println("  test <directory>                check the .rfla suite in the directory");
-        out.println("Command vm0 arrives in a later v0.0.x stage.");
     }
 }
