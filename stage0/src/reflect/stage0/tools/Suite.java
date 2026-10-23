@@ -7,19 +7,22 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 
 import reflect.stage0.bytecode.Assembler;
 import reflect.stage0.bytecode.AssemblyException;
 import reflect.stage0.bytecode.Diagnostic;
+import reflect.stage0.bytecode.Disassembler;
 import reflect.stage0.bytecode.ModuleFormatException;
 import reflect.stage0.bytecode.ModuleReader;
 
 /**
  * The command test (README §6.2): checks the .rfla files under a directory, in path order. A file in
  * invalid/ must fail with the one expect-error of its leading comments (§6.3); any other file must hold
- * none and assemble into a module that the reader accepts.
+ * none, assemble into a module that the reader accepts, and round-trip (§7.5).
  */
 final class Suite {
     private static final String EXPECT_ERROR = "// expect-error:";
@@ -27,6 +30,11 @@ final class Suite {
     /** Turns .rfla text into a module: rfla's assembler, or in a test one that writes a defect. */
     interface Assembly {
         byte[] assemble(byte[] text) throws AssemblyException;
+    }
+
+    /** Turns a module into its canonical text: rfld's disassembler, or in a test one that prints a defect. */
+    interface Disassembly {
+        byte[] disassemble(byte[] module) throws ModuleFormatException;
     }
 
     private Suite() {
@@ -48,7 +56,7 @@ final class Suite {
             int failures = 0;
             for (Path file : files) {
                 String failure = check(root.relativize(file).startsWith("invalid"), Files.readAllBytes(file),
-                        Assembler::assemble);
+                        Assembler::assemble, Disassembler::disassemble);
                 if (failure == null) {
                     out.println("PASS " + file);
                 } else {
@@ -65,7 +73,7 @@ final class Suite {
     }
 
     // The failure of one file, or null when it passes.
-    static String check(boolean invalid, byte[] text, Assembly assembly) {
+    static String check(boolean invalid, byte[] text, Assembly assembly, Disassembly disassembly) {
         List<String> expected = expectedErrors(text);
         if (expected.size() != (invalid ? 1 : 0)) {
             return invalid ? "a file in invalid/ holds one expect-error, not " + expected.size()
@@ -86,10 +94,40 @@ final class Suite {
         }
         try {
             ModuleReader.read(module);
-            return null;
         } catch (ModuleFormatException e) {
             return "the reader rejects the module: " + e.getMessage();
         }
+        return roundTrip(module, assembly, disassembly);
+    }
+
+    // The round trip of BC-08 (README §7.5): module A gives text T, T assembles to module B, and B gives
+    // text T2. It holds when A equals B and T equals T2; the failure, or null when it holds.
+    private static String roundTrip(byte[] a, Assembly assembly, Disassembly disassembly) {
+        try {
+            byte[] t = disassembly.disassemble(a);
+            byte[] b = assembly.assemble(t);
+            int offset = Arrays.mismatch(a, b);
+            if (offset >= 0) {
+                return String.format(Locale.ROOT, "the canonical text assembles to other bytes, from offset 0x%X", offset);
+            }
+            int at = Arrays.mismatch(t, disassembly.disassemble(b));
+            return at < 0 ? null : "the canonical text changes in the round trip, from line " + line(t, at);
+        } catch (ModuleFormatException e) {
+            return "the module has no canonical text: " + e.getMessage();
+        } catch (AssemblyException e) {
+            return "the canonical text does not assemble: " + e.getMessage();
+        }
+    }
+
+    // The line of the byte at the index, counted from 1.
+    private static int line(byte[] text, int index) {
+        int line = 1;
+        for (int i = 0; i < index; i++) {
+            if (text[i] == '\n') {
+                line++;
+            }
+        }
+        return line;
     }
 
     // The values of the expect-error directives among the leading // lines of the file (TST-01).

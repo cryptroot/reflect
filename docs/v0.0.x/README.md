@@ -240,9 +240,9 @@ have no text: a file that the reader rejects, and before v0.0.9 a module with a 
 - 2 when its arguments are wrong, the file cannot be read, or the text cannot be written.
 
 `test` checks each `.rfla` file under the directory, in path order: a file in `invalid/` must fail
-with its `expect-error` (§6.3), and any other file must hold none and assemble into a module that
-the reader accepts. It prints `PASS` or `FAIL` with the path of each file, then the counts, and
-exits with:
+with its `expect-error` (§6.3), and any other file must hold none, assemble into a module that the
+reader accepts, and round-trip (§7.5). It prints `PASS` or `FAIL` with the path of each file, then
+the counts, and exits with:
 
 - 0 when every file passes;
 - 1 when a file fails;

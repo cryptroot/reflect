@@ -9,6 +9,15 @@ import java.util.Comparator;
 import java.util.List;
 
 import reflect.stage0.bytecode.Assembler;
+import reflect.stage0.bytecode.Disassembler;
+import reflect.stage0.bytecode.MemberRef;
+import reflect.stage0.bytecode.MethodSig;
+import reflect.stage0.bytecode.ModuleDef;
+import reflect.stage0.bytecode.ModuleRef;
+import reflect.stage0.bytecode.ModuleWriter;
+import reflect.stage0.bytecode.SigCode;
+import reflect.stage0.bytecode.TypeRef;
+import reflect.stage0.bytecode.TypeSig;
 import reflect.stage0.test.Test;
 
 import static reflect.stage0.test.Assertions.assertEquals;
@@ -57,7 +66,7 @@ public final class SuiteTest {
     @Test
     public static void testReportsAModuleThatTheReaderRejects() throws Exception {
         byte[] text = ".module a 0.0.0\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(null, Suite.check(false, text, Assembler::assemble));
+        assertEquals(null, Suite.check(false, text, Assembler::assemble, Disassembler::disassemble));
         // rfla gives the reader no module to reject, so this assembly breaks the magic of its module.
         Suite.Assembly faulty = source -> {
             byte[] module = Assembler.assemble(source);
@@ -65,7 +74,39 @@ public final class SuiteTest {
             return module;
         };
         assertEquals("the reader rejects the module: offset 0x0: the file does not start with RFLC",
-                Suite.check(false, text, faulty));
+                Suite.check(false, text, faulty, Disassembler::disassemble));
+    }
+
+    @Test
+    public static void testReportsAModuleThatDoesNotRoundTrip() throws Exception {
+        // The file need not be canonical: the round trip compares its module with the module of its canonical text.
+        byte[] text = "// a comment\n.module m 0.0.0\n.requires b\n.requires a\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(null, Suite.check(false, text, Assembler::assemble, Disassembler::disassemble));
+        // rfla writes no GENERIC MemberRef before MethodSpec (v0.0.9), so this assembly gives a module with one.
+        var generic = new ModuleDef("m", 0, 0, 0);
+        var core = new ModuleRef("reflect.core", 0);
+        var list = new TypeRef(core, "reflect.core", "List");
+        generic.requires().add(core);
+        generic.typeRefs().add(list);
+        generic.memberRefs().add(new MemberRef(list, "get", new MethodSig(SigCode.METHOD_STATIC | SigCode.METHOD_GENERIC,
+                1, new TypeSig.TypeVar(true, 0), new reflect.stage0.lib.ArrayList<>())));
+        byte[] module = ModuleWriter.write(generic);
+        assertEquals("the module has no canonical text: the MemberRef reflect.core.List::get is GENERIC, which a MethodRef"
+                + " cannot state before the MethodSpec table arrives in v0.0.9",
+                Suite.check(false, text, source -> module, Disassembler::disassemble));
+        // rfld's canonical text has none of these defects, so these disassemblies add them. The canonical text
+        // of the file holds three lines: .module, then .requires a and .requires b.
+        assertEquals("the canonical text does not assemble: 4:1: RFA0101: expected a directive of the module, found x",
+                Suite.check(false, text, Assembler::assemble, m -> append(Disassembler.disassemble(m), "x\n")));
+        // .unsafe sets UNSAFE, bit 0 of the header flags, a u32 at offset 8 (BC-02).
+        assertEquals("the canonical text assembles to other bytes, from offset 0x8",
+                Suite.check(false, text, Assembler::assemble, m -> append(Disassembler.disassemble(m), ".unsafe\n")));
+        var calls = new int[1];
+        Suite.Disassembly unstable = m -> calls[0]++ == 0 ? Disassembler.disassemble(m)
+                : append(Disassembler.disassemble(m), "// a comment\n");
+        assertEquals("the canonical text changes in the round trip, from line 4",
+                Suite.check(false, text, Assembler::assemble, unstable));
+        assertEquals(2, calls[0]);
     }
 
     @Test
@@ -93,6 +134,10 @@ public final class SuiteTest {
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         return new Result(process.waitFor(), output);
+    }
+
+    private static byte[] append(byte[] text, String more) {
+        return (new String(text, StandardCharsets.UTF_8) + more).getBytes(StandardCharsets.UTF_8);
     }
 
     private static void write(Path root, String name, String text) throws Exception {

@@ -89,7 +89,9 @@ fuzzing against the Lean model, and examples.md itself. Conventions:
   the stub modules of `reflect.core` and `reflect.io`, `run/<area>/` programs with the directives
   of TST-01, run on VM0, and `invalid/` files that `rfla` must reject. `rfla` stops at the first
   error, so a file in `invalid/` holds one `// expect-error: RFAnnnn @ line:col`, with a code of
-  bytecode.md §8.2.
+  bytecode.md §8.2. Every other file round-trips (TST-09): `rfld` turns its module A into the text
+  T, `rfla` turns T into the module B, and `rfld` turns B into the text T2; A must equal B, and T
+  must equal T2.
 
 ## 8. Collector stress
 
