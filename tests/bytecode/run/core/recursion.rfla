@@ -1,0 +1,188 @@
+// expect-output: 0! = 1
+// expect-output: 20! = 2432902008176640000
+// expect-output: fib(20) = 6765
+// expect-output: A(2, 3) = 9
+// expect-output: A(3, 3) = 61
+// expect-output: 10 is even
+// expect-output: 7 is odd
+// expect-output: digit sum of 1234567 = 28
+.module recursion 0.0.0
+.main recursion.App
+.requires reflect.core
+.requires reflect.io
+
+// Recursion: each call has its own arguments, locals and stack, so a method calls itself, directly
+// or through another method, while its own call waits for the result.
+.class public final recursion.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   0
+        call     static void recursion.App::showFactorial(int)
+        ldc.i4   20
+        call     static void recursion.App::showFactorial(int)
+        ldstr    "fib(20) = "
+        ldc.i4   20
+        call     static int recursion.App::fib(int)
+        call     static void recursion.App::show(reflect.core.String, int)
+        ldstr    "A(2, 3) = "
+        ldc.i4   2
+        ldc.i4   3
+        call     static int recursion.App::ackermann(int, int)
+        call     static void recursion.App::show(reflect.core.String, int)
+        ldstr    "A(3, 3) = "
+        ldc.i4   3
+        ldc.i4   3
+        call     static int recursion.App::ackermann(int, int)
+        call     static void recursion.App::show(reflect.core.String, int)
+        ldc.i4   10
+        call     static void recursion.App::showParity(int)
+        ldc.i4   7
+        call     static void recursion.App::showParity(int)
+        ldstr    "digit sum of 1234567 = "
+        ldc.i4   1234567
+        call     static int recursion.App::digitSum(int)
+        call     static void recursion.App::show(reflect.core.String, int)
+        ret
+    }
+    // n! = n * (n - 1)!, with 0! = 1.
+    .method static long factorial(int n) {
+        ldarg    n
+        brtrue   MORE
+        ldc.i8   1
+        ret
+    MORE:
+        ldarg    n
+        conv.i32.i64
+        ldarg    n
+        ldc.i4   1
+        sub.i32
+        call     static long recursion.App::factorial(int)
+        mul.i64
+        ret
+    }
+    // fib(n) = fib(n - 1) + fib(n - 2), with fib(0) = 0 and fib(1) = 1: two calls for each n > 1.
+    .method static int fib(int n) {
+        ldarg    n
+        ldc.i4   2
+        bge.i32  MORE
+        ldarg    n
+        ret
+    MORE:
+        ldarg    n
+        ldc.i4   1
+        sub.i32
+        call     static int recursion.App::fib(int)
+        ldarg    n
+        ldc.i4   2
+        sub.i32
+        call     static int recursion.App::fib(int)
+        add.i32
+        ret
+    }
+    // Ackermann's function: A(0, n) = n + 1, A(m, 0) = A(m - 1, 1), and A(m, n) = A(m - 1, A(m, n - 1)),
+    // where m - 1 waits on the stack while the inner call runs.
+    .method static int ackermann(int m, int n) {
+        ldarg    m
+        brtrue   OUTER
+        ldarg    n
+        ldc.i4   1
+        add.i32
+        ret
+    OUTER:
+        ldarg    m
+        ldc.i4   1
+        sub.i32
+        ldarg    n
+        brtrue   INNER
+        ldc.i4   1
+        call     static int recursion.App::ackermann(int, int)
+        ret
+    INNER:
+        ldarg    m
+        ldarg    n
+        ldc.i4   1
+        sub.i32
+        call     static int recursion.App::ackermann(int, int)
+        call     static int recursion.App::ackermann(int, int)
+        ret
+    }
+    // isEven and isOdd call each other, and a boolean result is an i32 (BC-04).
+    .method static boolean isEven(int n) {
+        ldarg    n
+        brtrue   MORE
+        ldc.i4   1
+        ret
+    MORE:
+        ldarg    n
+        ldc.i4   1
+        sub.i32
+        call     static boolean recursion.App::isOdd(int)
+        ret
+    }
+    .method static boolean isOdd(int n) {
+        ldarg    n
+        brtrue   MORE
+        ldc.i4   0
+        ret
+    MORE:
+        ldarg    n
+        ldc.i4   1
+        sub.i32
+        call     static boolean recursion.App::isEven(int)
+        ret
+    }
+    // The last digit waits in a local while the call sums the others.
+    .method static int digitSum(int n) {
+        .locals (int digit)
+        ldarg    n
+        brtrue   MORE
+        ldc.i4   0
+        ret
+    MORE:
+        ldarg    n
+        ldc.i4   10
+        rem.i32
+        stloc    digit
+        ldarg    n
+        ldc.i4   10
+        div.i32
+        call     static int recursion.App::digitSum(int)
+        ldloc    digit
+        add.i32
+        ret
+    }
+    .method static void showFactorial(int n) {
+        ldarg    n
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        ldstr    "! = "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    n
+        call     static long recursion.App::factorial(int)
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void showParity(int n) {
+        ldarg    n
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        ldarg    n
+        call     static boolean recursion.App::isEven(int)
+        brfalse  ODD
+        ldstr    " is even"
+        br       SHOW
+    ODD:
+        ldstr    " is odd"
+    SHOW:
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void show(reflect.core.String label, int value) {
+        ldarg    label
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

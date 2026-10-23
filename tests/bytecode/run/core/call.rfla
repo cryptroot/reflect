@@ -1,0 +1,213 @@
+// expect-output: -7, 9000000000, 1.5, 0.1, text
+// expect-output: 12345678
+// expect-output: 42
+// expect-output: 117
+// expect-output: between
+// expect-output: 42
+// expect-output: 144
+// expect-output: -9000000000
+// expect-output: 0.75
+// expect-output: 0.30000000000000004
+// expect-output: text!
+// expect-output: null
+// expect-output: 0
+// expect-output: 5
+.module call 0.0.0
+.main call.App
+.requires reflect.core
+.requires reflect.io
+
+// Static calls with arguments and results: a call pops the arguments of its method, the first one
+// deepest, and pushes the result unless the method returns void (bytecode.md §5.1), so the values
+// under the arguments stay. Each argument has one index, a long and a double too (BC-04). Each
+// call has its own arguments, so a starg in the callee leaves the arguments of the caller.
+.class public final call.App {
+    .method public static void main(reflect.core.String[] args) {
+        // One argument of each type.
+        ldc.i4   -7
+        ldc.i8   9000000000
+        ldc.r4   1.5
+        ldc.r8   0.1
+        ldstr    "text"
+        call     static void call.App::describe(int, long, float, double, reflect.core.String)
+        // Eight arguments, in order.
+        ldc.i4   1
+        ldc.i4   2
+        ldc.i4   3
+        ldc.i4   4
+        ldc.i4   5
+        ldc.i4   6
+        ldc.i4   7
+        ldc.i4   8
+        call     static int call.App::digits(int, int, int, int, int, int, int, int)
+        call     static void call.App::show(int)
+        // A result without arguments.
+        call     static int call.App::answer()
+        call     static void call.App::show(int)
+        // The value under the arguments stays: 100 + (20 - 3).
+        ldc.i4   100
+        ldc.i4   20
+        ldc.i4   3
+        call     static int call.App::subtract(int, int)
+        add.i32
+        call     static void call.App::show(int)
+        // A void call pushes nothing: 40 + 2.
+        ldc.i4   40
+        ldstr    "between"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   2
+        add.i32
+        call     static void call.App::show(int)
+        // A result of each type.
+        ldc.i4   12
+        call     static int call.App::square(int)
+        call     static void call.App::show(int)
+        ldc.i8   9000000000
+        call     static long call.App::negate(long)
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.r4   1.5
+        call     static float call.App::half(float)
+        call     static reflect.core.String reflect.core.String::valueOf(float)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.r8   0.1
+        ldc.r8   0.2
+        call     static double call.App::sum(double, double)
+        call     static reflect.core.String reflect.core.String::valueOf(double)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "text"
+        call     static reflect.core.String call.App::exclaim(reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        call     static reflect.core.String? call.App::nothing()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // clobber stores 0 to its own argument, and keep still has 5.
+        ldc.i4   5
+        call     static void call.App::keep(int)
+        ret
+    }
+    // The arguments as text, in order; ldarg 2 is the float after the long.
+    .method static void describe(int whole, long wide, float single, double precise,
+            reflect.core.String text) {
+        ldarg    whole
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        ldstr    ", "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    wide
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldstr    ", "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    2
+        call     static reflect.core.String reflect.core.String::valueOf(float)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldstr    ", "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    precise
+        call     static reflect.core.String reflect.core.String::valueOf(double)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldstr    ", "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    text
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    // The digits of the arguments in order: ((d1 * 10 + d2) * 10 + d3) and so on.
+    .method static int digits(int d1, int d2, int d3, int d4, int d5, int d6, int d7, int d8) {
+        ldarg    d1
+        ldc.i4   10
+        mul.i32
+        ldarg    d2
+        add.i32
+        ldc.i4   10
+        mul.i32
+        ldarg    d3
+        add.i32
+        ldc.i4   10
+        mul.i32
+        ldarg    d4
+        add.i32
+        ldc.i4   10
+        mul.i32
+        ldarg    d5
+        add.i32
+        ldc.i4   10
+        mul.i32
+        ldarg    d6
+        add.i32
+        ldc.i4   10
+        mul.i32
+        ldarg    d7
+        add.i32
+        ldc.i4   10
+        mul.i32
+        ldarg    d8
+        add.i32
+        ret
+    }
+    .method static int answer() {
+        ldc.i4   42
+        ret
+    }
+    .method static int subtract(int minuend, int subtrahend) {
+        ldarg    minuend
+        ldarg    subtrahend
+        sub.i32
+        ret
+    }
+    .method static int square(int value) {
+        ldarg    value
+        ldarg    value
+        mul.i32
+        ret
+    }
+    .method static long negate(long value) {
+        ldarg    value
+        neg.i64
+        ret
+    }
+    .method static float half(float value) {
+        ldarg    value
+        ldc.r4   2
+        div.f32
+        ret
+    }
+    .method static double sum(double first, double second) {
+        ldarg    first
+        ldarg    second
+        add.f64
+        ret
+    }
+    .method static reflect.core.String exclaim(reflect.core.String text) {
+        ldarg    text
+        ldstr    "!"
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ret
+    }
+    // A local of a reference type starts at null (BC-17).
+    .method static reflect.core.String? nothing() {
+        .locals (reflect.core.String? none)
+        ldloc    none
+        ret
+    }
+    .method static void keep(int value) {
+        ldarg    value
+        call     static void call.App::clobber(int)
+        ldarg    value
+        call     static void call.App::show(int)
+        ret
+    }
+    .method static void clobber(int value) {
+        ldc.i4   0
+        starg    value
+        ldarg    value
+        call     static void call.App::show(int)
+        ret
+    }
+    .method static void show(int value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
