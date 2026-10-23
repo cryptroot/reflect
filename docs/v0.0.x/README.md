@@ -564,41 +564,67 @@ module.
 
 **Design.**
 
-- Loader (VM-12, VM-13): the module path is a list of directories of `.rflc` files; each
-  `requires` resolves to exactly one module (MOD-03); types and methods load at first use.
+- Loader (VM-12, VM-13): the module path is a list of directories of `.rflc` files. The module of
+  `requires m` is the file `m.rflc`, which exactly one directory holds, and the module in it is
+  named `m` (MOD-03, Q88). A `requires static` module that no directory holds is skipped (MOD-01).
+  VM0 resolves the graph from the main module at start-up and rejects a cycle; types and methods
+  load at first use.
 - Natives (UNS-03, LIB-03): Java methods in a fixed table, keyed by qualified signature. A native
   declared outside the trusted modules is a load error.
 - Interpreter (BOOT-04): one Java call per Reflect call, and a `switch` over the opcodes. Locals
-  and the operand stack hold Java values.
-- Entry: the `main` class comes from `.main` or `--main`, and `main` returns `void` or `int`
-  (ex §2.4). `main` runs on a thread with a large stack, so deep recursion in Reflect does not
+  and the operand stack hold Java values. Each local starts at the zero value of its type, and
+  the count of a 64-bit shift is an `i32` (BC-17, BC-04, Q91).
+- Floating point (NUM-04, MA-01, Q92): an arithmetic instruction or a conversion between `f32` and
+  `f64` that gives a NaN gives the canonical NaN, `0x7FC00000` or `0x7FF8000000000000`; `neg`
+  changes only the sign bit; loads, stores and calls keep every bit. Java's arithmetic gives other
+  NaNs ([sketchpad.md](sketchpad.md) D.6), so VM0 replaces them.
+- Entry: the `main` class comes from `.main` or `--main`. `main` is a `public static` method with
+  one `reflect.core.String[]` parameter, and returns `void` or `int` (ex §2.4). Until arrays
+  arrive (v0.0.7), it receives its arguments as a Java `String[]`, which no instruction reads
+  before then. `main` runs on a thread with a large stack, so deep recursion in Reflect does not
   overflow the JVM stack first.
 - Stub modules (Q49): `reflect.core` with `Object`, `String` and `Runtime`, and `reflect.io` with
   `Console`, written in `.rfla` with the native names of ex §2.11 (`Console.write(int, String)`).
+  `String.valueOf` turns `int`, `long`, `float` and `double` into Java's text (NUM-05, Q87).
 - Instructions: `nop`, `ldc.*`, `ldstr`, `dup` and `pop`; arguments and locals; arithmetic,
   bitwise operations, shifts and comparisons over `i32`, `i64`, `f32` and `f64`; conversions
   among the primitive types of R0 (`byte`, `short`, `char`, `int`, `long`, `float`, `double`);
   branches; `switch`; static `call`; `ret`.
+- VM0 exits with 2 when it cannot start or cannot run the module: a module graph that does not
+  resolve, no `main` class or method, or an instruction outside R0 or before the stage that brings
+  it. It prints the reason after `vm0: ` (Q89).
 - Until v0.0.8, a fault that later throws an exception, such as an integer division by zero,
-  stops VM0 with the exception's type name and exit code 1. Tests written with `expect-throws`
-  then stay valid when v0.0.8 makes the exceptions real.
-- VM0 counts the opcodes it executes, and `test` reports the opcodes that no test executed (§8).
+  stops VM0 with the exception's type name and exit code 1. VM0 prints the type and a message as
+  `Throwable.toString` gives them (Q89). Tests written with `expect-throws` then stay valid when
+  v0.0.8 makes the exceptions real.
+- `test` assembles the files of `lib/`, and runs each file of `run/` on a new VM0 in the JVM of
+  `test`, with those modules as the module path. The output, the exit code and the uncaught
+  exception meet the directives of §6.3 (Q90).
+- VM0 counts the opcodes it executes, and `test` reports the R0 opcodes that no program executed
+  (§8). The report fails no test until v0.0.9.
 
 **Commits.**
 
-1. The stub modules.
-2. The module path and `requires` resolution, with tests for a missing module and a duplicate
-   module.
-3. Frames, the interpreter loop, `ldstr`, static calls of natives, `ret`, the command `vm0 run`,
-   and `expect-output` in `test`. Check: `run/core/hello.rfla`.
-4. Arguments, locals and `i32` arithmetic.
-5. `i64`, `f32` and `f64`; comparisons; conversions, with the IEEE and saturation cases of BC-04.
-6. Branches and `switch`. Check: programs for factorials, Fibonacci numbers and Collatz
-   sequences.
-7. Static calls with arguments and results; recursion.
-8. Exit codes: `int main`, `Runtime.exit` and `expect-exit`.
-9. Faults reported by exception name, and `expect-throws`.
-10. The opcode count and its report.
+1. The stub modules: `reflect.core` with `Object` and `String`, and `reflect.io` with `Console`.
+   Later commits add the natives that their tests need, and commit 12 adds `Runtime`.
+2. The module path and `requires` resolution (Q88), with tests for a missing module, a duplicate
+   module, a module of another name and a cycle.
+3. Frames, the interpreter loop, `ldstr`, `ldc.i4`, `ldarg`, static calls of methods and natives,
+   and `ret`; natives only in the trusted modules.
+4. The command `vm0 run`, with its exit codes (Q89).
+5. `expect-output` in `test`, which runs the files of `run/` (Q90). Check: `run/core/hello.rfla`.
+6. Locals at zero (Q91), `starg`, `ldloc`, `stloc`, `nop`, `dup`, `pop` and `i32` arithmetic, with
+   `String.valueOf(int)` (Q87).
+7. `i64`, `f32` and `f64` arithmetic, with the `i32` count of a 64-bit shift (Q91), and
+   `String.valueOf` of `long`, `float` and `double` (Q87).
+8. Comparisons and conversions, with the IEEE and saturation cases of BC-04.
+9. The canonical NaN (MA-01, Q92).
+10. Branches and `switch`. Check: programs for factorials, Fibonacci numbers and Collatz
+    sequences.
+11. Static calls with arguments and results; recursion, on a thread with a large stack.
+12. Exit codes: `int main`, `Runtime.exit` and `expect-exit`.
+13. Faults reported by exception name, and `expect-throws`.
+14. The opcode count and its report.
 
 **Exit check.** The programs in `run/core/` pass. From here on, the roadmap's exit test passes
 with `run/core/hello.rfla`. Tag `v0.0.5`.
@@ -677,9 +703,10 @@ boxing.
 2. Reference arrays, and exact casts and type tests of array types (NUL-07).
 3. Index checks.
 4. `box` and `unbox`, and `ceq.ref` on boxes, with tests for two boxes of one value, an enum
-   and an `int` with the same backing value, `0.0` and `-0.0`, and NaN (DAT-09).
-5. String natives: length, characters, concatenation, comparison, and conversion of primitives
-   to strings.
+   and an `int` with the same backing value, `0.0` and `-0.0`, and NaN: two NaN results of
+   arithmetic give equal boxes, and a NaN with a payload gives another (DAT-09, MA-01).
+5. String natives: length, characters, comparison, and conversion of `char` and `boolean` to
+   strings. `concat` and the conversion of numbers arrive in v0.0.5 (Q87).
 6. `main` arguments and the `args` directive.
 
 **Exit check.** The programs in `run/arrays/` and `run/strings/` pass. Tag `v0.0.7`.

@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23; Q87 to Q92 asked and answered 2026-10-23 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
@@ -53,6 +53,11 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [testing.md](../testing.md) §7 | the round trip of each `.rfla` file in `test` (TST-09, TST-13) | done in v0.0.4 (TST-13) |
 | [examples.md](../examples.md) §11.1, §11.2 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3); the `.try` blocks become regions in label form, and calls into other modules state their signatures (A.2 item 9) | with [../sketchpad.md](../sketchpad.md) A.6 |
 | [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | done 2026-10-20 (Q57 to Q62) |
+| [type-system.md](../type-system.md) MOD-03 | the module path supplies the module of `requires m` as the file `m.rflc` of exactly one directory (Q88) | v0.0.5 |
+| [type-system.md](../type-system.md) NUM-05 | `String.valueOf` writes numbers in Java's text (Q87) | v0.0.5 |
+| [bytecode.md](../bytecode.md) BC-04, BC-17 | the `i32` count of a 64-bit shift, and locals that start at zero (Q91) | v0.0.5 |
+| [type-system.md](../type-system.md) NUM-04, DAT-09; [bytecode.md](../bytecode.md) BC-04; [proposals/meta-analysis.md](../proposals/meta-analysis.md) MA-01 | the canonical NaN, and *Went to* in MA-01 (Q92) | v0.0.5 |
+| [testing.md](../testing.md) TST-01 | how `test` compares the output, the exit code and an uncaught exception (Q90) | v0.0.5 |
 
 ### A.2 Inconsistencies found while planning
 
@@ -102,6 +107,12 @@ These follow from the plan. Each is made in the stage named, or when its questio
 17. Two fields of a type can share a name and a type, and two methods a name and a signature,
     so a reference cannot tell them apart. Found 2026-10-23 while v0.0.4 was planned. Settled
     2026-10-23 with Q85.
+18. README §7.6 checks v0.0.5 with programs that print factorials, Fibonacci numbers and Collatz
+    sequences, but the natives that turn numbers into text arrive in v0.0.7 (README §7.8 commit
+    5), as boxing does. Found 2026-10-23 while v0.0.5 was planned. Settled 2026-10-23 with Q87.
+19. BC-04 does not give the type of the count of a 64-bit shift, and BC-17 does not give the value
+    of a local before its first store. VM0 needs both. Found 2026-10-23 while v0.0.5 was planned.
+    Settled 2026-10-23 with Q91.
 
 ## B. Questions and answers
 
@@ -540,6 +551,85 @@ Alternatives: no `.maxstack` where `rfla` computes the same depth; non-ASCII cha
 as they are. **Answer:** 2026-10-23: Accepted as recommended. With Q80, `.typeref` and `.memberref`
 follow the classes, before `.source`. BC-25 states the canonical text.
 
+### B.9 Batch 13: the v0.0.5 interpreter (asked and answered 2026-10-23)
+
+Found while v0.0.5 was planned. Q87 settles A.2 item 18, and Q91 item 19. Q92 follows an
+instruction in chat on 2026-10-23: apply MA-01 of
+[the meta-analysis](../proposals/meta-analysis.md) in v0.0.5.
+
+**Q87 (NUM-05; README §7.6, §7.8; A.2 item 18). Numbers in the output of v0.0.5.** The programs of
+v0.0.5 print numbers, but the natives that turn numbers into text arrive in v0.0.7.
+*Recommendation:* the stub `reflect.core` gets `String.valueOf(int)` and `String.valueOf(long)` in
+v0.0.5, with Java's signed decimal text. Programs check float results by comparisons and
+conversions to `int`, so the default text of floats waits. Alternatives: `valueOf(float)` and
+`valueOf(double)` too, with Java's text; or no numbers in v0.0.5, with programs that compare each
+result with a constant and print a fixed string. **Answer:** 2026-10-23: First alternative
+chosen. v0.0.5 adds `String.valueOf` of `int`, `long`, `float` and `double`. A float or a double
+gets the text of Java's `Float.toString` and `Double.toString` from JDK 19: the shortest decimal
+that rounds to the value, such as `0.30000000000000004`, `100.0`, `1.0E10`, `NaN`, `Infinity` and
+`-0.0`. This fixes the default text of floats in the stdlib, which NUM-05 states. `char` and
+`boolean` stay in v0.0.7.
+
+**Q88 (MOD-03, MOD-01, VM-12; README §7.6). How VM0 finds a module.** README §7.6 makes the module
+path a list of directories of `.rflc` files, but no rule says which file of a directory holds the
+module that `requires m` names, or what a duplicate is. *Recommendation:* the file `m.rflc`, as
+.NET probes for `name.dll`. Exactly one directory of the path holds it (MOD-03): none is a missing
+module, and two are a duplicate. The module in the file is named `m`. A `requires static` module
+that no directory holds is skipped, since it is optional at run time (MOD-01). VM0 resolves the
+graph from the main module at start-up (VM-12), rejects a cycle, and reads only the modules that
+the graph requires. MOD-03 states the rule for every tool. Alternatives: read every `.rflc` file of
+each directory and index the modules by the names in their `Module` tables, as Java's module path
+does; or the file name, with the first directory that holds it in place of a duplicate, as Java
+does across directories. **Answer:** 2026-10-23: Accepted as recommended.
+
+**Q89 (VM-12, VM-08, BOOT-04; README §6.2). Exit codes of `vm0 run`.** README §6.2 gives the result
+of `main`, 1 after an uncaught exception, and 2 when a module cannot be read. It gives no code for
+a module graph that does not resolve, a module without a `main` class or method, or code that VM0
+cannot run: an instruction outside R0, or one before the stage that brings it.
+*Recommendation:* 2 for all three, since VM0 cannot start or cannot run the module; VM0 prints the
+reason after `vm0: `. 1 after an uncaught exception, and until v0.0.8 after a fault, with the type
+and a message in the form of `Throwable.toString`, such as
+`reflect.core.ArithmeticException: division by zero`. A native outside the trusted modules stays a
+`TypeLoadError` (VM-08). Alternatives: a new code 3 for code that VM0 cannot run; or a
+`TypeLoadError` at the use, which Reflect code could catch from v0.0.8 although `rfl` runs that
+code. **Answer:** 2026-10-23: Accepted as recommended.
+
+**Q90 (TST-01; README §6.2, §6.3). How `test` runs a program.** *Recommendation:* `test`
+assembles the files of `lib/` first. It runs each file of `run/` on a new VM0 in the JVM of
+`test`, with the modules of `lib/` as the module path, so the opcode counts need no file. Standard
+output equals the `expect-output` lines, each followed by LF, byte for byte, and the value of a
+directive is the text after its colon and one space; without `expect-output`, a program prints
+nothing. The exit code is its low 8 bits, as Linux gives it, and equals `expect-exit`, or else 0,
+or 1 with `expect-throws`. Standard error is not compared. The directives of a program stand only
+in `run/`, as `expect-error` stands only in `invalid/`. After the counts, `test` lists the R0
+opcodes that no program runs; the list fails nothing until v0.0.9 (README §8). Alternatives: a
+child JVM per program that runs `vm0 run`, as a user does; or `expect-output` lines in order with
+other lines between them, as LLVM's FileCheck allows. **Answer:** 2026-10-23: Accepted as
+recommended.
+
+**Q91 (BC-04, BC-17, BC-19, LIB-05; A.2 item 19). The count of a 64-bit shift, and a local before
+its first store.** *Recommendation:* the count of `shl.i64`, `shr.i64` and `shr.un.i64` is an
+`i32`, masked to 6 bits, as `Shiftable<T>` takes an `int` count (LIB-05) and as the JVM and CIL
+do. Each local starts at the zero value of its type, 0, 0.0 or null, as CIL's `localsinit` does,
+since a frame of BC-19 gives each local a verification type and has none for an unset local.
+BC-04 and BC-17 state both. Alternatives: a read before the first store is invalid code, as in
+the JVM, with a new verification type `TOP`; or an `i64` count for a 64-bit shift. **Answer:**
+2026-10-23: Accepted as recommended.
+
+**Q92 (MA-01; NUM-04, DAT-09, BC-04, WID-07). The canonical NaN.** MA-01 makes an operation that
+returns a NaN return the canonical quiet NaN of its format, but gives no bits for `float` and
+`double`. Java's arithmetic does not do this: in the build image, `0.0 / 0.0` gives
+`0xFFF8000000000000`, and a NaN input keeps its payload (D.6). *Recommendation:* the positive
+quiet NaN with payload 0, `0x7FC00000` for `float` and `0x7FF8000000000000` for `double`: Java's
+`Float.NaN` and `Double.NaN`, the default NaN of AArch64 and RISC-V, and the positive quiet NaN of
+WID-07. `add`, `sub`, `mul`, `div` and `rem`, and the conversions between `f32` and `f64`, return
+it for every NaN result; `neg` changes only the sign bit; loads, stores, calls and boxes keep
+every bit. NUM-04 states the rule, BC-04 and DAT-09 cite it, and MA-01 records where it went.
+Alternative: the default NaN of x86, with the sign bit set (`0xFFC00000` and
+`0xFFF8000000000000`), which x86 gives for an invalid operation such as `0.0 / 0.0` but not for a
+NaN input with a payload; AArch64 and RISC-V then need a fix-up after every such operation.
+**Answer:** 2026-10-23: Accepted as recommended.
+
 <!-- questions:end -->
 
 ## C. Traceability
@@ -556,6 +646,7 @@ follow the classes, before `.source`. BC-25 states the canonical text.
 | a branch per version and frequent small commits (instruction, 2026-10-19) | every stage | RM-04 |
 | README for the plan, sketchpad for notes (instruction, 2026-10-19) | every stage | RM-05 |
 | features and optimizations to keep possible (instruction, 2026-10-19) | v0.0.1, v0.0.2, v0.0.6, v0.0.7 | HR-01, HR-02, HR-03, HR-04, HR-09, HR-10, HR-11 |
+| one NaN rule, MA-01 (instruction, 2026-10-23) | v0.0.5, v0.0.7 | NUM-04, DAT-09, BC-04, Q92 |
 
 ## D. Engineering log
 
@@ -705,3 +796,22 @@ before v0.0.0:
   through `System.out` loses every character outside ASCII: `a.Ä` prints as `a.?`, as D.4 found for
   `§`. `rfld` therefore writes the UTF-8 bytes of the disassembler unchanged, and `RfldTest` checks
   this with `a.Ä`. The console output of VM0 (v0.0.5) meets the same encoding.
+
+### D.6 v0.0.5 implementation (2026-10-23)
+
+- NaN bits in the build image (Q92), measured 2026-10-23 in `reflect-build:a5bb09736f0c` with
+  OpenJDK 21, alike with the default compilers, `-Xint` and `-Xcomp`; not a repository test:
+
+  | Java expression | Bits |
+  |---|---|
+  | `0.0 / 0.0` at run time | `FFF8000000000000` |
+  | `0f / 0f` at run time | `FFC00000` |
+  | a double NaN with payload 1, `+ 1.0` | `7FF8000000000001` |
+  | the float `7F800001` converted to `double` | `7FF8000020000000` |
+  | `Double.NaN`, `Float.NaN` | `7FF8000000000000`, `7FC00000` |
+  | negation of the double `7FF0000000000001` | `FFF0000000000001` |
+
+  A boxed `Double` or `Float` in an `Object[]` keeps every bit, the signalling NaNs
+  `7FF0000000000001` and `7F800001` included. VM0 therefore holds floats as Java values, and
+  replaces each NaN result of an arithmetic instruction or of a conversion between `f32` and `f64`
+  with the canonical NaN.
