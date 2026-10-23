@@ -15,7 +15,7 @@ import reflect.stage0.lib.Nullable;
  *
  * A type may name a type that the text defines later, and code a member that it defines later, so
  * rfla reads the text three times: first the module directives and the head of each .class, which
- * declare the types, then the members, then the bodies of the methods.
+ * declare the types, then the members, .typeref and .memberref, then the bodies of the methods.
  */
 public final class Assembler {
     private static final String[] REQUIRES_WORDS = {"transitive", "static"};
@@ -52,6 +52,7 @@ public final class Assembler {
     private final List<Declared> classes = new ArrayList<>();
     private final List<Body> bodies = new ArrayList<>();
     private final List<Kept> sections = new ArrayList<>();
+    private final List<Integer> rows = new ArrayList<>();
     private @Nullable TypeName main;
 
     private Assembler(Parser parser, ModuleDef module, Token moduleName) {
@@ -74,6 +75,7 @@ public final class Assembler {
         assembler.directives();
         assembler.resolveMain();
         assembler.members();
+        assembler.rows();
         assembler.bodies();
         return assembler.write();
     }
@@ -97,6 +99,12 @@ public final class Assembler {
                 source();
             } else if (parser.atDirective(".class")) {
                 declare(null);
+            } else if (parser.atDirective(".typeref") || parser.atDirective(".memberref")) {
+                rows.add(parser.position());
+                parser.next();
+                while (!parser.atKind(Token.END) && !parser.atKind(Token.DIRECTIVE)) {
+                    parser.next();
+                }
             } else {
                 throw parser.unexpected("a directive of the module");
             }
@@ -846,6 +854,29 @@ public final class Assembler {
         TypeHandle parent = tokenType(holder);
         parser.expect("::");
         Token name = parser.identifier("the name of a method");
+        MethodSig parsed = parameters(isStatic, returnType == null ? new TypeSig.Primitive(SigCode.VOID) : returnType);
+        if (parent instanceof TypeDef def) {
+            for (MethodDef method : def.methods()) {
+                boolean same = returnType == null ? method.signature().params().equals(parsed.params())
+                        : method.signature().equals(parsed);
+                if (method.name().equals(name.text()) && same) {
+                    return method;
+                }
+            }
+            throw Parser.error(Diagnostic.NO_MEMBER, name, "the module defines no method " + def.qualifiedName() + "::"
+                    + name.text() + (returnType == null ? " with these parameter types" : " with this signature"));
+        }
+        if (returnType == null) {
+            throw Parser.error(Diagnostic.SYNTAX, first.token(), "a method of another module states its return type (Q69)");
+        }
+        check(name, Signatures.problem(parsed, ModuleWriter.REFERENCE, module.name()));
+        identifier(name, name.text());
+        return memberRef(parent, name.text(), parsed);
+    }
+
+    // The parameter types of a MethodRef after its name, in parentheses, with ... after the last for a
+    // variadic method (Q78); type arguments there would need a MethodSpec row.
+    private MethodSig parameters(boolean isStatic, TypeSig returnType) throws AssemblyException {
         if (parser.at("<")) {
             throw Parser.error(Diagnostic.LATER, parser.peek(), "the MethodSpec table arrives in v0.0.9");
         }
@@ -861,25 +892,69 @@ public final class Assembler {
             }
         }
         parser.expect(")");
-        if (parent instanceof TypeDef def) {
-            @Nullable MethodSig signature = returnType == null ? null : new MethodSig(flags, 0, returnType, params);
-            for (MethodDef method : def.methods()) {
-                boolean same = signature == null ? method.signature().params().equals(params)
-                        : method.signature().equals(signature);
-                if (method.name().equals(name.text()) && same) {
-                    return method;
-                }
+        return new MethodSig(flags, 0, returnType, params);
+    }
+
+    // TypeRef and MemberRef of §8.1, read once every type is declared: rows that nothing else in the
+    // module needs to name. A row that something names needs no directive, and gains nothing by one (Q80).
+    private void rows() throws AssemblyException {
+        for (int position : rows) {
+            parser.seek(position);
+            if (parser.atDirective(".typeref")) {
+                declareType();
+            } else {
+                declareMember();
             }
-            throw Parser.error(Diagnostic.NO_MEMBER, name, "the module defines no method " + def.qualifiedName() + "::"
-                    + name.text() + (signature == null ? " with these parameter types" : " with this signature"));
+            if (!parser.atKind(Token.END) && !parser.atKind(Token.DIRECTIVE)) {
+                throw parser.unexpected("a directive of the module");
+            }
         }
-        if (returnType == null) {
-            throw Parser.error(Diagnostic.SYNTAX, first.token(), "a method of another module states its return type (Q69)");
+    }
+
+    // A type of another module by its name, with the module in brackets where Q76 needs it.
+    private void declareType() throws AssemblyException {
+        parser.next();
+        Token start = parser.peek();
+        @Nullable Token scope = null;
+        if (parser.accept("[")) {
+            scope = parser.qualifiedName("the name of a required module");
+            parser.expect("]");
         }
-        var signature = new MethodSig(flags, 0, returnType, params);
-        check(name, Signatures.problem(signature, ModuleWriter.REFERENCE, module.name()));
+        var named = new TypeSyntax.Named(start, false, scope, parser.typeName("the name of a type"), new ArrayList<>());
+        if (primitiveStruct(named) != 0) {
+            throw Parser.error(Diagnostic.FORMAT, start, named.name().qualified() + " alone is the primitive; brackets"
+                    + " name the row of its struct (Q81)");
+        }
+        if (handle(named) instanceof TypeDef def) {
+            throw Parser.error(Diagnostic.FORMAT, start, "the module defines " + def.qualifiedName() + ", and .typeref"
+                    + " declares a type of another module (Q80)");
+        }
+    }
+
+    // A member of another module in the full form of a FieldRef, or of a MethodRef when static or a
+    // parenthesis follows its name (Q69).
+    private void declareMember() throws AssemblyException {
+        parser.next();
+        boolean isStatic = parser.accept("static");
+        TypeSyntax first = parser.returnType("the type of a member");
+        TypeSyntax holder = parser.type("the type that holds the member");
+        TypeHandle parent = tokenType(holder);
+        if (parent instanceof TypeDef def) {
+            throw Parser.error(Diagnostic.FORMAT, holder.token(), "the module defines " + def.qualifiedName()
+                    + ", and .memberref declares a member of another module (Q80)");
+        }
+        parser.expect("::");
+        Token name = parser.identifier("the name of a member");
+        MemberSig signature;
+        if (isStatic || parser.at("(") || parser.at("<")) {
+            MethodSig method = parameters(isStatic, reference(first, Signatures.RETURN));
+            check(name, Signatures.problem(method, ModuleWriter.REFERENCE, module.name()));
+            signature = method;
+        } else {
+            signature = new FieldSig(reference(first, Signatures.OTHER));
+        }
         identifier(name, name.text());
-        return memberRef(parent, name.text(), signature);
+        memberRef(parent, name.text(), signature);
     }
 
     // One MemberRef row per parent, name and signature (BC-24).

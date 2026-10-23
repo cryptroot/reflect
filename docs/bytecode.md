@@ -887,21 +887,23 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 
 ## 8. Assembly syntax
 
-- **BC-08 [Proposed; references, regions, module scopes and `@` Decided, Q69, Q71, Q76, Q78, Q81,
-  Q82]** `.rfla` maps one-to-one to the binary, so `rfld` then `rfla` reproduces a module byte for
-  byte (ex §12.2). Directives: `.module name version`, `.main`, `.requires`, `.exports`, `.opens`,
-  `.unsafe`, `.source`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`,
-  `.annotation`, `.locals`, `.maxstack`, `.try`, `.catch`, `.finally`, `.line`, `.stackmap`,
-  `.section`; labels end in `:`; type names use the canonical spelling (GEN-12), with `!0` and `!!0`
-  for type parameters, and `@` before a name makes it a name, never a word of the grammar (Q82).
+- **BC-08 [Proposed; references, regions, module scopes, `@` and declared rows Decided, Q69, Q71,
+  Q76, Q78, Q80, Q81, Q82]** `.rfla` maps one-to-one to the binary, so `rfld` then `rfla` reproduces
+  a module byte for byte (ex §12.2). Directives: `.module name version`, `.main`, `.requires`,
+  `.exports`, `.opens`, `.unsafe`, `.source`, `.class`, `.field`, `.method`, `.property`, `.event`,
+  `.override`, `.annotation`, `.locals`, `.maxstack`, `.try`, `.catch`, `.finally`, `.line`,
+  `.stackmap`, `.typeref`, `.memberref`, `.section`; labels end in `:`; type names use the
+  canonical spelling (GEN-12), with `!0` and `!!0` for type parameters, and `@` before a name makes
+  it a name, never a word of the grammar (Q82).
   `.main` names the descriptor's `main` class (VM-12), and `.unsafe` sets the header flag `UNSAFE`.
   A reference to another module states the signature that its row holds (Q69), so `rfla` reads no
   other module. A type of another module belongs to the required module whose name is its
   namespace or the longest prefix of it at a dot; otherwise the text names the module in brackets,
   `[reflect.core]reflect.meta.Type` (Q76). Brackets also name the struct of a primitive, whose name
   alone is the primitive, and brackets that hold the module's own name name a type of the module
-  (Q81). `rfld` prints a section it cannot print as directives, such as an unknown ancillary
-  section (BC-20), as `.section <id> hex "..."`, so the round trip covers it too. §8.1 gives the
+  (Q81). `rfld` prints a `TypeRef` or `MemberRef` row that nothing else names as `.typeref` or
+  `.memberref` (Q80), and a section it cannot print as directives, such as an unknown ancillary
+  section (BC-20), as `.section <id> hex "..."`, so the round trip covers them too. §8.1 gives the
   grammar; `.property`, `.event` and `.annotation` join it with their tables.
 
   ```text
@@ -928,7 +930,8 @@ in either case, and `Char` is any character but `"`, `\` and a line end.
 
 ```text
 File         = ModuleDecl TopLevel* ;
-TopLevel     = Main | Requires | Exports | Opens | Unsafe | Source | Section | Class ;
+TopLevel     = Main | Requires | Exports | Opens | Unsafe | Source | Section | Class | TypeRef
+             | MemberRef ;
 ModuleDecl   = ".module" QName Version ;
 Main         = ".main" TypeName ;
 Requires     = ".requires" ( "transitive" | "static" )* QName ;
@@ -938,6 +941,8 @@ ToModules    = "to" QName ( "," QName )* ;
 Unsafe       = ".unsafe" ;
 Source       = ".source" String Hex ;
 Section      = ".section" Int Hex ;
+TypeRef      = ".typeref" ModuleScope? TypeName ;
+MemberRef    = ".memberref" ( FieldRef | MethodRef ) ;
 
 Class        = ".class" TypeFlag* TypeKind? TypeName TypeParams? Backing? Extends? Implements?
                "{" Member* "}" ;
@@ -1030,6 +1035,10 @@ HexDigits    = HexDigit+ ;
   the full form (Q69). `TypeArgs` after a method name instantiate it (a `MethodSpec`), and `...`
   after its types marks a variadic method (MEM-10, Q78).
 - `.override` in a method makes the method fill the slot of the method it names (BC-12).
+- `.typeref` declares the `TypeRef` row of a type of another module, and `.memberref` the
+  `MemberRef` row of a member of another module, in the full form; a `MethodRef` has `static` or
+  parentheses after its name. Rows that a column, a signature or an instruction names need no
+  directive, and gain nothing by one; `rfld` writes the directives only for the other rows (Q80).
 - A `Method` named `new` is a constructor and one named `static` a static initializer, so both
   get the `CONSTRUCTOR` flag (§3.1). Only the last `Param` takes `...`, which makes the method
   variadic (MEM-10). A method without a body holds no `BodyItem` but `.override`.

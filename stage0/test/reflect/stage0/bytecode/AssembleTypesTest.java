@@ -223,6 +223,59 @@ public final class AssembleTypesTest {
     }
 
     @Test
+    public static void typeRefAndMemberRefDeclareRowsThatNothingNames() throws Exception {
+        String text = M + ".requires reflect.core\n"
+                + ".requires other\n"
+                + ".typeref reflect.core.Object\n"
+                + ".typeref [other]x.Y/Z\n"
+                + ".typeref [reflect.core]reflect.core.Int32\n"
+                + ".memberref reflect.core.String reflect.core.Object::name\n"
+                + ".memberref static void other.Log::write(reflect.core.Object?[]...)\n"
+                + ".memberref reflect.core.Object reflect.core.Object::copy()\n"
+                + ".class a.A {\n"
+                + "    .field reflect.core.Object o\n"
+                + "}\n"
+                + ".typeref reflect.core.Object\n";
+        var expected = new ModuleDef("m", 0, 0, 0);
+        var core = new ModuleRef("reflect.core", 0);
+        var other = new ModuleRef("other", 0);
+        var object = new TypeRef(core, "reflect.core", "Object");
+        var y = new TypeRef(other, "x", "Y");
+        var z = new TypeRef(y, "", "Z");
+        var int32 = new TypeRef(core, "reflect.core", "Int32");
+        var string = new TypeRef(core, "reflect.core", "String");
+        var log = new TypeRef(other, "other", "Log");
+        var objectSig = new TypeSig.Named(false, object);
+        expected.requires().add(core);
+        expected.requires().add(other);
+        for (TypeRef ref : new TypeRef[] {object, y, z, int32, string, log}) {
+            expected.typeRefs().add(ref);
+        }
+        expected.memberRefs().add(new MemberRef(object, "name", new FieldSig(new TypeSig.Named(false, string))));
+        expected.memberRefs().add(new MemberRef(log, "write", new MethodSig(SigCode.METHOD_STATIC | SigCode.METHOD_VARIADIC,
+                0, primitive(SigCode.VOID), list(new TypeSig.ArrayOf(new TypeSig.NullableRef(objectSig))))));
+        expected.memberRefs().add(new MemberRef(object, "copy", new MethodSig(0, 0, objectSig, list())));
+        var a = new TypeDef("a", "A", Flags.KIND_CLASS, 0, 0, null);
+        a.fields().add(new FieldDef(0, "o", objectSig));
+        expected.types().add(a);
+        assertEquals(Leb128Test.hex(ModuleWriter.write(expected)), Leb128Test.hex(assemble(text)));
+        String core32 = M + ".requires reflect.core\n.requires other\n.class a.A {\n}\n";
+        unassemblable(core32 + ".typeref a.A", "6:10: RFA0301: the module defines a.A, and .typeref declares a type of"
+                + " another module (Q80)");
+        unassemblable(core32 + ".typeref reflect.core.Int32", "6:10: RFA0301: reflect.core.Int32 alone is the primitive;"
+                + " brackets name the row of its struct (Q81)");
+        unassemblable(core32 + ".typeref [x]x.Y", "6:11: RFA0203: the module does not require x");
+        unassemblable(core32 + ".typeref other.X<int>", "6:17: RFA0101: expected a directive of the module, found <");
+        unassemblable(core32 + ".memberref int a.A::x", "6:16: RFA0301: the module defines a.A, and .memberref declares a"
+                + " member of another module (Q80)");
+        unassemblable(core32 + ".memberref static int other.X::x", "6:33: RFA0101: expected (, found the end of the file");
+        unassemblable(core32 + ".memberref void other.X::x", "6:12: RFA0301: VOID stands outside a return type (BC-03)");
+        unassemblable(core32 + ".memberref other.X::x()", "6:19: RFA0101: expected the type that holds the member, found ::");
+        unassemblable(core32 + ".memberref void other.X::m<int>()", "6:27: RFA0303: the MethodSpec table arrives in v0.0.9");
+        unassemblable(core32 + ".memberref void other.X::m() x", "6:30: RFA0101: expected a directive of the module, found x");
+    }
+
+    @Test
     public static void eachClassAndFieldHasItsDiagnostics() {
         unassemblable(M + ".class public public a.A {\n}", "2:15: RFA0104: public appears twice");
         unassemblable(M + ".class public private a.A {\n}", "2:23: RFA0301: type A has more than one visibility flag (BC-11)");
