@@ -3,7 +3,9 @@ package reflect.stage0.vm;
 import java.util.Arrays;
 
 import reflect.stage0.bytecode.Instruction;
+import reflect.stage0.bytecode.Label;
 import reflect.stage0.bytecode.Opcode;
+import reflect.stage0.lib.List;
 import reflect.stage0.lib.Nullable;
 
 /**
@@ -308,6 +310,36 @@ final class Interpreter {
                     case Opcode.CONV_F64_I32 -> stack[sp - 1] = (int) f64(stack[sp - 1]);
                     case Opcode.CONV_F64_I64 -> stack[sp - 1] = (long) f64(stack[sp - 1]);
                     case Opcode.CONV_F64_F32 -> stack[sp - 1] = canonical((float) f64(stack[sp - 1]));
+                    // A branch goes to the instruction that its label marks; the others go on (BC-04).
+                    case Opcode.BR -> {
+                        pc = target(instruction);
+                        continue;
+                    }
+                    case Opcode.BRTRUE, Opcode.BRFALSE -> {
+                        if ((i32(stack[--sp]) != 0) == (instruction.opcode() == Opcode.BRTRUE)) {
+                            pc = target(instruction);
+                            continue;
+                        }
+                    }
+                    case Opcode.BEQ_I32, Opcode.BEQ_I64, Opcode.BEQ_F32, Opcode.BEQ_F64, Opcode.BNE_I32, Opcode.BNE_I64,
+                            Opcode.BNE_F32, Opcode.BNE_F64, Opcode.BLT_I32, Opcode.BLT_I64, Opcode.BLT_F32, Opcode.BLT_F64,
+                            Opcode.BLE_I32, Opcode.BLE_I64, Opcode.BLE_F32, Opcode.BLE_F64, Opcode.BGT_I32, Opcode.BGT_I64,
+                            Opcode.BGT_F32, Opcode.BGT_F64, Opcode.BGE_I32, Opcode.BGE_I64, Opcode.BGE_F32, Opcode.BGE_F64 -> {
+                        Object b = stack[--sp];
+                        if (taken(instruction.opcode(), stack[--sp], b)) {
+                            pc = target(instruction);
+                            continue;
+                        }
+                    }
+                    // switch goes to the target of its value, or on when the value has none (BC-04).
+                    case Opcode.SWITCH -> {
+                        int value = i32(stack[--sp]);
+                        List<Label> targets = ((Instruction.Switch) instruction).targets();
+                        if (value >= 0 && value < targets.size()) {
+                            pc = targets.get(value).index();
+                            continue;
+                        }
+                    }
                     case Opcode.CALL -> {
                         if (links[pc] == null) {
                             RuntimeMethod callee = vm.method(method.type().module(), ((Instruction.Method) instruction).method());
@@ -335,6 +367,41 @@ final class Interpreter {
             // than maxStack: VM0 has none, so it meets such code only when it runs it.
             throw new Stop(where(method, pc) + ": the code is invalid: " + e);
         }
+    }
+
+    // Whether a fused branch goes to its target for the values a and b. Floats compare per IEEE 754, so
+    // bne is the one that a NaN takes (NUM-04).
+    private static boolean taken(int opcode, Object a, Object b) {
+        return switch (opcode) {
+            case Opcode.BEQ_I32 -> i32(a) == i32(b);
+            case Opcode.BEQ_I64 -> i64(a) == i64(b);
+            case Opcode.BEQ_F32 -> f32(a) == f32(b);
+            case Opcode.BEQ_F64 -> f64(a) == f64(b);
+            case Opcode.BNE_I32 -> i32(a) != i32(b);
+            case Opcode.BNE_I64 -> i64(a) != i64(b);
+            case Opcode.BNE_F32 -> f32(a) != f32(b);
+            case Opcode.BNE_F64 -> f64(a) != f64(b);
+            case Opcode.BLT_I32 -> i32(a) < i32(b);
+            case Opcode.BLT_I64 -> i64(a) < i64(b);
+            case Opcode.BLT_F32 -> f32(a) < f32(b);
+            case Opcode.BLT_F64 -> f64(a) < f64(b);
+            case Opcode.BLE_I32 -> i32(a) <= i32(b);
+            case Opcode.BLE_I64 -> i64(a) <= i64(b);
+            case Opcode.BLE_F32 -> f32(a) <= f32(b);
+            case Opcode.BLE_F64 -> f64(a) <= f64(b);
+            case Opcode.BGT_I32 -> i32(a) > i32(b);
+            case Opcode.BGT_I64 -> i64(a) > i64(b);
+            case Opcode.BGT_F32 -> f32(a) > f32(b);
+            case Opcode.BGT_F64 -> f64(a) > f64(b);
+            case Opcode.BGE_I32 -> i32(a) >= i32(b);
+            case Opcode.BGE_I64 -> i64(a) >= i64(b);
+            case Opcode.BGE_F32 -> f32(a) >= f32(b);
+            default -> f64(a) >= f64(b);
+        };
+    }
+
+    private static int target(Instruction instruction) {
+        return ((Instruction.Branch) instruction).target().index();
     }
 
     // An i32 of the stack; boolean, byte, short and char values are i32 values there too (BC-04).

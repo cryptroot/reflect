@@ -1,0 +1,51 @@
+// expect-output: zero
+// expect-output: one
+// expect-output: two
+// expect-output: other
+// expect-output: other
+// expect-output: other
+// expect-output: none
+.module choice 0.0.0
+.main choice.App
+.requires reflect.core
+.requires reflect.io
+
+// switch goes to the target of its value, counted from 0, or on when the value has no target (BC-04).
+.class public final choice.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   0
+        call     static void choice.App::name(int)
+        ldc.i4   1
+        call     static void choice.App::name(int)
+        ldc.i4   2
+        call     static void choice.App::name(int)
+        ldc.i4   3
+        call     static void choice.App::name(int)
+        ldc.i4   -1
+        call     static void choice.App::name(int)
+        ldc.i4   -2147483648
+        call     static void choice.App::name(int)
+        ldc.i4   0
+        switch   ()
+        ldstr    "none"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void name(int value) {
+        ldarg    value
+        switch   (ZERO, ONE, TWO)
+        ldstr    "other"
+        br       SHOW
+    ZERO:
+        ldstr    "zero"
+        br       SHOW
+    ONE:
+        ldstr    "one"
+        br       SHOW
+    TWO:
+        ldstr    "two"
+    SHOW:
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

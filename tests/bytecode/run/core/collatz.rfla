@@ -1,0 +1,96 @@
+// expect-output: 6 3 10 5 16 8 4 2 1
+// expect-output: 27: 111 steps, maximum 9232
+// expect-output: 97: 118 steps, maximum 9232
+.module collatz 0.0.0
+.main collatz.App
+.requires reflect.core
+.requires reflect.io
+
+// Collatz sequences: an even number halves, and an odd one becomes 3n + 1, until the sequence reaches 1.
+.class public final collatz.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   6
+        call     static void collatz.App::sequence(int)
+        ldc.i4   27
+        call     static void collatz.App::summary(int)
+        ldc.i4   97
+        call     static void collatz.App::summary(int)
+        ret
+    }
+    // Prints the sequence from n on one line.
+    .method static void sequence(int n) {
+    LOOP:
+        ldarg    n
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    n
+        ldc.i4   1
+        beq.i32  DONE
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    n
+        call     static int collatz.App::next(int)
+        starg    n
+        br       LOOP
+    DONE:
+        call     static void reflect.io.Console::println()
+        ret
+    }
+    // Prints the number of steps from n to 1, and the largest number on the way.
+    .method static void summary(int n) {
+        .locals (int start, int steps, int maximum)
+        ldarg    n
+        dup
+        stloc    start
+        stloc    maximum
+    LOOP:
+        ldarg    n
+        ldc.i4   1
+        beq.i32  DONE
+        ldarg    n
+        call     static int collatz.App::next(int)
+        starg    n
+        ldloc    steps
+        ldc.i4   1
+        add.i32
+        stloc    steps
+        ldarg    n
+        ldloc    maximum
+        ble.i32  LOOP
+        ldarg    n
+        stloc    maximum
+        br       LOOP
+    DONE:
+        ldloc    start
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        ldstr    ": "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldloc    steps
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldstr    " steps, maximum "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldloc    maximum
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static int next(int n) {
+        ldarg    n
+        ldc.i4   2
+        rem.i32
+        brtrue   ODD
+        ldarg    n
+        ldc.i4   2
+        div.i32
+        ret
+    ODD:
+        ldarg    n
+        ldc.i4   3
+        mul.i32
+        ldc.i4   1
+        add.i32
+        ret
+    }
+}
