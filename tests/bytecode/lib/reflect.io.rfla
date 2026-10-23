@@ -1,0 +1,31 @@
+// The stub of reflect.io (Q49), with the Console of ex §2.11.
+.module reflect.io 0.0.0
+.requires reflect.core
+.exports reflect.io
+
+.class public final reflect.io.Console extends reflect.core.Object {
+    .method private static native void write(int fd, reflect.core.String text) {
+    }
+    .method public static void print(reflect.core.Object? value) {
+        ldc.i4   1
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(reflect.core.Object?)
+        call     reflect.io.Console::write(int, reflect.core.String)
+        ret
+    }
+    .method public static void println(reflect.core.Object? value) {
+        ldc.i4   1
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(reflect.core.Object?)
+        ldstr    "\n"
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     reflect.io.Console::write(int, reflect.core.String)
+        ret
+    }
+    .method public static void println() {
+        ldc.i4   1
+        ldstr    "\n"
+        call     reflect.io.Console::write(int, reflect.core.String)
+        ret
+    }
+}

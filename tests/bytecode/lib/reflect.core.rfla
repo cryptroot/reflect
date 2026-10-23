@@ -1,0 +1,14 @@
+// The stub of reflect.core (Q49): what the programs of run/ need until v0.1 compiles the stdlib.
+.module reflect.core 0.0.0
+.exports reflect.core
+
+.class public reflect.core.Object {
+}
+
+.class public final reflect.core.String extends reflect.core.Object {
+    .method public static native reflect.core.String valueOf(reflect.core.Object? value) {
+    }
+    .method public static native reflect.core.String concat(reflect.core.String first,
+            reflect.core.String second) {
+    }
+}
