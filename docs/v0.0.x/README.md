@@ -593,8 +593,10 @@ module.
 - Entry: the `main` class comes from `.main` or `--main`. `main` is a `public static` method with
   one `reflect.core.String[]` parameter, and returns `void` or `int` (ex §2.4). Until arrays
   arrive (v0.0.7), it receives its arguments as a Java `String[]`, which no instruction reads
-  before then. `main` runs on a thread with a large stack, so deep recursion in Reflect does not
-  overflow the JVM stack first.
+  before then. `main` runs on a thread with a stack of 256 MiB, so deep recursion in Reflect does
+  not overflow the JVM stack first: in the build image, the JVM's default stack of 1 MiB holds
+  about 2,000 calls of VM0, and 256 MiB at least 860,000 (Q93, [sketchpad.md](sketchpad.md) D.6).
+  Until v0.0.8, an overflow of that stack is the fault `reflect.core.StackOverflowError` (Q94).
 - Stub modules (Q49): `reflect.core` with `Object`, `String` and `Runtime`, and `reflect.io` with
   `Console`, written in `.rfla` with the native names of ex §2.11 (`Console.write(int, String)`).
   `String.valueOf` turns `int`, `long`, `float` and `double` into Java's text (NUM-05, Q87).
@@ -633,7 +635,8 @@ module.
 9. The canonical NaN (MA-01, Q92).
 10. Branches and `switch`. Check: programs for factorials, Fibonacci numbers and Collatz
     sequences.
-11. Static calls with arguments and results; recursion, on a thread with a large stack.
+11. Static calls with arguments and results; recursion, on a thread with a stack of 256 MiB
+    (Q93), whose overflow is the fault `reflect.core.StackOverflowError` (Q94).
 12. Exit codes: `int main`, `Runtime.exit` and `expect-exit`.
 13. Faults reported by exception name, and `expect-throws`.
 14. The opcode count and its report.

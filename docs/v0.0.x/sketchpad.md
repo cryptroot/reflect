@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23; Q87 to Q92 asked and answered 2026-10-23 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23; Q87 to Q92 asked and answered 2026-10-23; Q93 and Q94 asked and answered 2026-10-23 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
@@ -630,6 +630,31 @@ Alternative: the default NaN of x86, with the sign bit set (`0xFFC00000` and
 NaN input with a payload; AArch64 and RISC-V then need a fix-up after every such operation.
 **Answer:** 2026-10-23: Accepted as recommended.
 
+### B.10 Batch 14: the stack of VM0 (asked and answered 2026-10-23)
+
+Found while commit 11 of v0.0.5 was written. README §7.6 runs `main` on a thread with a large
+stack, but gives no size, and no rule says what VM0 does when that stack overflows before v0.0.8.
+
+**Q93 (BOOT-04; README §7.6). The stack of `main` on VM0.** VM0 makes two Java frames for each
+Reflect call, `invoke` and `execute`. In the build image, the JVM's default stack of 1 MiB holds
+about 2,000 such calls (D.6). *Recommendation:* 256 MiB, which holds at least 860,000 calls with
+`-Xint` and 1,416,000 with the default JIT; an unbounded recursion fills it in 1.3 to 2.2 s. A
+thread uses only the part of its stack that its calls reach. Alternatives: 1 GiB, at least
+3,441,000 calls, but 5.4 to 8.0 s and 1 GiB of memory for each unbounded recursion; or 64 MiB, at
+least 214,000 calls, with less room when `execute` grows in v0.0.8 and v0.0.9. **Answer:**
+2026-10-23: Accepted as recommended.
+
+**Q94 (BOOT-04, EXC-05; README §7.6, §7.9). An overflow of that stack before v0.0.8.** BOOT-04 maps
+the JVM's `StackOverflowError` to the Reflect one, which v0.0.8 makes real. *Recommendation:*
+until then it is a fault, as README §7.6 gives for the exceptions that VM0 raises later: VM0
+prints `reflect.core.StackOverflowError: the calls fill the 256 MiB stack of VM0` and exits
+with 1. VM0 catches the error at the bottom of the thread, after the JVM has unwound the stack,
+so the report has room. Commit 11 adds it with the thread. Alternatives: the same fault with the
+others in commit 13, while until then the Java error reaches the caller of `Vm.run`, so `vm0 run`
+prints a Java stack trace and `test` stops at the file; or a stop with exit code 2, as for code
+that VM0 cannot run, although on `rfl` the same program throws a `StackOverflowError` that it can
+catch (EXC-05). **Answer:** 2026-10-23: Accepted as recommended.
+
 <!-- questions:end -->
 
 ## C. Traceability
@@ -815,3 +840,24 @@ before v0.0.0:
   `7FF0000000000001` and `7F800001` included. VM0 therefore holds floats as Java values, and
   replaces each NaN result of an arithmetic instruction or of a conversion between `f32` and `f64`
   with the canonical NaN.
+- Depth of a recursion on VM0 (Q93), measured 2026-10-23 in `reflect-build:a5bb09736f0c` with
+  OpenJDK 21.0.12.1 on 22 processors; not a repository test. In a program whose
+  `static void down(int n)` prints `n` every 1,000 calls and then calls `down(n + 1)`, `main` ran
+  on the JVM's main thread or on a new thread of each size, each time in a new JVM, until the JVM
+  threw `StackOverflowError`:
+
+  | Thread stack | Calls, default JIT | Time | Calls, `-Xint` | Time |
+  |---|---|---|---|---|
+  | the JVM's main thread (`ThreadStackSize` 1024 KiB) | 2,000 | 0.16 s | 3,000 | 0.16 s |
+  | 1 MiB | 2,000 | 0.22 s | not measured | |
+  | 8 MiB | 19,000 | 0.28 s | not measured | |
+  | 64 MiB | 259,000 to 282,000 | 0.35 to 0.42 s | 214,000 | 0.56 s |
+  | 256 MiB | 1,416,000 to 1,457,000 | 1.28 to 1.51 s | 860,000 | 2.18 s |
+  | 512 MiB | 3,012,000 | 3.31 s | 1,720,000 | 3.83 s |
+  | 1 GiB | 5,984,000 | 5.39 s | 3,441,000 | 7.96 s |
+
+  A count is the last line before the overflow, so the depth is up to 999 calls more. A range
+  comes from two runs. A call takes about 310 bytes of stack with `-Xint`, and about 180 bytes in
+  the deepest runs with the default JIT. A thread uses only the part of its stack that its calls
+  reach: in the same image with `-Xint`, a thread with a stack of 256 MiB raised the resident
+  memory of the JVM by 224 kB after 10 Java calls, and by 203,248 kB after 2,000,000.
