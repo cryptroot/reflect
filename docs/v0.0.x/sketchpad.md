@@ -18,7 +18,7 @@ log is [../sketchpad.md](../sketchpad.md).
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
 | v0.0.3 | assembler; suite runner for rejected files | done; `all` passes with 170 tests, 0 failures, and the `bytecode` job with 8 files, 0 failures; tag `v0.0.3`, 2026-10-22 |
-| v0.0.4 | disassembler, round trip | not started |
+| v0.0.4 | disassembler, round trip | done; `all` passes on Windows with 190 tests, 0 failures, and the `bytecode` job with 8 files, 0 failures, each file of `format/` round-tripped; the Linux run of Q53 is pending (D.5); tag `v0.0.4` on `0de78e4`, 2026-10-23 |
 | v0.0.5 | VM0 loader and core interpreter | not started |
 | v0.0.6 | VM0 objects and dispatch | not started |
 | v0.0.7 | VM0 arrays, strings and boxing | not started |
@@ -48,9 +48,9 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [bootstrapping.md](../bootstrapping.md) BOOT-11, BOOT-12 | one writer, written in stage0, instead of a Java port of a Reflect writer; the transliterator also prints `reflect.bytecode` | Q47 |
 | [bytecode.md](../bytecode.md) | encoding tables, the R0 mark on opcodes, the canonical form, the `main` column and `.main`, the `.rfla` grammar, `RFA` codes, the Stack column of §5.1 | done in v0.0.1; the `RFA` codes and the Stack column in v0.0.3 (Q77, Q79) |
 | [testing.md](../testing.md) §7 | the home of `.rfla` tests (`tests/bytecode/format`, `lib`, `run` and `invalid`) and the `RFA` form of `expect-error` | done in v0.0.3 (TST-13) |
-| [bytecode.md](../bytecode.md) BC-03, BC-08, BC-11, §8.1 | names that are identifiers (Q83), `@` (Q82), brackets for the module itself and for a primitive's struct (Q81), `BYREF` only at the top of a signature (Q84), one member per name and signature (Q85), `.typeref` and `.memberref` (Q80), and the canonical text, BC-25 (Q86) | v0.0.4 |
-| [type-system.md](../type-system.md) GEN-12 | brackets before a primitive's struct, and the module's own name before its own struct (Q81) | v0.0.4 |
-| [testing.md](../testing.md) §7 | the round trip of each `.rfla` file in `test` (TST-09, TST-13) | v0.0.4 |
+| [bytecode.md](../bytecode.md) BC-03, BC-08, BC-11, §8.1 | names that are identifiers (Q83), `@` (Q82), brackets for the module itself and for a primitive's struct (Q81), `BYREF` only at the top of a signature (Q84), one member per name and signature (Q85), `.typeref` and `.memberref` (Q80), and the canonical text, BC-25 (Q86) | done in v0.0.4 |
+| [type-system.md](../type-system.md) GEN-12 | brackets before a primitive's struct, and the module's own name before its own struct (Q81) | done in v0.0.4 |
+| [testing.md](../testing.md) §7 | the round trip of each `.rfla` file in `test` (TST-09, TST-13) | done in v0.0.4 (TST-13) |
 | [examples.md](../examples.md) §11.1, §11.2 | the hidden `$receiver` argument becomes the implicit `R` of BC-05 (A.2 item 3); the `.try` blocks become regions in label form, and calls into other modules state their signatures (A.2 item 9) | with [../sketchpad.md](../sketchpad.md) A.6 |
 | [headroom.md](../headroom.md) and the rules its entries cite | an answered entry changes the owning rules and records where it went | done 2026-10-20 (Q57 to Q62) |
 
@@ -689,3 +689,19 @@ before v0.0.0:
   reused image `reflect-build:a5bb09736f0c`, the tag the Windows host produced from the same
   Dockerfile hash. The `unit` job ran 26 tests with 0 failures. `lake build` succeeded with the
   two known `sorry` warnings in `Reflect/Core/Soundness.lean`. This meets Q53 for `v0.0.1`.
+
+### D.5 v0.0.4 implementation (2026-10-23)
+
+- Windows exit check: in a fresh clone of `0de78e4`, `docker/dev.ps1 all` passes in 53.4 s with
+  Windows PowerShell 5.1.26100.9711 and Docker 29.6.1. The `unit` job runs 190 tests with 0
+  failures. The `bytecode` job passes the 8 files of `format/` and `invalid/`, and each file of
+  `format/` round-trips. `lake build` succeeds with the two known `sorry` warnings.
+- Linux exit check: pending. No Linux host on this machine reaches Docker. In the WSL
+  distributions `Ubuntu-24.04` and `archlinux`, Docker Desktop reports that the command `docker`
+  could not be found, and recommends its WSL integration. By a decision in chat on 2026-10-23,
+  the tag `v0.0.4` came after the Windows check alone, unlike Q53. The Linux result goes here.
+- In the container, `LANG` and `LC_ALL` are unset, so the JVM's `stdout.encoding` and
+  `stderr.encoding` are `ANSI_X3.4-1968` (ASCII), while `file.encoding` is `UTF-8`. Text printed
+  through `System.out` loses every character outside ASCII: `a.Ä` prints as `a.?`, as D.4 found for
+  `§`. `rfld` therefore writes the UTF-8 bytes of the disassembler unchanged, and `RfldTest` checks
+  this with `a.Ä`. The console output of VM0 (v0.0.5) meets the same encoding.
