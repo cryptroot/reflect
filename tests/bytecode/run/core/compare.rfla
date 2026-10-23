@@ -1,0 +1,143 @@
+// expect-output: 1
+// expect-output: 0
+// expect-output: 1
+// expect-output: 1
+// expect-output: 0
+// expect-output: 1
+// expect-output: 1
+// expect-output: 1
+// expect-output: 0
+// expect-output: 0
+// expect-output: 1
+// expect-output: 0
+// expect-output: 1
+// expect-output: 0
+// expect-output: 1
+// expect-output: 0
+// expect-output: 0
+// expect-output: 1
+// expect-output: 1
+// expect-output: 0
+// expect-output: 1
+// expect-output: 1
+// expect-output: 1
+// expect-output: 1
+// expect-output: 0
+.module compare 0.0.0
+.main compare.App
+.requires reflect.core
+.requires reflect.io
+
+// The comparisons of BC-04 push 1 or 0: integers compare signed, and floats per IEEE 754, so
+// NaN equals nothing, not even itself, and the two zeros are equal (NUM-04).
+.class public final compare.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   5
+        ldc.i4   5
+        ceq.i32
+        call     static void compare.App::show(int)
+        ldc.i4   5
+        ldc.i4   6
+        ceq.i32
+        call     static void compare.App::show(int)
+        ldc.i4   -1
+        ldc.i4   0
+        clt.i32
+        call     static void compare.App::show(int)
+        ldc.i4   3
+        ldc.i4   3
+        cle.i32
+        call     static void compare.App::show(int)
+        ldc.i4   -1
+        ldc.i4   0
+        cgt.i32
+        call     static void compare.App::show(int)
+        ldc.i4   0
+        ldc.i4   -1
+        cge.i32
+        call     static void compare.App::show(int)
+        ldc.i8   9223372036854775807
+        ldc.i8   9223372036854775807
+        ceq.i64
+        call     static void compare.App::show(int)
+        ldc.i8   -9223372036854775808
+        ldc.i8   9223372036854775807
+        clt.i64
+        call     static void compare.App::show(int)
+        ldc.i8   4294967296
+        ldc.i8   1
+        cle.i64
+        call     static void compare.App::show(int)
+        ldc.i8   -1
+        ldc.i8   1
+        cgt.i64
+        call     static void compare.App::show(int)
+        ldc.i8   2
+        ldc.i8   2
+        cge.i64
+        call     static void compare.App::show(int)
+        ldc.r8   bits 0x7FF8000000000000
+        ldc.r8   bits 0x7FF8000000000000
+        ceq.f64
+        call     static void compare.App::show(int)
+        ldc.r8   0
+        ldc.r8   -0.0
+        ceq.f64
+        call     static void compare.App::show(int)
+        ldc.r8   bits 0x7FF8000000000000
+        ldc.r8   1
+        clt.f64
+        call     static void compare.App::show(int)
+        ldc.r8   -inf
+        ldc.r8   inf
+        clt.f64
+        call     static void compare.App::show(int)
+        ldc.r8   bits 0x7FF8000000000000
+        ldc.r8   bits 0x7FF8000000000000
+        cle.f64
+        call     static void compare.App::show(int)
+        ldc.r8   1
+        ldc.r8   bits 0x7FF8000000000000
+        cgt.f64
+        call     static void compare.App::show(int)
+        ldc.r8   2.5
+        ldc.r8   2
+        cgt.f64
+        call     static void compare.App::show(int)
+        ldc.r8   -0.0
+        ldc.r8   0
+        cge.f64
+        call     static void compare.App::show(int)
+        ldc.r4   bits 0x7FC00000
+        ldc.r4   bits 0x7FC00000
+        ceq.f32
+        call     static void compare.App::show(int)
+        ldc.r4   0
+        ldc.r4   -0.0
+        ceq.f32
+        call     static void compare.App::show(int)
+        ldc.r4   1
+        ldc.r4   2
+        clt.f32
+        call     static void compare.App::show(int)
+        ldc.r4   0.1
+        ldc.r4   0.1
+        cle.f32
+        call     static void compare.App::show(int)
+        ldc.r4   2
+        ldc.r4   1
+        cgt.f32
+        call     static void compare.App::show(int)
+        ldc.r4   bits 0x7FC00000
+        ldc.r4   0
+        cge.f32
+        call     static void compare.App::show(int)
+        ret
+    }
+    .method static void show(int value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

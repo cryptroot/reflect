@@ -1,0 +1,174 @@
+// expect-output: -56
+// expect-output: 127
+// expect-output: -25536
+// expect-output: 65535
+// expect-output: 7
+// expect-output: -1
+// expect-output: 1.6777216E7
+// expect-output: 2.147483647E9
+// expect-output: 1
+// expect-output: 0
+// expect-output: 9.223372E18
+// expect-output: 9.007199254740992E15
+// expect-output: 0
+// expect-output: 3
+// expect-output: -3
+// expect-output: 2147483647
+// expect-output: -2147483648
+// expect-output: 2147483647
+// expect-output: 9223372036854775807
+// expect-output: 0
+// expect-output: 0.10000000149011612
+// expect-output: 0
+// expect-output: 2147483647
+// expect-output: -2147483648
+// expect-output: 2147483647
+// expect-output: -2147483648
+// expect-output: 9223372036854775807
+// expect-output: -9223372036854775808
+// expect-output: 0
+// expect-output: 0
+// expect-output: 0.1
+// expect-output: Infinity
+// expect-output: -0.0
+// expect-output: 44
+.module convert 0.0.0
+.main convert.App
+.requires reflect.core
+.requires reflect.io
+
+// The conversions of BC-04 between the primitives of R0: integers wrap, an integer to a float
+// rounds to nearest, a float to an integer truncates, saturates and maps NaN to 0 (NUM-03), and
+// other pairs compose, so (byte) 300.0 is 44.
+.class public final convert.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   200
+        conv.i32.i8
+        call     static void convert.App::show(int)
+        ldc.i4   -129
+        conv.i32.i8
+        call     static void convert.App::show(int)
+        ldc.i4   40000
+        conv.i32.i16
+        call     static void convert.App::show(int)
+        ldc.i4   -1
+        conv.i32.u16
+        call     static void convert.App::show(int)
+        ldc.i4   65543
+        conv.i32.u16
+        call     static void convert.App::show(int)
+        ldc.i4   -1
+        conv.i32.i64
+        call     static void convert.App::show(long)
+        ldc.i4   16777217
+        conv.i32.f32
+        call     static void convert.App::show(float)
+        ldc.i4   2147483647
+        conv.i32.f64
+        call     static void convert.App::show(double)
+        ldc.i8   4294967297
+        conv.i64.i32
+        call     static void convert.App::show(int)
+        ldc.i8   -9223372036854775808
+        conv.i64.i32
+        call     static void convert.App::show(int)
+        ldc.i8   9223372036854775807
+        conv.i64.f32
+        call     static void convert.App::show(float)
+        ldc.i8   9007199254740993
+        conv.i64.f64
+        call     static void convert.App::show(double)
+        ldc.r4   bits 0x7FC00000
+        conv.f32.i32
+        call     static void convert.App::show(int)
+        ldc.r4   3.9
+        conv.f32.i32
+        call     static void convert.App::show(int)
+        ldc.r4   -3.9
+        conv.f32.i32
+        call     static void convert.App::show(int)
+        ldc.r4   1e20
+        conv.f32.i32
+        call     static void convert.App::show(int)
+        ldc.r4   -1e20
+        conv.f32.i32
+        call     static void convert.App::show(int)
+        ldc.r4   inf
+        conv.f32.i32
+        call     static void convert.App::show(int)
+        ldc.r4   1e20
+        conv.f32.i64
+        call     static void convert.App::show(long)
+        ldc.r4   bits 0x7FC00000
+        conv.f32.i64
+        call     static void convert.App::show(long)
+        ldc.r4   0.1
+        conv.f32.f64
+        call     static void convert.App::show(double)
+        ldc.r8   bits 0x7FF8000000000000
+        conv.f64.i32
+        call     static void convert.App::show(int)
+        ldc.r8   2147483647.9
+        conv.f64.i32
+        call     static void convert.App::show(int)
+        ldc.r8   -2147483648.9
+        conv.f64.i32
+        call     static void convert.App::show(int)
+        ldc.r8   1e10
+        conv.f64.i32
+        call     static void convert.App::show(int)
+        ldc.r8   -inf
+        conv.f64.i32
+        call     static void convert.App::show(int)
+        ldc.r8   1e19
+        conv.f64.i64
+        call     static void convert.App::show(long)
+        ldc.r8   -1e19
+        conv.f64.i64
+        call     static void convert.App::show(long)
+        ldc.r8   bits 0x7FF8000000000000
+        conv.f64.i64
+        call     static void convert.App::show(long)
+        ldc.r8   -0.5
+        conv.f64.i64
+        call     static void convert.App::show(long)
+        ldc.r8   0.1
+        conv.f64.f32
+        call     static void convert.App::show(float)
+        ldc.r8   1e40
+        conv.f64.f32
+        call     static void convert.App::show(float)
+        ldc.r8   -1e-50
+        conv.f64.f32
+        call     static void convert.App::show(float)
+        ldc.r8   300
+        conv.f64.i32
+        conv.i32.i8
+        call     static void convert.App::show(int)
+        ret
+    }
+    .method static void show(int value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void show(long value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void show(float value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(float)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void show(double value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(double)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

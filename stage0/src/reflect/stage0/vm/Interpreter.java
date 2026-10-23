@@ -200,6 +200,105 @@ final class Interpreter {
                         stack[sp - 1] = f64(stack[sp - 1]) % b;
                     }
                     case Opcode.NEG_F64 -> stack[sp - 1] = -f64(stack[sp - 1]);
+                    // A comparison pushes the i32 1 or 0. Java compares floats per IEEE 754, so a NaN is
+                    // unordered, and 0.0 equals -0.0 (NUM-04).
+                    case Opcode.CEQ_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) == b ? 1 : 0;
+                    }
+                    case Opcode.CEQ_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) == b ? 1 : 0;
+                    }
+                    case Opcode.CEQ_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) == b ? 1 : 0;
+                    }
+                    case Opcode.CEQ_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) == b ? 1 : 0;
+                    }
+                    case Opcode.CLT_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) < b ? 1 : 0;
+                    }
+                    case Opcode.CLT_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) < b ? 1 : 0;
+                    }
+                    case Opcode.CLT_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) < b ? 1 : 0;
+                    }
+                    case Opcode.CLT_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) < b ? 1 : 0;
+                    }
+                    case Opcode.CLE_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) <= b ? 1 : 0;
+                    }
+                    case Opcode.CLE_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) <= b ? 1 : 0;
+                    }
+                    case Opcode.CLE_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) <= b ? 1 : 0;
+                    }
+                    case Opcode.CLE_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) <= b ? 1 : 0;
+                    }
+                    case Opcode.CGT_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) > b ? 1 : 0;
+                    }
+                    case Opcode.CGT_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) > b ? 1 : 0;
+                    }
+                    case Opcode.CGT_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) > b ? 1 : 0;
+                    }
+                    case Opcode.CGT_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) > b ? 1 : 0;
+                    }
+                    case Opcode.CGE_I32 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i32(stack[sp - 1]) >= b ? 1 : 0;
+                    }
+                    case Opcode.CGE_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) >= b ? 1 : 0;
+                    }
+                    case Opcode.CGE_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) >= b ? 1 : 0;
+                    }
+                    case Opcode.CGE_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) >= b ? 1 : 0;
+                    }
+                    // Java's casts give the conversions of BC-04: integers wrap, an integer becomes the nearest
+                    // float, and a float becomes an integer by truncation, saturated, with NaN as 0 (NUM-03).
+                    case Opcode.CONV_I32_I8 -> stack[sp - 1] = (int) (byte) i32(stack[sp - 1]);
+                    case Opcode.CONV_I32_I16 -> stack[sp - 1] = (int) (short) i32(stack[sp - 1]);
+                    case Opcode.CONV_I32_U16 -> stack[sp - 1] = (int) (char) i32(stack[sp - 1]);
+                    case Opcode.CONV_I32_I64 -> stack[sp - 1] = (long) i32(stack[sp - 1]);
+                    case Opcode.CONV_I32_F32 -> stack[sp - 1] = (float) i32(stack[sp - 1]);
+                    case Opcode.CONV_I32_F64 -> stack[sp - 1] = (double) i32(stack[sp - 1]);
+                    case Opcode.CONV_I64_I32 -> stack[sp - 1] = (int) i64(stack[sp - 1]);
+                    case Opcode.CONV_I64_F32 -> stack[sp - 1] = (float) i64(stack[sp - 1]);
+                    case Opcode.CONV_I64_F64 -> stack[sp - 1] = (double) i64(stack[sp - 1]);
+                    case Opcode.CONV_F32_I32 -> stack[sp - 1] = (int) f32(stack[sp - 1]);
+                    case Opcode.CONV_F32_I64 -> stack[sp - 1] = (long) f32(stack[sp - 1]);
+                    case Opcode.CONV_F32_F64 -> stack[sp - 1] = (double) f32(stack[sp - 1]);
+                    case Opcode.CONV_F64_I32 -> stack[sp - 1] = (int) f64(stack[sp - 1]);
+                    case Opcode.CONV_F64_I64 -> stack[sp - 1] = (long) f64(stack[sp - 1]);
+                    case Opcode.CONV_F64_F32 -> stack[sp - 1] = (float) f64(stack[sp - 1]);
                     case Opcode.CALL -> {
                         if (links[pc] == null) {
                             RuntimeMethod callee = vm.method(method.type().module(), ((Instruction.Method) instruction).method());
