@@ -19,8 +19,8 @@ fuzzing against the Lean model, and examples.md itself. Conventions:
 
 ## 2. Conformance tests
 
-- **TST-01 [Decided, details Proposed]** A test is a source file whose leading comments state the
-  expectations (ex §12.1):
+- **TST-01 [Decided, details Proposed; comparisons Decided, Q90]** A test is a source file whose
+  leading comments state the expectations (ex §12.1):
 
   | Directive | Meaning |
   |---|---|
@@ -36,6 +36,10 @@ fuzzing against the Lean model, and examples.md itself. Conventions:
   Line and column count from the first line of the file, comments included. Tests live in
   `tests/lang/<feature>/`; a directory containing `module-info.rfl` files is one multi-module test
   whose expectations sit in a `test.rfl` at its root.
+
+  The value of a directive is the text after its colon and one space. Standard output must equal
+  the `expect-output` lines, each followed by LF, byte for byte, so a test without `expect-output`
+  prints nothing. Standard error is not compared (Q90).
 
   ```reflect
   // file: tests/lang/nullability/cast-null.rfl
@@ -84,14 +88,15 @@ fuzzing against the Lean model, and examples.md itself. Conventions:
 - **TST-09 [Proposed]** Every module the suite produces goes through `rfld` then `rfla` and must
   come back byte-identical (BC-08). Hand-written invalid `.rfla` files, each tagged with the rule it
   breaks (`// expect-verify-error: BC-07 uninitialized`), must be rejected by the verifier.
-- **TST-13 [Proposed; `lib/` and `expect-error` Decided, Q49, Q79]** Hand-written `.rfla` tests
-  live in `tests/bytecode/`: `format/` holds modules that are assembled and round-tripped, `lib/`
-  the stub modules of `reflect.core` and `reflect.io`, `run/<area>/` programs with the directives
-  of TST-01, run on VM0, and `invalid/` files that `rfla` must reject. `rfla` stops at the first
-  error, so a file in `invalid/` holds one `// expect-error: RFAnnnn @ line:col`, with a code of
-  bytecode.md §8.2. Every other file round-trips (TST-09): `rfld` turns its module A into the text
-  T, `rfla` turns T into the module B, and `rfld` turns B into the text T2; A must equal B, and T
-  must equal T2.
+- **TST-13 [Proposed; `lib/`, `expect-error` and `run/` Decided, Q49, Q79, Q90]** Hand-written
+  `.rfla` tests live in `tests/bytecode/`: `format/` holds modules that are assembled and
+  round-tripped, `lib/` the stub modules of `reflect.core` and `reflect.io`, `run/<area>/` programs
+  with the directives of TST-01, run on VM0 with the modules of `lib/` as their module path (Q90),
+  and `invalid/` files that `rfla` must reject. `rfla` stops at the first error, so a file in
+  `invalid/` holds one `// expect-error: RFAnnnn @ line:col`, with a code of bytecode.md §8.2, and
+  only a file in `run/` holds an `expect-output`. Every other file round-trips (TST-09):
+  `rfld` turns its module A into the text T, `rfla` turns T into the module B, and `rfld` turns B
+  into the text T2; A must equal B, and T must equal T2.
 
 ## 8. Collector stress
 

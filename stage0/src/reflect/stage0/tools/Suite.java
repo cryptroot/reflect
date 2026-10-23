@@ -1,5 +1,6 @@
 package reflect.stage0.tools;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.UncheckedIOException;
@@ -8,6 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Stream;
@@ -18,14 +20,24 @@ import reflect.stage0.bytecode.Diagnostic;
 import reflect.stage0.bytecode.Disassembler;
 import reflect.stage0.bytecode.ModuleFormatException;
 import reflect.stage0.bytecode.ModuleReader;
+import reflect.stage0.vm.ModuleData;
+import reflect.stage0.vm.ModuleSource;
+import reflect.stage0.vm.Vm;
 
 /**
  * The command test (README §6.2): checks the .rfla files under a directory, in path order. A file in
  * invalid/ must fail with the one expect-error of its leading comments (§6.3); any other file must hold
- * none, assemble into a module that the reader accepts, and round-trip (§7.5).
+ * none, assemble into a module that the reader accepts, and round-trip (§7.5). A file in run/ then runs
+ * on VM0, with the modules of lib/ as its module path, and must meet its expect-output (Q90).
  */
 final class Suite {
     private static final String EXPECT_ERROR = "// expect-error:";
+    private static final String EXPECT_OUTPUT = "// expect-output:";
+
+    /** Where a file sits under the directory, which decides what it must do. */
+    enum Place {
+        INVALID, RUN, OTHER
+    }
 
     /** Turns .rfla text into a module: rfla's assembler, or in a test one that writes a defect. */
     interface Assembly {
@@ -53,10 +65,14 @@ final class Suite {
                 err.println("test: no .rfla files in " + root);
                 return 2;
             }
+            ModuleSource lib = lib(root, files);
             int failures = 0;
             for (Path file : files) {
-                String failure = check(root.relativize(file).startsWith("invalid"), Files.readAllBytes(file),
-                        Assembler::assemble, Disassembler::disassemble);
+                Path relative = root.relativize(file);
+                Place place = relative.startsWith("invalid") ? Place.INVALID : relative.startsWith("run") ? Place.RUN
+                        : Place.OTHER;
+                String failure = check(place, file.toString(), Files.readAllBytes(file), Assembler::assemble,
+                        Disassembler::disassemble, lib);
                 if (failure == null) {
                     out.println("PASS " + file);
                 } else {
@@ -72,32 +88,58 @@ final class Suite {
         }
     }
 
-    // The failure of one file, or null when it passes.
-    static String check(boolean invalid, byte[] text, Assembly assembly, Disassembly disassembly) {
-        List<String> expected = expectedErrors(text);
-        if (expected.size() != (invalid ? 1 : 0)) {
-            return invalid ? "a file in invalid/ holds one expect-error, not " + expected.size()
+    // The modules of lib/ for the programs of run/: the module of requires m is lib/m.rfla, as the file
+    // m.rflc is in a directory of a module path (Q88). A file that does not assemble fails in its own check.
+    private static ModuleSource lib(Path root, List<Path> files) throws IOException {
+        var modules = new HashMap<String, ModuleData>();
+        for (Path file : files) {
+            Path relative = root.relativize(file);
+            if (relative.getNameCount() == 2 && relative.startsWith("lib")) {
+                String name = file.getFileName().toString();
+                try {
+                    modules.put(name.substring(0, name.length() - ".rfla".length()),
+                            new ModuleData(file.toString(), Assembler.assemble(Files.readAllBytes(file))));
+                } catch (AssemblyException e) {
+                    // Reported with the file.
+                }
+            }
+        }
+        return modules::get;
+    }
+
+    // The failure of one file, or null when it passes. The file names the module in messages of VM0.
+    static String check(Place place, String file, byte[] text, Assembly assembly, Disassembly disassembly,
+            ModuleSource lib) {
+        Directives directives = directives(text);
+        List<String> errors = directives.errors();
+        if (errors.size() != (place == Place.INVALID ? 1 : 0)) {
+            return place == Place.INVALID ? "a file in invalid/ holds one expect-error, not " + errors.size()
                     : "only a file in invalid/ holds an expect-error";
+        }
+        List<String> outputs = directives.outputs();
+        if (place != Place.RUN && !outputs.isEmpty()) {
+            return "only a file in run/ holds an expect-output";
         }
         byte[] module;
         try {
             module = assembly.assemble(text);
         } catch (AssemblyException e) {
-            if (!invalid) {
+            if (place != Place.INVALID) {
                 return e.getMessage();
             }
             String found = Diagnostic.name(e.code()) + " @ " + e.line() + ":" + e.column();
-            return found.equals(expected.get(0)) ? null : "expected " + expected.get(0) + ", found " + e.getMessage();
+            return found.equals(errors.get(0)) ? null : "expected " + errors.get(0) + ", found " + e.getMessage();
         }
-        if (invalid) {
-            return "expected " + expected.get(0) + ", but the file assembles";
+        if (place == Place.INVALID) {
+            return "expected " + errors.get(0) + ", but the file assembles";
         }
         try {
             ModuleReader.read(module);
         } catch (ModuleFormatException e) {
             return "the reader rejects the module: " + e.getMessage();
         }
-        return roundTrip(module, assembly, disassembly);
+        String failure = roundTrip(module, assembly, disassembly);
+        return failure != null || place != Place.RUN ? failure : execute(file, module, outputs, lib);
     }
 
     // The round trip of BC-08 (README §7.5): module A gives text T, T assembles to module B, and B gives
@@ -119,6 +161,50 @@ final class Suite {
         }
     }
 
+    // A program of run/ on a new VM0 in this JVM (Q90): its exit code is 0, and its standard output equals
+    // the expect-output lines, each followed by LF, byte for byte. Standard error is not compared, but a
+    // failure shows its first line.
+    private static String execute(String file, byte[] module, List<String> outputs, ModuleSource lib) {
+        var out = new ByteArrayOutputStream();
+        var err = new ByteArrayOutputStream();
+        Vm.Result result = Vm.run(new ModuleData(file, module), lib, null, List.of(),
+                new PrintStream(out, true, StandardCharsets.UTF_8), new PrintStream(err, true, StandardCharsets.UTF_8));
+        String error = err.toString(StandardCharsets.UTF_8);
+        int exitCode = result.exitCode() & 0xFF;
+        if (exitCode != 0) {
+            return "the exit code is " + exitCode + ", expected 0" + (error.isEmpty() ? "" : ": "
+                    + error.split("\n", 2)[0]);
+        }
+        var expected = new StringBuilder();
+        for (String output : outputs) {
+            expected.append(output).append('\n');
+        }
+        if (Arrays.equals(expected.toString().getBytes(StandardCharsets.UTF_8), out.toByteArray())) {
+            return null;
+        }
+        return difference(outputs, out.toString(StandardCharsets.UTF_8));
+    }
+
+    // The first line where the output and the expect-output lines differ.
+    private static String difference(List<String> outputs, String output) {
+        String[] pieces = output.split("\n", -1);
+        // Each piece but the last ends with LF; the last is the text after the last LF.
+        int lines = pieces.length - 1;
+        String rest = pieces[lines];
+        int i = 0;
+        while (i < lines && i < outputs.size() && pieces[i].equals(outputs.get(i))) {
+            i++;
+        }
+        String expected = i < outputs.size() ? "\"" + outputs.get(i) + "\"" : "no more output";
+        if (i < lines) {
+            return "output line " + (i + 1) + " is \"" + pieces[i] + "\", expected " + expected;
+        }
+        if (!rest.isEmpty()) {
+            return "output line " + (i + 1) + " is \"" + rest + "\" without a line end, expected " + expected;
+        }
+        return "output line " + (i + 1) + " is missing, expected " + expected;
+    }
+
     // The line of the byte at the index, counted from 1.
     private static int line(byte[] text, int index) {
         int line = 1;
@@ -130,17 +216,24 @@ final class Suite {
         return line;
     }
 
-    // The values of the expect-error directives among the leading // lines of the file (TST-01).
-    private static List<String> expectedErrors(byte[] text) {
-        var values = new ArrayList<String>();
+    // The values of the directives of TST-01 among the leading // lines of the file. The value of
+    // expect-output is the text after its colon and one space; that of expect-error has no outer spaces.
+    private static Directives directives(byte[] text) {
+        var directives = new Directives(new ArrayList<>(), new ArrayList<>());
         for (String line : new String(text, StandardCharsets.UTF_8).split("\n")) {
             if (!line.startsWith("//")) {
                 break;
             }
             if (line.startsWith(EXPECT_ERROR)) {
-                values.add(line.substring(EXPECT_ERROR.length()).strip());
+                directives.errors().add(line.substring(EXPECT_ERROR.length()).strip());
+            } else if (line.startsWith(EXPECT_OUTPUT)) {
+                String value = line.substring(EXPECT_OUTPUT.length());
+                directives.outputs().add(value.startsWith(" ") ? value.substring(1) : value);
             }
         }
-        return values;
+        return directives;
+    }
+
+    private record Directives(List<String> errors, List<String> outputs) {
     }
 }

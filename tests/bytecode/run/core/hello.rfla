@@ -1,0 +1,13 @@
+// expect-output: Hello, world!
+.module hello 0.0.0
+.main hello.App
+.requires reflect.core
+.requires reflect.io
+
+.class public final hello.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldstr    "Hello, world!"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

@@ -66,7 +66,7 @@ public final class SuiteTest {
     @Test
     public static void testReportsAModuleThatTheReaderRejects() throws Exception {
         byte[] text = ".module a 0.0.0\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(null, Suite.check(false, text, Assembler::assemble, Disassembler::disassemble));
+        assertEquals(null, check(text, Assembler::assemble, Disassembler::disassemble));
         // rfla gives the reader no module to reject, so this assembly breaks the magic of its module.
         Suite.Assembly faulty = source -> {
             byte[] module = Assembler.assemble(source);
@@ -74,14 +74,14 @@ public final class SuiteTest {
             return module;
         };
         assertEquals("the reader rejects the module: offset 0x0: the file does not start with RFLC",
-                Suite.check(false, text, faulty, Disassembler::disassemble));
+                check(text, faulty, Disassembler::disassemble));
     }
 
     @Test
     public static void testReportsAModuleThatDoesNotRoundTrip() throws Exception {
         // The file need not be canonical: the round trip compares its module with the module of its canonical text.
         byte[] text = "// a comment\n.module m 0.0.0\n.requires b\n.requires a\n".getBytes(StandardCharsets.UTF_8);
-        assertEquals(null, Suite.check(false, text, Assembler::assemble, Disassembler::disassemble));
+        assertEquals(null, check(text, Assembler::assemble, Disassembler::disassemble));
         // rfla writes no GENERIC MemberRef before MethodSpec (v0.0.9), so this assembly gives a module with one.
         var generic = new ModuleDef("m", 0, 0, 0);
         var core = new ModuleRef("reflect.core", 0);
@@ -93,20 +93,60 @@ public final class SuiteTest {
         byte[] module = ModuleWriter.write(generic);
         assertEquals("the module has no canonical text: the MemberRef reflect.core.List::get is GENERIC, which a MethodRef"
                 + " cannot state before the MethodSpec table arrives in v0.0.9",
-                Suite.check(false, text, source -> module, Disassembler::disassemble));
+                check(text, source -> module, Disassembler::disassemble));
         // rfld's canonical text has none of these defects, so these disassemblies add them. The canonical text
         // of the file holds three lines: .module, then .requires a and .requires b.
         assertEquals("the canonical text does not assemble: 4:1: RFA0101: expected a directive of the module, found x",
-                Suite.check(false, text, Assembler::assemble, m -> append(Disassembler.disassemble(m), "x\n")));
+                check(text, Assembler::assemble, m -> append(Disassembler.disassemble(m), "x\n")));
         // .unsafe sets UNSAFE, bit 0 of the header flags, a u32 at offset 8 (BC-02).
         assertEquals("the canonical text assembles to other bytes, from offset 0x8",
-                Suite.check(false, text, Assembler::assemble, m -> append(Disassembler.disassemble(m), ".unsafe\n")));
+                check(text, Assembler::assemble, m -> append(Disassembler.disassemble(m), ".unsafe\n")));
         var calls = new int[1];
         Suite.Disassembly unstable = m -> calls[0]++ == 0 ? Disassembler.disassemble(m)
                 : append(Disassembler.disassemble(m), "// a comment\n");
         assertEquals("the canonical text changes in the round trip, from line 4",
-                Suite.check(false, text, Assembler::assemble, unstable));
+                check(text, Assembler::assemble, unstable));
         assertEquals(2, calls[0]);
+    }
+
+    @Test
+    public static void testRunsTheProgramsOfRunWithTheModulesOfLib() throws Exception {
+        Path root = Files.createTempDirectory("reflect-suite-");
+        try {
+            for (String name : List.of("reflect.core", "reflect.io")) {
+                write(root, "lib/" + name + ".rfla", Files.readString(Path.of("tests/bytecode/lib/" + name + ".rfla")));
+            }
+            // Only the files directly in lib/ are modules of the module path, so this one names no module.
+            write(root, "lib/zz/reflect.io.rfla", ".module reflect.io 0.0.0\n");
+            String println = "        call static void reflect.io.Console::println(reflect.core.Object?)\n";
+            write(root, "format/d.rfla", "// expect-output: x\n.module d 0.0.0\n");
+            write(root, "run/a.rfla", program("a", "// expect-output: Hello, world!\n", "        ldstr \"Hello, world!\"\n"
+                    + println));
+            write(root, "run/b.rfla", program("b", "// expect-output: Hello\n", "        ldstr \"Hello, world!\"\n"
+                    + println));
+            write(root, "run/c.rfla", program("c", "", "        ldstr \"x\"\n" + println));
+            write(root, "run/e.rfla", ".module e 0.0.0\n");
+            // A value keeps the spaces after the first, and an empty value is an empty line.
+            write(root, "run/f.rfla", program("f", "// expect-output:  x\n// expect-output:\n", "        ldstr \" x\"\n"
+                    + println + "        call static void reflect.io.Console::println()\n"));
+            write(root, "run/g.rfla", program("g", "// expect-output: x\n", "        ldstr \"x\"\n"
+                    + "        call static void reflect.io.Console::print(reflect.core.Object?)\n"));
+            write(root, "run/h.rfla", program("h", "// expect-output: x\n// expect-output: y\n", "        ldstr \"x\"\n"
+                    + println));
+            assertEquals(new Result(1, "FAIL " + root.resolve("format/d.rfla") + ": only a file in run/ holds an"
+                    + " expect-output\nPASS " + root.resolve("lib/reflect.core.rfla") + "\nPASS "
+                    + root.resolve("lib/reflect.io.rfla") + "\nPASS " + root.resolve("lib/zz/reflect.io.rfla")
+                    + "\nPASS " + root.resolve("run/a.rfla") + "\nFAIL "
+                    + root.resolve("run/b.rfla") + ": output line 1 is \"Hello, world!\", expected \"Hello\"\nFAIL "
+                    + root.resolve("run/c.rfla") + ": output line 1 is \"x\", expected no more output\nFAIL "
+                    + root.resolve("run/e.rfla") + ": the exit code is 2, expected 0: vm0: the module e names no main"
+                    + " class; name one with .main or --main\nPASS " + root.resolve("run/f.rfla") + "\nFAIL "
+                    + root.resolve("run/g.rfla") + ": output line 1 is \"x\" without a line end, expected \"x\"\nFAIL "
+                    + root.resolve("run/h.rfla") + ": output line 2 is missing, expected \"y\"\n11 files, 6 failures\n"),
+                    test(root.toString()));
+        } finally {
+            delete(root);
+        }
     }
 
     @Test
@@ -134,6 +174,18 @@ public final class SuiteTest {
         Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
         return new Result(process.waitFor(), output);
+    }
+
+    // The check of a file outside invalid/ and run/, which runs no program.
+    private static String check(byte[] text, Suite.Assembly assembly, Suite.Disassembly disassembly) {
+        return Suite.check(Suite.Place.OTHER, "m.rfla", text, assembly, disassembly, name -> null);
+    }
+
+    // A program of the module whose main class prints with these lines of main.
+    private static String program(String module, String directives, String main) {
+        return directives + ".module " + module + " 0.0.0\n.main " + module + ".App\n.requires reflect.core\n"
+                + ".requires reflect.io\n\n.class public final " + module + ".App {\n"
+                + "    .method public static void main(reflect.core.String[] args) {\n" + main + "        ret\n    }\n}\n";
     }
 
     private static byte[] append(byte[] text, String more) {

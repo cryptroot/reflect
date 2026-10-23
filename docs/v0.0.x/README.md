@@ -248,8 +248,11 @@ have no text: a file that the reader rejects, and before v0.0.9 a module with a 
 
 `test` checks each `.rfla` file under the directory, in path order: a file in `invalid/` must fail
 with its `expect-error` (§6.3), and any other file must hold none, assemble into a module that the
-reader accepts, and round-trip (§7.5). It prints `PASS` or `FAIL` with the path of each file, then
-the counts, and exits with:
+reader accepts, and round-trip (§7.5). A file in `run/` then runs on a new VM0 in the JVM of
+`test`, with the files directly in `lib/` as its module path, where `lib/m.rfla` holds the module of
+`requires m` (Q88, Q90). Its exit code must be 0, and its standard output must equal its
+`expect-output` lines, byte for byte (TST-01). It prints `PASS` or `FAIL` with the path of each
+file, then the counts, and exits with:
 
 - 0 when every file passes;
 - 1 when a file fails;
@@ -270,6 +273,8 @@ the counts, and exits with:
 - Assembler diagnostics have codes `RFA0001` and up, in the style of CMP-02, grouped by hundreds
   and listed in [bytecode.md](../bytecode.md) §8.2 (Q79). `rfla` stops at the first error, so a
   file in `invalid/` holds one `expect-error`.
+- The value of a directive is the text after its colon and one space (TST-01). Only a file in
+  `run/` holds `expect-output` (Q90).
 - A directory under `run/` is one multi-module test. Its expectations sit in its `test.rfla`, as
   for `.rfl` tests (TST-01).
 - `rfla` ignores comments, and `rfld` does not print them.
