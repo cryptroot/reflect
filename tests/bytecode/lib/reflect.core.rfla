@@ -10,6 +10,12 @@
     }
     .method public static native reflect.core.String valueOf(int value) {
     }
+    .method public static native reflect.core.String valueOf(long value) {
+    }
+    .method public static native reflect.core.String valueOf(float value) {
+    }
+    .method public static native reflect.core.String valueOf(double value) {
+    }
     .method public static native reflect.core.String concat(reflect.core.String first,
             reflect.core.String second) {
     }

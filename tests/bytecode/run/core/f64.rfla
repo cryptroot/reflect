@@ -1,0 +1,116 @@
+// expect-output: 0.30000000000000004
+// expect-output: 0.19999999999999998
+// expect-output: 1.2100000000000002
+// expect-output: 0.3333333333333333
+// expect-output: 1.5
+// expect-output: -1.5
+// expect-output: NaN
+// expect-output: -2.5
+// expect-output: -0.0
+// expect-output: 0.0
+// expect-output: Infinity
+// expect-output: -Infinity
+// expect-output: NaN
+// expect-output: Infinity
+// expect-output: 100.0
+// expect-output: 1.0E10
+// expect-output: 1.0E-5
+// expect-output: 0.001
+// expect-output: 1.0E7
+// expect-output: 9999999.0
+// expect-output: 4.9E-324
+// expect-output: Infinity
+// expect-output: -Infinity
+// expect-output: NaN
+.module f64 0.0.0
+.main f64.App
+.requires reflect.core
+.requires reflect.io
+
+// The f64 arithmetic of BC-04 and NUM-04, IEEE 754 with round to nearest, and the text of
+// Double.toString (NUM-05): infinities, NaN, signed zeros, subnormals and the scientific form.
+.class public final f64.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.r8   0.1
+        ldc.r8   0.2
+        add.f64
+        call     static void f64.App::show(double)
+        ldc.r8   0.3
+        ldc.r8   0.1
+        sub.f64
+        call     static void f64.App::show(double)
+        ldc.r8   1.1
+        ldc.r8   1.1
+        mul.f64
+        call     static void f64.App::show(double)
+        ldc.r8   1
+        ldc.r8   3
+        div.f64
+        call     static void f64.App::show(double)
+        ldc.r8   5.5
+        ldc.r8   2
+        rem.f64
+        call     static void f64.App::show(double)
+        ldc.r8   -5.5
+        ldc.r8   2
+        rem.f64
+        call     static void f64.App::show(double)
+        ldc.r8   2
+        ldc.r8   0
+        rem.f64
+        call     static void f64.App::show(double)
+        ldc.r8   2.5
+        neg.f64
+        call     static void f64.App::show(double)
+        ldc.r8   0
+        neg.f64
+        call     static void f64.App::show(double)
+        ldc.r8   -0.0
+        ldc.r8   0
+        add.f64
+        call     static void f64.App::show(double)
+        ldc.r8   1
+        ldc.r8   0
+        div.f64
+        call     static void f64.App::show(double)
+        ldc.r8   -1
+        ldc.r8   0
+        div.f64
+        call     static void f64.App::show(double)
+        ldc.r8   0
+        ldc.r8   0
+        div.f64
+        call     static void f64.App::show(double)
+        ldc.r8   1e308
+        ldc.r8   10
+        mul.f64
+        call     static void f64.App::show(double)
+        ldc.r8   100
+        call     static void f64.App::show(double)
+        ldc.r8   1e10
+        call     static void f64.App::show(double)
+        ldc.r8   1e-5
+        call     static void f64.App::show(double)
+        ldc.r8   0.001
+        call     static void f64.App::show(double)
+        ldc.r8   1e7
+        call     static void f64.App::show(double)
+        ldc.r8   9999999
+        call     static void f64.App::show(double)
+        ldc.r8   4.9e-324
+        call     static void f64.App::show(double)
+        ldc.r8   inf
+        call     static void f64.App::show(double)
+        ldc.r8   -inf
+        call     static void f64.App::show(double)
+        ldc.r8   bits 0x7FF8000000000001
+        call     static void f64.App::show(double)
+        ret
+    }
+    .method static void show(double value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(double)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

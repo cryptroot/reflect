@@ -8,8 +8,8 @@ import reflect.stage0.lib.Nullable;
 
 /**
  * The interpreter of VM0 (BOOT-04): one Java call per Reflect call, and a switch over the opcodes
- * of the stack bytecode. Locals and the operand stack hold Java values: Integer for i32, and
- * String or null for a reference.
+ * of the stack bytecode. Locals and the operand stack hold Java values: Integer for i32, Long for
+ * i64, Float for f32, Double for f64, and String or null for a reference.
  */
 final class Interpreter {
     private Interpreter() {
@@ -44,6 +44,9 @@ final class Interpreter {
                     case Opcode.NOP -> {
                     }
                     case Opcode.LDC_I4 -> stack[sp++] = ((Instruction.Value32) instruction).value();
+                    case Opcode.LDC_I8 -> stack[sp++] = ((Instruction.Value64) instruction).value();
+                    case Opcode.LDC_R4 -> stack[sp++] = Float.intBitsToFloat(((Instruction.Value32) instruction).value());
+                    case Opcode.LDC_R8 -> stack[sp++] = Double.longBitsToDouble(((Instruction.Value64) instruction).value());
                     case Opcode.LDSTR -> {
                         if (links[pc] == null) {
                             links[pc] = vm.literal(((Instruction.Literal) instruction).text());
@@ -106,6 +109,97 @@ final class Interpreter {
                         int b = i32(stack[--sp]);
                         stack[sp - 1] = i32(stack[sp - 1]) >>> b;
                     }
+                    case Opcode.ADD_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) + b;
+                    }
+                    case Opcode.SUB_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) - b;
+                    }
+                    case Opcode.MUL_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) * b;
+                    }
+                    case Opcode.DIV_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) / b;
+                    }
+                    case Opcode.REM_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) % b;
+                    }
+                    case Opcode.NEG_I64 -> stack[sp - 1] = -i64(stack[sp - 1]);
+                    case Opcode.AND_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) & b;
+                    }
+                    case Opcode.OR_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) | b;
+                    }
+                    case Opcode.XOR_I64 -> {
+                        long b = i64(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) ^ b;
+                    }
+                    case Opcode.NOT_I64 -> stack[sp - 1] = ~i64(stack[sp - 1]);
+                    // The count of a 64-bit shift is an i32 (BC-04, Q91), which Java masks to its low 6 bits.
+                    case Opcode.SHL_I64 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) << b;
+                    }
+                    case Opcode.SHR_I64 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) >> b;
+                    }
+                    case Opcode.SHR_UN_I64 -> {
+                        int b = i32(stack[--sp]);
+                        stack[sp - 1] = i64(stack[sp - 1]) >>> b;
+                    }
+                    // Java's float and double arithmetic is IEEE 754 with round to nearest (NUM-04), and its
+                    // remainder truncates the quotient, as BC-04 asks.
+                    case Opcode.ADD_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) + b;
+                    }
+                    case Opcode.SUB_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) - b;
+                    }
+                    case Opcode.MUL_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) * b;
+                    }
+                    case Opcode.DIV_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) / b;
+                    }
+                    case Opcode.REM_F32 -> {
+                        float b = f32(stack[--sp]);
+                        stack[sp - 1] = f32(stack[sp - 1]) % b;
+                    }
+                    case Opcode.NEG_F32 -> stack[sp - 1] = -f32(stack[sp - 1]);
+                    case Opcode.ADD_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) + b;
+                    }
+                    case Opcode.SUB_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) - b;
+                    }
+                    case Opcode.MUL_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) * b;
+                    }
+                    case Opcode.DIV_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) / b;
+                    }
+                    case Opcode.REM_F64 -> {
+                        double b = f64(stack[--sp]);
+                        stack[sp - 1] = f64(stack[sp - 1]) % b;
+                    }
+                    case Opcode.NEG_F64 -> stack[sp - 1] = -f64(stack[sp - 1]);
                     case Opcode.CALL -> {
                         if (links[pc] == null) {
                             RuntimeMethod callee = vm.method(method.type().module(), ((Instruction.Method) instruction).method());
@@ -138,6 +232,18 @@ final class Interpreter {
     // An i32 of the stack; boolean, byte, short and char values are i32 values there too (BC-04).
     private static int i32(Object value) {
         return (Integer) value;
+    }
+
+    private static long i64(Object value) {
+        return (Long) value;
+    }
+
+    private static float f32(Object value) {
+        return (Float) value;
+    }
+
+    private static double f64(Object value) {
+        return (Double) value;
     }
 
     // The place of an instruction in messages: the method, then its index from 0.

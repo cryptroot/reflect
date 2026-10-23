@@ -1,0 +1,76 @@
+// expect-output: 0.3
+// expect-output: 1.6777216E7
+// expect-output: 0.20000002
+// expect-output: 0.3
+// expect-output: 0.33333334
+// expect-output: 1.5
+// expect-output: -0.0
+// expect-output: Infinity
+// expect-output: NaN
+// expect-output: Infinity
+// expect-output: 1.0E10
+// expect-output: 1.4E-45
+// expect-output: 0.1
+.module f32 0.0.0
+.main f32.App
+.requires reflect.core
+.requires reflect.io
+
+// The f32 arithmetic of BC-04 and NUM-04, rounded to float after each operation, and the text
+// of Float.toString (NUM-05).
+.class public final f32.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.r4   0.1
+        ldc.r4   0.2
+        add.f32
+        call     static void f32.App::show(float)
+        ldc.r4   16777216
+        ldc.r4   1
+        add.f32
+        call     static void f32.App::show(float)
+        ldc.r4   0.3
+        ldc.r4   0.1
+        sub.f32
+        call     static void f32.App::show(float)
+        ldc.r4   0.1
+        ldc.r4   3
+        mul.f32
+        call     static void f32.App::show(float)
+        ldc.r4   1
+        ldc.r4   3
+        div.f32
+        call     static void f32.App::show(float)
+        ldc.r4   5.5
+        ldc.r4   2
+        rem.f32
+        call     static void f32.App::show(float)
+        ldc.r4   0
+        neg.f32
+        call     static void f32.App::show(float)
+        ldc.r4   1
+        ldc.r4   0
+        div.f32
+        call     static void f32.App::show(float)
+        ldc.r4   0
+        ldc.r4   0
+        div.f32
+        call     static void f32.App::show(float)
+        ldc.r4   3.4e38
+        ldc.r4   10
+        mul.f32
+        call     static void f32.App::show(float)
+        ldc.r4   1e10
+        call     static void f32.App::show(float)
+        ldc.r4   1.4e-45
+        call     static void f32.App::show(float)
+        ldc.r4   0.1
+        call     static void f32.App::show(float)
+        ret
+    }
+    .method static void show(float value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(float)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

@@ -243,8 +243,10 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
   - `==` compares values through `String`'s `operator ==` (ex §8.5); identity needs
     `Object.referenceEquals`;
   - `+` concatenates, converting the other operand with `String.valueOf(Object?)`;
-  - `String.valueOf` gives Java's text of a number (Q87): an `int` in signed decimal, such as
-    `-12`;
+  - `String.valueOf` gives Java's text of a number (Q87): an `int` or a `long` in signed decimal,
+    such as `-12`, and a `float` or a `double` as the shortest decimal that rounds to it, the text of
+    Java's `Float.toString` and `Double.toString` from JDK 19: plain from 0.001 up to 10^7, otherwise
+    in the scientific form `1.0E10`, and `NaN`, `Infinity`, `-Infinity` and `-0.0`;
   - literals are interned; strings are valid `switch` constants;
   - interpolation lowers to appends on a stack-allocated builder; format specifiers follow .NET
     custom numeric formats (`{pct:0.0}`) and are culture-invariant.

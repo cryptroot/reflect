@@ -402,8 +402,9 @@ package-private (MOD-08).
 
 ## 5. Instruction set
 
-- **BC-04 [Proposed; encoding Decided, Q67, Q68]** Opcodes are one byte; `0xFE` prefixes a
-  second byte. Arithmetic is typed like the JVM's, so the interpreter never inspects stack types;
+- **BC-04 [Proposed; encoding Decided, Q67, Q68; shift counts Decided, Q91]** Opcodes are one
+  byte; `0xFE` prefixes a second byte. Arithmetic is typed like the JVM's, so the interpreter never
+  inspects stack types;
   `boolean`, `byte`, `short` and `char` values widen to `i32` on the stack and narrow with `conv`
   on store, and unsigned values share the slots of their signed widths. An instruction exists
   only where it changes the result: equality and stores ignore signedness (`ceq.i32` serves
@@ -428,7 +429,7 @@ package-private (MOD-08).
   |---|---|---|
   | constants, stack | `00`-`0F` | `nop`; `ldnull` → null; `ldc.i4 <i4>`, `ldc.i8 <i8>`, `ldc.r4 <r4>`, `ldc.r8 <r8>` → value; `ldstr <str>` → `String`; `ldtype <tok>` → `Class<T>`; `ldconst <tok>` → constant of a `const` field; `dup`; `pop` |
   | locals | `10`-`17` | `ldarg <n>`, `starg <n>`, `ldarga <n>`, `ldloc <n>`, `stloc <n>`, `ldloca <n>` |
-  | arithmetic | `18`-`47` | `add.t sub.t mul.t` (integers wrap); `div` and `rem` over `t` and `u` (integer division by zero throws); `neg.t`; `and or xor not` over `i32 i64`; `shl`, `shr` (arithmetic), `shr.un` (logical) over `i32 i64`, count masked |
+  | arithmetic | `18`-`47` | `add.t sub.t mul.t` (integers wrap); `div` and `rem` over `t` and `u` (integer division by zero throws); `neg.t`; `and or xor not` over `i32 i64`; `shl`, `shr` (arithmetic), `shr.un` (logical) over `i32 i64`, with an `i32` count masked to 5 or 6 bits, the width of the value (Q91) |
   | comparison | `48`-`67` | `ceq.t`; `clt cle cgt cge` over `t` and `u` → `i32` 0 or 1 (floats per IEEE); `ceq.ref` identity, or class and contents for two boxes without identity (DAT-09) |
   | conversion | `68`-`87` | `conv.<from>.<to>` from `i32 u32 i64 u64 f32 f64` where bits change (wrapping, float to integer saturating) |
   | control | `88`-`B7` | `br <off>`; `brtrue`, `brfalse`, `brnull`, `brnonnull` `<off>`; fused `beq.t bne.t`, and `blt ble bgt bge` over `t` and `u`, `<off>`; `switch <count> <off>...`; `leave <off>`; `endfinally`; `ret` |

@@ -1,0 +1,128 @@
+// expect-output: -9223372036854775808
+// expect-output: 9223372036854775807
+// expect-output: -9223372036709301616
+// expect-output: 12884901888
+// expect-output: -3
+// expect-output: -3
+// expect-output: -9223372036854775808
+// expect-output: 1
+// expect-output: -1
+// expect-output: 0
+// expect-output: -5
+// expect-output: -9223372036854775808
+// expect-output: 8
+// expect-output: 14
+// expect-output: 6
+// expect-output: -6
+// expect-output: 2
+// expect-output: -9223372036854775808
+// expect-output: -4
+// expect-output: 4
+// expect-output: 15
+// expect-output: -1
+// expect-output: -1234567890123
+.module i64 0.0.0
+.main i64.App
+.requires reflect.core
+.requires reflect.io
+
+// The i64 arithmetic of BC-04 and NUM-03: integers wrap, division truncates toward zero, a
+// remainder takes the sign of the dividend, and the count of a shift is an i32 masked to 6 bits.
+.class public final i64.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i8   9223372036854775807
+        ldc.i8   1
+        add.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -9223372036854775808
+        ldc.i8   1
+        sub.i64
+        call     static void i64.App::show(long)
+        ldc.i8   3037000500
+        ldc.i8   3037000500
+        mul.i64
+        call     static void i64.App::show(long)
+        ldc.i8   4294967296
+        ldc.i8   3
+        mul.i64
+        call     static void i64.App::show(long)
+        ldc.i8   7
+        ldc.i8   -2
+        div.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -7
+        ldc.i8   2
+        div.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -9223372036854775808
+        ldc.i8   -1
+        div.i64
+        call     static void i64.App::show(long)
+        ldc.i8   7
+        ldc.i8   -2
+        rem.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -7
+        ldc.i8   2
+        rem.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -9223372036854775808
+        ldc.i8   -1
+        rem.i64
+        call     static void i64.App::show(long)
+        ldc.i8   5
+        neg.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -9223372036854775808
+        neg.i64
+        call     static void i64.App::show(long)
+        ldc.i8   12
+        ldc.i8   10
+        and.i64
+        call     static void i64.App::show(long)
+        ldc.i8   12
+        ldc.i8   10
+        or.i64
+        call     static void i64.App::show(long)
+        ldc.i8   12
+        ldc.i8   10
+        xor.i64
+        call     static void i64.App::show(long)
+        ldc.i8   5
+        not.i64
+        call     static void i64.App::show(long)
+        ldc.i8   1
+        ldc.i4   65
+        shl.i64
+        call     static void i64.App::show(long)
+        ldc.i8   1
+        ldc.i4   63
+        shl.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -8
+        ldc.i4   1
+        shr.i64
+        call     static void i64.App::show(long)
+        ldc.i8   16
+        ldc.i4   66
+        shr.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -1
+        ldc.i4   60
+        shr.un.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -1
+        ldc.i4   64
+        shr.un.i64
+        call     static void i64.App::show(long)
+        ldc.i8   -1234567890123
+        call     static void i64.App::show(long)
+        ret
+    }
+    .method static void show(long value) {
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
