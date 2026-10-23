@@ -8,9 +8,10 @@ import reflect.stage0.lib.List;
  * token at the end. Spaces, tabs, line ends and // comments separate tokens; a line ends at LF,
  * CRLF or CR. Lines and columns count code points from 1, a tab as one (Q79). A word is an
  * identifier, or identifiers joined by dots, such as ldc.i4 and reflect.core.String; keywords are
- * words, which the parser tells apart by their place. A number runs from a digit, or from a minus
- * before one, over letters, digits, underscores and dots, and a sign after an exponent; the parser
- * reads it as an Int, a Real or a Version.
+ * words, which the parser tells apart by their place, and an @ before a word makes it a name that
+ * matches no keyword (Q82). A number runs from a digit, or from a minus before one, over letters,
+ * digits, underscores and dots, and a sign after an exponent; the parser reads it as an Int, a Real
+ * or a Version.
  */
 final class Lexer {
     private static final int BYTE_ORDER_MARK = 0xFEFF;
@@ -57,7 +58,9 @@ final class Lexer {
                     advance();
                 }
             } else if (identifierStart(c)) {
-                word();
+                word(false);
+            } else if (c == '@') {
+                escapedWord();
             } else if (c == '.') {
                 dot();
             } else if (c >= '0' && c <= '9') {
@@ -73,16 +76,24 @@ final class Lexer {
         tokens.add(new Token(Token.END, "", false, line, column));
     }
 
-    // An identifier, then each identifier after a dot that joins it.
-    private void word() {
+    // An identifier, then each identifier after a dot that joins it; after @ the word is a name (Q82).
+    private void word(boolean escaped) {
+        int startColumn = escaped ? column - 1 : column;
         int start = index;
-        int startColumn = column;
         identifier();
         while (index + 1 < text.length() && text.charAt(index) == '.' && identifierStart(text.codePointAt(index + 1))) {
             advance();
             identifier();
         }
-        tokens.add(new Token(Token.WORD, text.substring(start, index), false, line, startColumn));
+        tokens.add(new Token(Token.WORD, text.substring(start, index), escaped, line, startColumn));
+    }
+
+    private void escapedWord() throws AssemblyException {
+        if (index + 1 == text.length() || !identifierStart(text.codePointAt(index + 1))) {
+            throw new AssemblyException(Diagnostic.CHARACTER, line, column, "an @ that starts no name");
+        }
+        advance();
+        word(true);
     }
 
     private void identifier() {

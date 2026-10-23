@@ -444,7 +444,7 @@ public final class Assembler {
                     throw Parser.error(Diagnostic.REPEATED, at, "the label " + at.text() + " marks two places");
                 }
                 label.mark(body, body.code().size());
-            } else if (parser.atKind(Token.WORD)) {
+            } else if (parser.atKind(Token.WORD) && !parser.peek().escaped()) {
                 instruction(body, text);
             } else {
                 throw parser.unexpected("an instruction, a label, a directive of a body or }");

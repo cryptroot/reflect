@@ -44,6 +44,15 @@ public final class LexerTest {
     }
 
     @Test
+    public static void anAtMakesAWordANameThatMatchesNoKeyword() throws AssemblyException {
+        List<Token> tokens = Lexer.tokens("@record @a.b record");
+        assertEquals("Wrecord@1:1 Wa.b@1:9 Wrecord@1:14 E@1:20", describe(tokens));
+        assertTrue(tokens.get(0).escaped() && tokens.get(1).escaped() && !tokens.get(2).escaped());
+        assertTrue(!tokens.get(0).is("record") && tokens.get(2).is("record"));
+        assertEquals("@record record", tokens.get(0).describe() + " " + tokens.get(2).describe());
+    }
+
+    @Test
     public static void numbersRunOverLettersDigitsDotsAndExponentSigns() throws AssemblyException {
         // A sign after the digit e of a hexadecimal number starts another number.
         assertEquals("N0x1F@1:1 N-0x80@1:6 N1.5e-3@1:12 N0.1.0@1:19 N1E+5@1:25 N0x1e@1:30 N-5@1:34 N1_000@1:37 "
@@ -68,6 +77,9 @@ public final class LexerTest {
         defect("a" + (char) 0x200B + "b", "1:2: RFA0001: the character U+200B starts no token");
         defect("a.1", "1:2: RFA0001: a dot that starts no directive");
         defect("x - 1", "1:3: RFA0001: a minus that starts no number");
+        defect("x @ y", "1:3: RFA0001: an @ that starts no name");
+        defect("@1", "1:1: RFA0001: an @ that starts no name");
+        defect("@", "1:1: RFA0001: an @ that starts no name");
         defect("ldstr \"abc\nret", "1:7: RFA0002: the string does not end on its line");
         defect("ldstr \"abc", "1:7: RFA0002: the string does not end on its line");
         defect("\"a\\x\"", "1:3: RFA0003: \\x is not an escape (BC-08)");

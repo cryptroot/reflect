@@ -884,7 +884,8 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
   `.source`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`, `.annotation`,
   `.locals`, `.maxstack`, `.try`, `.catch`, `.finally`, `.line`, `.stackmap`, `.section`; labels
   end in `:`; type names use the canonical spelling (GEN-12), with `!0` and `!!0` for type
-  parameters. `.main` names the descriptor's `main` class (VM-12), and `.unsafe` sets the header
+  parameters, and `@` before a name makes it a name, never a word of the grammar (Q82). `.main`
+  names the descriptor's `main` class (VM-12), and `.unsafe` sets the header
   flag `UNSAFE`. A reference to another module states the signature that its row holds (Q69), so
   `rfla` reads no other module. A type of another module belongs to the required module whose name
   is its namespace or the longest prefix of it at a dot; otherwise the text names the module in
@@ -998,6 +999,9 @@ Digits       = Digit+ ;
 HexDigits    = HexDigit+ ;
 ```
 
+- An `@` before an `Ident` or a `QName` makes it a name, never a quoted word of the grammar, as in
+  C#: `.class @record {` declares a type named `record`, `.requires @static` requires a module
+  named `static`, and `@nop` is no instruction (Q82).
 - A `Class` inside another declares a nested type and names only itself. Elsewhere a nested type
   follows its enclosing type after `/` (GEN-12).
 - A name resolves to a type parameter in scope before a type, and a primitive keyword means its

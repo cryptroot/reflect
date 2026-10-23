@@ -177,9 +177,9 @@ final class Parser {
         return new TypeSyntax.Wildcard(start, SigCode.WILDCARD_ANY, null);
     }
 
-    /** The signature code of a primitive keyword (BC-03), or 0. */
+    /** The signature code of a primitive keyword (BC-03), or 0; a word after @ is a name (Q82). */
     static int primitive(Token token) {
-        if (token.kind() != Token.WORD) {
+        if (token.kind() != Token.WORD || token.escaped()) {
             return 0;
         }
         String[] keywords = {"boolean", "byte", "ubyte", "short", "ushort", "char", "int", "uint", "long", "ulong",

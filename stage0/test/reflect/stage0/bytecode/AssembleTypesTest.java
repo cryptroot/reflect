@@ -134,6 +134,34 @@ public final class AssembleTypesTest {
     }
 
     @Test
+    public static void anAtMakesAWordOfTheGrammarAName() throws Exception {
+        // static, record, int and ref are words of the grammar; after @ each one names a module or a type (Q82).
+        String text = M + ".requires @static\n"
+                + ".class public @record {\n"
+                + "    .field @int x\n"
+                + "    .field [@static]@ref y\n"
+                + "}\n"
+                + ".class @int {\n"
+                + "}\n";
+        var expected = new ModuleDef("m", 0, 0, 0);
+        var required = new ModuleRef("static", 0);
+        var ref = new TypeRef(required, "", "ref");
+        var record = new TypeDef("", "record", Flags.KIND_CLASS, Flags.PUBLIC, 0, null);
+        var integer = new TypeDef("", "int", Flags.KIND_CLASS, 0, 0, null);
+        record.fields().add(new FieldDef(0, "x", new TypeSig.Named(false, integer)));
+        record.fields().add(new FieldDef(0, "y", new TypeSig.Named(false, ref)));
+        expected.requires().add(required);
+        expected.typeRefs().add(ref);
+        expected.types().add(record);
+        expected.types().add(integer);
+        assertEquals(Leb128Test.hex(ModuleWriter.write(expected)), Leb128Test.hex(assemble(text)));
+        String body = M + ".class a.A {\n.method static void m() {\n";
+        unassemblable(body + "@nop\n}\n}", "4:1: RFA0101: expected an instruction, a label, a directive of a body or }, found"
+                + " @nop");
+        unassemblable(body + "ldc.r4 @inf\n}\n}", "4:8: RFA0101: expected a float, found @inf");
+    }
+
+    @Test
     public static void eachClassAndFieldHasItsDiagnostics() {
         unassemblable(M + ".class public public a.A {\n}", "2:15: RFA0104: public appears twice");
         unassemblable(M + ".class public private a.A {\n}", "2:23: RFA0301: type A has more than one visibility flag (BC-11)");
