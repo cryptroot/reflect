@@ -32,8 +32,11 @@ are not yet part of the baseline type rules below.
 
 - **MOD-02 [Proposed]** Module `reflect.core` is required and namespace `reflect.core` imported
   implicitly (as `java.lang`).
-- **MOD-03 [Decided, Q40]** `requires` names no version; the module path supplies exactly one
-  module per name, and a `requires` cycle is an error.
+- **MOD-03 [Decided, Q40, Q88]** `requires` names no version; the module path supplies exactly one
+  module per name, and a `requires` cycle is an error. The module path is a list of directories,
+  and the module of `requires m` is the file `m.rflc`: exactly one directory holds it, and its
+  module is named `m` (Q88). A `requires static` module that no directory holds is skipped at run
+  time, since it is optional there (MOD-01).
 - **MOD-04 [Decided, Q13]** A namespace belongs to exactly one module.
 - **MOD-05 [Proposed]** Namespace segments start with a lowercase letter (an error otherwise) and
   type names with an uppercase one (a warning), so in `a.b.C.d` the parser knows where the
