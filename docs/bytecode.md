@@ -117,8 +117,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 3. Metadata tables
 
-- **BC-11 [Proposed; names Decided, Q83]** Tables, their IDs and their main columns, sorted by the
-  key in parentheses; a table without a key keeps its rows in runs by owner (§3.1):
+- **BC-11 [Proposed; names and member signatures Decided, Q83, Q85]** Tables, their IDs and their
+  main columns, sorted by the key in parentheses; a table without a key keeps its rows in runs by
+  owner (§3.1):
 
   | ID | Table | Columns |
   |---|---|---|
@@ -248,6 +249,9 @@ u32, in the order given:
   by types come before those owned by methods, so the run of the last type ends where the run of
   the first method starts. `Field`, `Method` and `Param` keep each run in declaration
   order, and the runs in the order of their owners.
+- A reference names a member by its type, its name and its signature (Q69), so no two `Field` rows
+  of a type have the same name and type, and no two `Method` rows the same name and signature
+  (Q85). Overloads, and fields of one name with other types, stay valid, as in CIL.
 - Keys compare column by column: identifiers by their UTF-8 bytes, signatures by their bytes, and
   the other columns as unsigned numbers.
 - A constructor is named `new` and a static initializer `static`. Both have the `CONSTRUCTOR`

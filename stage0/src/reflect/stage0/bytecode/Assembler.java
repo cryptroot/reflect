@@ -345,6 +345,7 @@ public final class Assembler {
         }
         var field = new FieldDef(flags, name.text(), fieldType);
         check(name, ModuleWriter.fieldProblem(field, "field " + type.qualifiedName() + "::" + name.text(), module.name()));
+        check(name, ModuleWriter.fieldRepeats(type, type.fields().size(), field));
         type.fields().add(field);
     }
 
@@ -390,6 +391,7 @@ public final class Assembler {
         method.setBody(Code.hasBody(flags) ? new MethodBody(0) : null);
         String owner = "method " + type.qualifiedName() + "::" + name.text();
         check(name, ModuleWriter.methodProblem(method, owner, module.name()));
+        check(name, ModuleWriter.methodRepeats(type, type.methods().size(), method));
         type.methods().add(method);
         bodies.add(new Body(method, owner, parser.position()));
     }

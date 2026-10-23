@@ -333,22 +333,26 @@ public final class ModuleWriter {
     private void numberMembers() throws ModuleFormatException {
         for (TypeDef type : typeDefs) {
             firstFields.put(type, fields.size() + 1);
-            for (FieldDef field : type.fields()) {
+            for (int i = 0; i < type.fields().size(); i++) {
+                FieldDef field = type.fields().get(i);
                 String owner = "field " + type.qualifiedName() + "::" + field.name();
                 if (fieldRows.containsKey(field)) {
                     throw new ModuleFormatException(owner + " belongs to two types or appears twice");
                 }
                 check(fieldProblem(field, owner, module.name()));
+                check(fieldRepeats(type, i, field));
                 fields.add(field);
                 fieldRows.put(field, fields.size());
             }
             firstMethods.put(type, methods.size() + 1);
-            for (MethodDef method : type.methods()) {
+            for (int i = 0; i < type.methods().size(); i++) {
+                MethodDef method = type.methods().get(i);
                 String owner = "method " + type.qualifiedName() + "::" + method.name();
                 if (methodRows.containsKey(method)) {
                     throw new ModuleFormatException(owner + " belongs to two types or appears twice");
                 }
                 check(methodProblem(method, owner, module.name()));
+                check(methodRepeats(type, i, method));
                 MethodBody body = method.body();
                 if (body != null) {
                     check(Code.problem(body, Code.arguments(method.signature()), module.name()), owner);
@@ -511,6 +515,31 @@ public final class ModuleWriter {
         boolean fits = name.isEmpty() ? optional : dotted ? Lexer.isQualifiedName(name) : Lexer.isIdentifier(name);
         return fits ? null : "the " + what + " is \"" + name + "\", not " + (dotted ? "a dotted name of identifiers"
                 : "an identifier") + " (BC-11)";
+    }
+
+    /**
+     * Why the field cannot follow the first count fields of its type, or null: a reference names a field
+     * by its name and type, so no two fields of a type share both (BC-11, Q85).
+     */
+    static @Nullable String fieldRepeats(TypeDef type, int count, FieldDef field) {
+        for (int i = 0; i < count; i++) {
+            FieldDef other = type.fields().get(i);
+            if (other.name().equals(field.name()) && other.type().equals(field.type())) {
+                return "type " + type.qualifiedName() + " has two fields " + field.name() + " of one type (BC-11)";
+            }
+        }
+        return null;
+    }
+
+    /** Why the method cannot follow the first count methods of its type, or null: as for fields, by name and signature. */
+    static @Nullable String methodRepeats(TypeDef type, int count, MethodDef method) {
+        for (int i = 0; i < count; i++) {
+            MethodDef other = type.methods().get(i);
+            if (other.name().equals(method.name()) && other.signature().equals(method.signature())) {
+                return "type " + type.qualifiedName() + " has two methods " + method.name() + " with one signature (BC-11)";
+            }
+        }
+        return null;
     }
 
     /** Why the name does not fit the CONSTRUCTOR and STATIC flags (§3.1), or null when it does. */

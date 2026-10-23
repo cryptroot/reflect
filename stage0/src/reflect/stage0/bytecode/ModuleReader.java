@@ -85,9 +85,13 @@ public final class ModuleReader {
                 type.setBase(typeHandle(base));
             }
             for (int field = fieldRuns[row]; field < fieldRuns[row + 1]; field++) {
+                check(tables.offset(TableId.FIELD, field, 0), ModuleWriter.fieldRepeats(type, type.fields().size(),
+                        fields.get(field - 1)));
                 type.fields().add(fields.get(field - 1));
             }
             for (int method = methodRuns[row]; method < methodRuns[row + 1]; method++) {
+                check(tables.offset(TableId.METHOD, method, 0), ModuleWriter.methodRepeats(type, type.methods().size(),
+                        methods.get(method - 1)));
                 type.methods().add(methods.get(method - 1));
             }
         }

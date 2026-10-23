@@ -98,6 +98,61 @@ public final class MemberTableTest {
     }
 
     @Test
+    public static void aTypeHasOneMemberPerNameAndSignature() throws Exception {
+        ModuleDef fields = withField(new FieldDef(0, "x", INT));
+        fields.types().get(0).fields().add(new FieldDef(Flags.FIELD_STATIC, "x", INT));
+        unwritable(fields, "type a.A has two fields x of one type (BC-11)");
+        ModuleDef methods = withMethod(new MethodDef(Flags.METHOD_ABSTRACT, "m", INSTANCE_VOID));
+        methods.types().get(0).methods().add(new MethodDef(Flags.METHOD_NATIVE, "m", INSTANCE_VOID));
+        unwritable(methods, "type a.A has two methods m with one signature (BC-11)");
+        // Overloads, and fields of one name with other types, are valid, as in CIL.
+        TypeDef type = typeWith("x", "w", "m", "n");
+        type.fields().add(new FieldDef(0, "x", new TypeSig.Primitive(SigCode.I64)));
+        type.methods().add(new MethodDef(Flags.METHOD_STATIC | Flags.METHOD_NATIVE, "m", STATIC_VOID));
+        var m = new MethodDef(Flags.METHOD_NATIVE, "m", INSTANCE_INT_TO_VOID);
+        m.params().add(new ParamDef(0, "p"));
+        type.methods().add(m);
+        roundTrip(module(type));
+        // The second member gets the name of the first; its own name, the last IDENTS entry, is then unused.
+        byte[] twoFields = roundTrip(module(typeWith("x", "w", null, null)));
+        rejected(patch(twoFields, TableId.FIELD, 2, 1, column(twoFields, TableId.FIELD, 1, 1)),
+                columnOffset(twoFields, TableId.FIELD, 2, 0), "type a.A has two fields x of one type (BC-11)");
+        byte[] twoMethods = roundTrip(module(typeWith(null, null, "m", "n")));
+        rejected(patch(twoMethods, TableId.METHOD, 2, 1, column(twoMethods, TableId.METHOD, 1, 1)),
+                columnOffset(twoMethods, TableId.METHOD, 2, 0), "type a.A has two methods m with one signature (BC-11)");
+        String a = ".module mod 0.0.0\n.class a.A {\n";
+        TestModules.assemble(a + ".field int x\n.field long x\n.method static void m() {\nret\n}\n"
+                + ".method void m() {\nret\n}\n.method static void m(int) {\nret\n}\n}\n");
+        TestModules.unassemblable(a + ".field int x\n.field static int x\n}",
+                "4:19: RFA0301: type a.A has two fields x of one type (BC-11)");
+        TestModules.unassemblable(a + ".method static void m() {\nret\n}\n.method static void m() {\nret\n}\n}",
+                "6:21: RFA0301: type a.A has two methods m with one signature (BC-11)");
+    }
+
+    // a.A with an int field of each of the first two names, and an abstract void method of each of the
+    // other two, where the name is not null.
+    private static TypeDef typeWith(String first, String second, String third, String fourth) {
+        var type = new TypeDef("a", "A", Flags.KIND_CLASS, 0, 0, null);
+        for (String name : new String[] {first, second}) {
+            if (name != null) {
+                type.fields().add(new FieldDef(0, name, INT));
+            }
+        }
+        for (String name : new String[] {third, fourth}) {
+            if (name != null) {
+                type.methods().add(new MethodDef(Flags.METHOD_ABSTRACT, name, INSTANCE_VOID));
+            }
+        }
+        return type;
+    }
+
+    private static ModuleDef module(TypeDef type) {
+        var module = new ModuleDef("mod", 0, 0, 0);
+        module.types().add(type);
+        return module;
+    }
+
+    @Test
     public static void theReaderRejectsInvalidMemberColumns() throws Exception {
         byte[] file = ModuleWriter.write(members());
         reject(file, TableId.FIELD, 1, 0, 0x80, "Field flags 0x80 are not defined (BC-20)");
