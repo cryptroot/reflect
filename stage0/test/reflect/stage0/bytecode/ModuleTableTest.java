@@ -142,6 +142,9 @@ public final class ModuleTableTest {
         var flags = new ModuleDef("a", 0, 0, 0);
         flags.requires().add(new ModuleRef("b", 0x04));
         unwritable(flags, "ModuleRef b has the undefined flags 0x4 (BC-20)");
+        var self = new ModuleDef("a", 0, 0, 0);
+        self.requires().add(new ModuleRef("a", 0));
+        unwritable(self, "the module a requires itself; a requires cycle is an error (MOD-03)");
         var critical = new ModuleDef("a", 0, 0, 0);
         critical.ancillary().add(new Section(SectionId.CODE, bytes(0)));
         unwritable(critical, "section 0x5 is kept as bytes, but it is not ancillary");
@@ -191,6 +194,8 @@ public final class ModuleTableTest {
                 .rows(TableId.MODULE_REF, 3, 0, 5, 0), 60, "the ModuleRef rows are not sorted by name (BC-24)");
         rows(idents("m", "b"), new TestModules.Tables().rows(TableId.MODULE, 1, 0, 0, 0, 0, 0)
                 .rows(TableId.MODULE_REF, 3, 0, 3, 0), 60, "two ModuleRef rows have the name b (BC-24)");
+        rows(idents("m"), new TestModules.Tables().rows(TableId.MODULE, 1, 0, 0, 0, 0, 0)
+                .rows(TableId.MODULE_REF, 1, 0), 52, "the module m requires itself; a requires cycle is an error (MOD-03)");
         rows(idents("m", "x"), new TestModules.Tables().rows(TableId.MODULE, 1, 0, 0, 0, 0, 0), -1,
                 "IDENTS entry is not referenced (BC-24)");
         byte[] code = TestModules.file(idents("m"), new TestModules.Tables().rows(TableId.MODULE, 1, 0, 0, 0, 0, 0).bytes(),

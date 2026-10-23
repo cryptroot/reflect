@@ -162,6 +162,67 @@ public final class AssembleTypesTest {
     }
 
     @Test
+    public static void bracketsNameAPrimitivesStructAndTheModuleItself() throws Exception {
+        String code = "    .method static void f() {\n"
+                + "        ldc.i4 1\n"
+                + "        box [reflect.core]reflect.core.Int32\n"
+                + "        pop\n"
+                + "        call static void [reflect.core]reflect.core.Int32::check()\n"
+                + "        ret\n"
+                + "    }\n";
+        var empty = new MethodSig(SigCode.METHOD_STATIC, 0, primitive(SigCode.VOID), list());
+        // In another module the brackets name the TypeRef row of the struct (Q81).
+        var expected = new ModuleDef("m", 0, 0, 0);
+        var core = new ModuleRef("reflect.core", 0);
+        var struct = new TypeRef(core, "reflect.core", "Int32");
+        var check = new MemberRef(struct, "check", empty);
+        var user = new TypeDef("a", "A", Flags.KIND_CLASS, 0, 0, null);
+        user.setBase(struct);
+        user.methods().add(f(struct, check));
+        expected.requires().add(core);
+        expected.typeRefs().add(struct);
+        expected.memberRefs().add(check);
+        expected.types().add(user);
+        assertEquals(Leb128Test.hex(ModuleWriter.write(expected)), Leb128Test.hex(assemble(M
+                + ".requires reflect.core\n.class a.A extends [reflect.core]reflect.core.Int32 {\n" + code + "}\n")));
+        // In module reflect.core, brackets with its own name name its TypeDef row of the struct.
+        expected = new ModuleDef("reflect.core", 0, 0, 0);
+        var own = new TypeDef("reflect.core", "Int32", Flags.KIND_STRUCT, Flags.PUBLIC, 0, null);
+        var ownCheck = new MethodDef(Flags.PUBLIC | Flags.METHOD_STATIC, "check", empty);
+        ownCheck.setBody(new MethodBody(0));
+        ownCheck.body().code().add(new Instruction.Plain(Opcode.RET));
+        own.methods().add(ownCheck);
+        user = new TypeDef("reflect.core", "User", Flags.KIND_CLASS, 0, 0, null);
+        user.methods().add(f(own, ownCheck));
+        expected.types().add(own);
+        expected.types().add(user);
+        assertEquals(Leb128Test.hex(ModuleWriter.write(expected)), Leb128Test.hex(assemble(".module reflect.core 0.0.0\n"
+                + ".class public struct reflect.core.Int32 {\n    .method public static void check() {\n        ret\n    }\n}\n"
+                + ".class reflect.core.User {\n" + code + "}\n")));
+        String core32 = M + ".requires reflect.core\n.class a.A {\n";
+        unassemblable(core32 + ".field [reflect.core]reflect.core.Int32 x\n}",
+                "4:8: RFA0301: the primitive reflect.core.Int32 is its code, not its struct by name (BC-03)");
+        unassemblable(core32 + ".method static void f() {\nbox reflect.core.Int32\n}\n}",
+                "5:5: RFA0303: the type needs a TypeSpec row, which arrives in v0.0.6");
+        unassemblable(M + ".class a.A extends [m]a.B {\n}", "2:23: RFA0201: the module defines no type a.B");
+        unassemblable(M + ".requires m", "2:11: RFA0301: the module m requires itself; a requires cycle is an error (MOD-03)");
+    }
+
+    // static void f(): ldc.i4 1; box the struct; pop; call its method check; ret.
+    private static MethodDef f(TypeHandle struct, MethodHandle check) {
+        var method = new MethodDef(Flags.METHOD_STATIC, "f", new MethodSig(SigCode.METHOD_STATIC, 0,
+                primitive(SigCode.VOID), list()));
+        var body = new MethodBody(1);
+        body.code().add(new Instruction.Value32(Opcode.LDC_I4, 1));
+        body.code().add(new Instruction.Type(Opcode.BOX, struct));
+        body.code().add(new Instruction.Plain(Opcode.POP));
+        body.code().add(new Instruction.Method(Opcode.CALL, check));
+        body.code().add(new Instruction.Plain(Opcode.RET));
+        method.setBody(body);
+        return method;
+    }
+
+    @Test
     public static void eachClassAndFieldHasItsDiagnostics() {
         unassemblable(M + ".class public public a.A {\n}", "2:15: RFA0104: public appears twice");
         unassemblable(M + ".class public private a.A {\n}", "2:23: RFA0301: type A has more than one visibility flag (BC-11)");

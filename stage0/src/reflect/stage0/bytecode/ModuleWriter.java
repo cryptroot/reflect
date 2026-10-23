@@ -79,6 +79,7 @@ public final class ModuleWriter {
             }
             checkFlags(ref.flags(), MODULE_REF_FLAGS, "ModuleRef " + ref.name());
             check(nameProblem("ModuleRef name", ref.name(), true, false));
+            check(requiresItself(module.name(), ref.name()));
             moduleRefRows.put(ref, 0);
             moduleRefs.add(ref);
         }
@@ -89,6 +90,12 @@ public final class ModuleWriter {
             }
             moduleRefRows.put(moduleRefs.get(i), i + 1);
         }
+    }
+
+    /** Why the module cannot require the module of this name, or null: a requires cycle is an error (MOD-03). */
+    static @Nullable String requiresItself(String module, String required) {
+        return module.equals(required) ? "the module " + module + " requires itself; a requires cycle is an error (MOD-03)"
+                : null;
     }
 
     // Nothing names an Export row, so its rows need only their order and unique keys (BC-24).

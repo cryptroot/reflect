@@ -459,7 +459,8 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   `reflect.collections.List<reflect.core.Int32>`). The last dotted segment names the top-level
   type, and `/` starts each nested type, as in CIL: `demo.zoo.Enclosure/Tag`. `.rfla` puts the
   module in brackets before a type of another module when its namespace does not name that
-  module (BC-08, Q76).
+  module (BC-08, Q76), and before the struct of a primitive, whose name alone is the primitive;
+  the module's own name in brackets names its own type (Q81).
 
 ## 9. Properties, indexers, events (MEM, continued)
 

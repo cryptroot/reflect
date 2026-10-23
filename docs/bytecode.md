@@ -117,8 +117,8 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 3. Metadata tables
 
-- **BC-11 [Proposed]** Tables, their IDs and their main columns, sorted by the key in
-  parentheses; a table without a key keeps its rows in runs by owner (§3.1):
+- **BC-11 [Proposed; names Decided, Q83]** Tables, their IDs and their main columns, sorted by the
+  key in parentheses; a table without a key keeps its rows in runs by owner (§3.1):
 
   | ID | Table | Columns |
   |---|---|---|
@@ -241,6 +241,7 @@ u32, in the order given:
   namespace and the target of an `Export` row are a `QName`. Only a namespace, the name of a
   parameter and the target of an `Export` row may be empty: the global namespace, a parameter
   without a name and an export to every module.
+- A `requires` cycle is an error (MOD-03), so no `ModuleRef` row holds the module's own name.
 - `fields`, `methods`, `params` and `typeParams` give the first row of the owner's run of rows.
   The run ends where the next owner's run starts, or at the end of the table. An empty run starts
   where the next one does, so a column whose table has no rows holds 1. `GenericParam` rows owned
@@ -308,10 +309,10 @@ package-private (MOD-08).
 
 ## 4. Signatures
 
-- **BC-03 [Proposed]** A type signature is a code byte followed by its operands. A signature in
-  BLOBS starts with its kind, `FIELD`, `METHOD`, `LOCALS` or `INSTANTIATION`; a `TypeSpec` blob
-  is a bare type. `<tok>` is a ULEB128 token of a `TypeDef` or `TypeRef` row; `<n>` and
-  `<count>` are ULEB128.
+- **BC-03 [Proposed; primitives in tokens Decided, Q81]** A type signature is a code byte followed
+  by its operands. A signature in BLOBS starts with its kind, `FIELD`, `METHOD`, `LOCALS` or
+  `INSTANTIATION`; a `TypeSpec` blob is a bare type. `<tok>` is a ULEB128 token of a `TypeDef` or
+  `TypeRef` row; `<n>` and `<count>` are ULEB128.
 
   | Code | Name | Meaning | Operands |
   |---|---|---|---|
@@ -362,9 +363,10 @@ package-private (MOD-08).
   | `02` | `GENERIC` | the method has type parameters, and their count follows |
   | `04` | `VARIADIC` | the last parameter is variadic (MEM-10) |
 
-  A kind byte and the flags byte are one byte each. A primitive is always its code, never
-  `VALUETYPE` of its struct: `reflect.core.Int32` is `I32`. A nullable value type is an
-  instantiation of the nullable wrapper; a tuple is an instantiation of `TupleN` with names in
+  A kind byte and the flags byte are one byte each. In a signature a primitive is always its code,
+  never `VALUETYPE` of its struct: `reflect.core.Int32` is `I32`. A token may name the struct's own
+  `TypeDef` or `TypeRef` row, which `.rfla` writes in brackets (BC-08, Q81). A nullable value type
+  is an instantiation of the nullable wrapper; a tuple is an instantiation of `TupleN` with names in
   `TupleNames`. `scoped` is a parameter flag and `ref struct` a type flag. A signature also
   follows these rules:
 
@@ -878,21 +880,22 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 
 ## 8. Assembly syntax
 
-- **BC-08 [Proposed; references, regions and module scopes Decided, Q69, Q71, Q76, Q78]** `.rfla`
-  maps one-to-one to the binary, so `rfld` then `rfla` reproduces a module byte for byte (ex §12.2).
-  Directives: `.module name version`, `.main`, `.requires`, `.exports`, `.opens`, `.unsafe`,
-  `.source`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`, `.annotation`,
-  `.locals`, `.maxstack`, `.try`, `.catch`, `.finally`, `.line`, `.stackmap`, `.section`; labels
-  end in `:`; type names use the canonical spelling (GEN-12), with `!0` and `!!0` for type
-  parameters, and `@` before a name makes it a name, never a word of the grammar (Q82). `.main`
-  names the descriptor's `main` class (VM-12), and `.unsafe` sets the header
-  flag `UNSAFE`. A reference to another module states the signature that its row holds (Q69), so
-  `rfla` reads no other module. A type of another module belongs to the required module whose name
-  is its namespace or the longest prefix of it at a dot; otherwise the text names the module in
-  brackets, `[reflect.core]reflect.meta.Type` (Q76). `rfld` prints a section it cannot print as
-  directives, such as an unknown ancillary section (BC-20), as `.section <id> hex "..."`, so the
-  round trip covers it too. §8.1 gives the grammar; `.property`, `.event` and `.annotation` join
-  it with their tables.
+- **BC-08 [Proposed; references, regions, module scopes and `@` Decided, Q69, Q71, Q76, Q78, Q81,
+  Q82]** `.rfla` maps one-to-one to the binary, so `rfld` then `rfla` reproduces a module byte for
+  byte (ex §12.2). Directives: `.module name version`, `.main`, `.requires`, `.exports`, `.opens`,
+  `.unsafe`, `.source`, `.class`, `.field`, `.method`, `.property`, `.event`, `.override`,
+  `.annotation`, `.locals`, `.maxstack`, `.try`, `.catch`, `.finally`, `.line`, `.stackmap`,
+  `.section`; labels end in `:`; type names use the canonical spelling (GEN-12), with `!0` and `!!0`
+  for type parameters, and `@` before a name makes it a name, never a word of the grammar (Q82).
+  `.main` names the descriptor's `main` class (VM-12), and `.unsafe` sets the header flag `UNSAFE`.
+  A reference to another module states the signature that its row holds (Q69), so `rfla` reads no
+  other module. A type of another module belongs to the required module whose name is its
+  namespace or the longest prefix of it at a dot; otherwise the text names the module in brackets,
+  `[reflect.core]reflect.meta.Type` (Q76). Brackets also name the struct of a primitive, whose name
+  alone is the primitive, and brackets that hold the module's own name name a type of the module
+  (Q81). `rfld` prints a section it cannot print as directives, such as an unknown ancillary
+  section (BC-20), as `.section <id> hex "..."`, so the round trip covers it too. §8.1 gives the
+  grammar; `.property`, `.event` and `.annotation` join it with their tables.
 
   ```text
   .module demo 0.1.0
@@ -1008,7 +1011,13 @@ HexDigits    = HexDigit+ ;
   struct (Q52). `valuetype` marks a value type (Q69).
 - A type that the module does not define belongs to the required module whose name equals its
   namespace or is the longest prefix of it at a dot. `ModuleScope` names a required module
-  instead, and `rfld` prints it only where that rule gives another module (Q76).
+  instead, and `rfld` prints it only where that rule gives another module (Q76). With the module's
+  own name, `ModuleScope` names a type of the module, since a module does not require itself
+  (MOD-03).
+- Without brackets the struct of a primitive is the primitive, which a token names through a
+  `TypeSpec` row (v0.0.6); in brackets it is the struct's own row: `[reflect.core]reflect.core.Int32`
+  is the `TypeRef` row, and in module `reflect.core` the `TypeDef` row (Q81). A signature names the
+  primitive by its code (BC-03).
 - The short form of `FieldRef` and `MethodRef`, without the leading field type, `static` or
   return type, refers only to a member of the module being assembled, and `rfld` always prints
   the full form (Q69). `TypeArgs` after a method name instantiate it (a `MethodSpec`), and `...`

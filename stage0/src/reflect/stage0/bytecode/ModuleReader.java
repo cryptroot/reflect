@@ -146,6 +146,7 @@ public final class ModuleReader {
         String previous = "";
         for (int row = 1; row <= tables.rows(TableId.MODULE_REF); row++) {
             String name = nameOf(TableId.MODULE_REF, row, 0, "ModuleRef name", true, false);
+            check(tables.offset(TableId.MODULE_REF, row, 0), ModuleWriter.requiresItself(moduleName, name));
             if (row > 1 && Utf8.compare(previous, name) >= 0) {
                 throw new ModuleFormatException(tables.offset(TableId.MODULE_REF, row, 0), Utf8.compare(previous, name) == 0
                         ? "two ModuleRef rows have the name " + name + " (BC-24)"

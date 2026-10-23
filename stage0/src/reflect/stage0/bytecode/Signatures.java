@@ -213,14 +213,20 @@ final class Signatures {
     }
 
     // A type by name: never a primitive's struct, and CLASS or VALUETYPE by the kind of a type that
-    // the module defines. The kind of a type of another module is what its code states (Q69).
+    // the module defines.
     private static @Nullable String named(TypeSig.Named named, String module) {
         String problem = primitiveStruct(named, module);
-        if (problem == null && named.type() instanceof TypeDef def && named.valueType() != valueKind(def.kind())) {
-            problem = def.qualifiedName() + (named.valueType() ? " is a reference type, so CLASS names it (BC-03)"
-                    : " is a value type, so VALUETYPE names it (BC-03)");
-        }
-        return problem;
+        return problem != null ? problem : kindProblem(named);
+    }
+
+    /**
+     * Why CLASS or VALUETYPE does not fit the kind of a type that the module defines, or null. The kind of
+     * a type of another module is what its code states (Q69).
+     */
+    static @Nullable String kindProblem(TypeSig.Named named) {
+        return named.type() instanceof TypeDef def && named.valueType() != valueKind(def.kind()) ? def.qualifiedName()
+                + (named.valueType() ? " is a reference type, so CLASS names it (BC-03)"
+                : " is a value type, so VALUETYPE names it (BC-03)") : null;
     }
 
     // Structs, ref structs, record structs and enums are value types; classes, interfaces, records

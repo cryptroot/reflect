@@ -129,6 +129,7 @@ public final class Assembler {
         int flags = flags(REQUIRES_WORDS, REQUIRES_FLAGS);
         Token name = parser.qualifiedName("the name of a required module");
         identifier(name, name.text());
+        check(name, ModuleWriter.requiresItself(module.name(), name.text()));
         if (requires.containsKey(name.text())) {
             throw Parser.error(Diagnostic.FORMAT, name, "two ModuleRef rows have the name " + name.text() + " (BC-24)");
         }
@@ -1009,23 +1010,28 @@ public final class Assembler {
     }
 
     // The TypeDef or TypeRef row of a type in a token, as the base type and an interface are; any
-    // other type needs a TypeSpec row.
+    // other type needs a TypeSpec row. A primitive's struct by name is the primitive, but in brackets it
+    // is the struct's own row, which a token may name (Q81).
     private TypeHandle tokenType(TypeSyntax syntax) throws AssemblyException {
         if (syntax instanceof TypeSyntax.Named named && named.arguments().isEmpty() && primitiveStruct(named) == 0) {
             TypeHandle handle = handle(named);
-            check(syntax.token(), Signatures.problem(new TypeSig.Named(named.valueType() || valueKind(handle), handle),
-                    Signatures.OTHER, ModuleWriter.DEFINITION, module.name()));
+            check(syntax.token(), Signatures.kindProblem(new TypeSig.Named(named.valueType() || valueKind(handle), handle)));
             return handle;
         }
         throw Parser.error(Diagnostic.LATER, syntax.token(), "the type needs a TypeSpec row, which arrives in v0.0.6");
     }
 
-    // A name of the module is its TypeDef. Any other name is a TypeRef of the module in brackets, or of
-    // the required module whose name is its namespace or the longest prefix of it at a dot (Q76).
+    // A name of the module is its TypeDef, and so is a name in brackets that hold the module's own name.
+    // Any other name is a TypeRef of the module in brackets, or of the required module whose name is its
+    // namespace or the longest prefix of it at a dot (Q76, Q81).
     private TypeHandle handle(TypeSyntax.Named named) throws AssemblyException {
         TypeName name = named.name();
         @Nullable Token scope = named.scope();
-        @Nullable TypeDef type = scope == null ? types.get(name.token().text()) : null;
+        boolean own = scope == null || scope.text().equals(module.name());
+        @Nullable TypeDef type = own ? types.get(name.token().text()) : null;
+        if (type == null && scope != null && own) {
+            throw Parser.error(Diagnostic.NO_TYPE, name.token(), "the module defines no type " + name.token().text());
+        }
         if (type != null) {
             for (String nested : name.nested()) {
                 @Nullable TypeDef inner = types.get(type.qualifiedName() + "/" + nested);
