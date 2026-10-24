@@ -117,6 +117,10 @@ These follow from the plan. Each is made in the stage named, or when its questio
     `finally` regions of EXC-07 run before the program ends, nor the collection and finalizers of
     MOD-09. VM0 ends the run at the call, as Java's `System.exit` and .NET's `Environment.Exit` skip
     `finally` blocks. Settle with `finally` in v0.0.8. Found 2026-10-24 in v0.0.5.
+21. TST-01 compares the type of an uncaught exception with `expect-throws`, but does not say whether
+    a subtype of the type named matches, as `catch` does. The faults of v0.0.5 have no hierarchy, so
+    `test` compares qualified names. Settle with the exception classes in v0.0.8. Found 2026-10-24 in
+    v0.0.5.
 
 ## B. Questions and answers
 

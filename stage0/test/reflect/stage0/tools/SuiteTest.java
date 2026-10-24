@@ -181,6 +181,44 @@ public final class SuiteTest {
     }
 
     @Test
+    public static void testComparesTheUncaughtExceptionWithExpectThrows() throws Exception {
+        Path root = Files.createTempDirectory("reflect-suite-");
+        try {
+            for (String name : List.of("reflect.core", "reflect.io")) {
+                write(root, "lib/" + name + ".rfla", Files.readString(Path.of("tests/bytecode/lib/" + name + ".rfla")));
+            }
+            String divide = "        ldc.i4 1\n        ldc.i4 0\n        div.i32\n        pop\n";
+            String arithmetic = "// expect-throws: reflect.core.ArithmeticException\n";
+            String fault = ": reflect.core.ArithmeticException: division by zero";
+            write(root, "format/a.rfla", arithmetic + ".module a 0.0.0\n");
+            write(root, "run/b.rfla", program("b", arithmetic, divide));
+            write(root, "run/c.rfla", program("c", "", divide));
+            write(root, "run/d.rfla", program("d", "// expect-throws: reflect.core.NullPointerException\n", divide));
+            write(root, "run/e.rfla", returning("e", arithmetic, 1));
+            write(root, "run/f.rfla", program("f", "// expect-exit: 1\n", divide));
+            // expect-exit gives the exit code with expect-throws too.
+            write(root, "run/g.rfla", program("g", arithmetic + "// expect-exit: 3\n", divide));
+            write(root, "run/h.rfla", program("h", arithmetic + arithmetic, divide));
+            // The qualified name, not the simple one.
+            write(root, "run/i.rfla", program("i", "// expect-throws: ArithmeticException\n", divide));
+            assertEquals(new Result(1, "FAIL " + root.resolve("format/a.rfla") + ": only a file in run/ holds an"
+                    + " expect-throws\nPASS " + root.resolve("lib/reflect.core.rfla") + "\nPASS "
+                    + root.resolve("lib/reflect.io.rfla") + "\nPASS " + root.resolve("run/b.rfla") + "\nFAIL "
+                    + root.resolve("run/c.rfla") + ": the exit code is 1, expected 0" + fault + "\nFAIL "
+                    + root.resolve("run/d.rfla") + ": the uncaught exception is reflect.core.ArithmeticException, expected"
+                    + " reflect.core.NullPointerException\nFAIL " + root.resolve("run/e.rfla") + ": no exception is"
+                    + " uncaught, expected reflect.core.ArithmeticException\nFAIL " + root.resolve("run/f.rfla")
+                    + ": the uncaught exception is reflect.core.ArithmeticException, expected none\nFAIL "
+                    + root.resolve("run/g.rfla") + ": the exit code is 1, expected 3" + fault + "\nFAIL "
+                    + root.resolve("run/h.rfla") + ": a file in run/ holds at most one expect-throws, not 2\nFAIL "
+                    + root.resolve("run/i.rfla") + ": the uncaught exception is reflect.core.ArithmeticException, expected"
+                    + " ArithmeticException\n11 files, 8 failures\n"), test(root.toString()));
+        } finally {
+            delete(root);
+        }
+    }
+
+    @Test
     public static void testNeedsOneDirectoryWithRflaFiles() throws Exception {
         Path root = Files.createTempDirectory("reflect-suite-");
         try {

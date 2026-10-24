@@ -40,7 +40,9 @@ fuzzing against the Lean model, and examples.md itself. Conventions:
   The value of a directive is the text after its colon and one space. Standard output must equal
   the `expect-output` lines, each followed by LF, byte for byte, so a test without `expect-output`
   prints nothing. The low 8 bits of the exit code, as Linux gives them, must equal `expect-exit`, a
-  number from 0 to 255, or 0 without it. Standard error is not compared (Q90).
+  number from 0 to 255, or else 1 with `expect-throws` and 0 without it. The qualified name of the
+  type of the uncaught exception must equal `expect-throws`, so a test without `expect-throws`
+  throws none. Standard error is not compared (Q90).
 
   ```reflect
   // file: tests/lang/nullability/cast-null.rfl
@@ -95,9 +97,9 @@ fuzzing against the Lean model, and examples.md itself. Conventions:
   with the directives of TST-01, run on VM0 with the modules of `lib/` as their module path (Q90),
   and `invalid/` files that `rfla` must reject. `rfla` stops at the first error, so a file in
   `invalid/` holds one `// expect-error: RFAnnnn @ line:col`, with a code of bytecode.md §8.2, and
-  only a file in `run/` holds an `expect-output` or an `expect-exit`. Every other file round-trips
-  (TST-09): `rfld` turns its module A into the text T, `rfla` turns T into the module B, and `rfld`
-  turns B into the text T2; A must equal B, and T must equal T2.
+  only a file in `run/` holds an `expect-output`, an `expect-exit` or an `expect-throws`. Every other
+  file round-trips (TST-09): `rfld` turns its module A into the text T, `rfla` turns T into the
+  module B, and `rfld` turns B into the text T2; A must equal B, and T must equal T2.
 
 ## 8. Collector stress
 

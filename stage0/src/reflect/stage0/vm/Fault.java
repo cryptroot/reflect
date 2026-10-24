@@ -6,6 +6,7 @@ package reflect.stage0.vm;
  * exits with 1 (README §7.6, Q89).
  */
 final class Fault extends RuntimeException {
+    static final String ARITHMETIC_EXCEPTION = "reflect.core.ArithmeticException";
     static final String STACK_OVERFLOW_ERROR = "reflect.core.StackOverflowError";
     static final String TYPE_LOAD_ERROR = "reflect.core.TypeLoadError";
 

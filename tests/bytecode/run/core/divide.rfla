@@ -1,0 +1,31 @@
+// expect-output: 3
+// expect-throws: reflect.core.ArithmeticException
+.module divide 0.0.0
+.main divide.App
+.requires reflect.core
+.requires reflect.io
+
+// An integer division by zero throws ArithmeticException (BC-04, EXC-05). Until v0.0.8 it is a fault,
+// which ends the run with exit code 1 (README §7.6, Q89), so the line "after" does not print.
+.class public final divide.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   7
+        ldc.i4   2
+        call     static void divide.App::quotient(int, int)
+        ldc.i4   7
+        ldc.i4   0
+        call     static void divide.App::quotient(int, int)
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    // Prints a / b.
+    .method static void quotient(int a, int b) {
+        ldarg    a
+        ldarg    b
+        div.i32
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

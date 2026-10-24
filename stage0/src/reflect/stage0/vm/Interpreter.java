@@ -82,11 +82,11 @@ final class Interpreter {
                         stack[sp - 1] = i32(stack[sp - 1]) * b;
                     }
                     case Opcode.DIV_I32 -> {
-                        int b = i32(stack[--sp]);
+                        int b = divisor(i32(stack[--sp]));
                         stack[sp - 1] = i32(stack[sp - 1]) / b;
                     }
                     case Opcode.REM_I32 -> {
-                        int b = i32(stack[--sp]);
+                        int b = divisor(i32(stack[--sp]));
                         stack[sp - 1] = i32(stack[sp - 1]) % b;
                     }
                     case Opcode.NEG_I32 -> stack[sp - 1] = -i32(stack[sp - 1]);
@@ -129,11 +129,11 @@ final class Interpreter {
                         stack[sp - 1] = i64(stack[sp - 1]) * b;
                     }
                     case Opcode.DIV_I64 -> {
-                        long b = i64(stack[--sp]);
+                        long b = divisor(i64(stack[--sp]));
                         stack[sp - 1] = i64(stack[sp - 1]) / b;
                     }
                     case Opcode.REM_I64 -> {
-                        long b = i64(stack[--sp]);
+                        long b = divisor(i64(stack[--sp]));
                         stack[sp - 1] = i64(stack[sp - 1]) % b;
                     }
                     case Opcode.NEG_I64 -> stack[sp - 1] = -i64(stack[sp - 1]);
@@ -411,6 +411,21 @@ final class Interpreter {
 
     private static long i64(Object value) {
         return (Long) value;
+    }
+
+    // An integer division or remainder by zero throws (BC-04, EXC-05): until v0.0.8, a fault (Q89).
+    private static int divisor(int value) {
+        if (value == 0) {
+            throw new Fault(Fault.ARITHMETIC_EXCEPTION, "division by zero");
+        }
+        return value;
+    }
+
+    private static long divisor(long value) {
+        if (value == 0) {
+            throw new Fault(Fault.ARITHMETIC_EXCEPTION, "division by zero");
+        }
+        return value;
     }
 
     private static float canonical(float value) {

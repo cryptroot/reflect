@@ -19,6 +19,7 @@ import static reflect.stage0.test.Assertions.assertTrue;
 
 public final class VmTest {
     private static final String PRINTLN = "        call static void reflect.io.Console::println(reflect.core.Object?)\n";
+    private static final String ARITHMETIC_EXCEPTION = "reflect.core.ArithmeticException";
     private static final String TYPE_LOAD_ERROR = "reflect.core.TypeLoadError";
 
     @Test
@@ -169,6 +170,18 @@ public final class VmTest {
         // surrogate, which UTF-8 cannot hold, so U+FFFD replaces it.
         assertEquals(new Run(0, null, "" + (char) 0xC4 + (char) 0xFFFD + "\n", ""),
                 run(program("        ldstr \"\\u00C4\\uD800\"\n" + PRINTLN + "        ret\n", "")));
+    }
+
+    @Test
+    public static void anIntegerDivisionByZeroIsAFault() throws Exception {
+        // Until v0.0.8, each one ends the run with the fault, after the line before it (Q89).
+        for (String division : List.of("ldc.i4 div.i32", "ldc.i4 rem.i32", "ldc.i8 div.i64", "ldc.i8 rem.i64")) {
+            String load = division.split(" ")[0];
+            String mnemonic = division.split(" ")[1];
+            assertEquals(new Run(1, ARITHMETIC_EXCEPTION, mnemonic + "\n", ARITHMETIC_EXCEPTION + ": division by zero\n"),
+                    run(program("        ldstr \"" + mnemonic + "\"\n" + PRINTLN + "        " + load + " 7\n        " + load
+                    + " 0\n        " + mnemonic + "\n        pop\n        ret\n", "")));
+        }
     }
 
     @Test

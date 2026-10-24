@@ -251,9 +251,10 @@ with its `expect-error` (§6.3), and any other file must hold none, assemble int
 reader accepts, and round-trip (§7.5). A file in `run/` then runs on a new VM0 in the JVM of
 `test`, with the files directly in `lib/` as its module path, where `lib/m.rfla` holds the module of
 `requires m` (Q88, Q90). The low 8 bits of its exit code, as Linux gives them, must equal its
-`expect-exit`, or 0 without one, and its standard output must equal its `expect-output` lines, byte
-for byte (TST-01). It prints `PASS` or `FAIL` with the path of each file, then the counts, and exits
-with:
+`expect-exit`, or else 1 with `expect-throws` and 0 without; the qualified name of the type of its
+uncaught exception must equal its `expect-throws`, or there must be none without one; and its
+standard output must equal its `expect-output` lines, byte for byte (TST-01). It prints `PASS` or
+`FAIL` with the path of each file, then the counts, and exits with:
 
 - 0 when every file passes;
 - 1 when a file fails;
@@ -275,8 +276,9 @@ with:
   and listed in [bytecode.md](../bytecode.md) §8.2 (Q79). `rfla` stops at the first error, so a
   file in `invalid/` holds one `expect-error`.
 - The value of a directive is the text after its colon and one space (TST-01). Only a file in
-  `run/` holds `expect-output` or `expect-exit` (Q90). It holds at most one `expect-exit`, with a
-  number from 0 to 255.
+  `run/` holds `expect-output`, `expect-exit` or `expect-throws` (Q90). It holds at most one
+  `expect-exit`, with a number from 0 to 255, and at most one `expect-throws`, with the qualified
+  name of a type.
 - A directory under `run/` is one multi-module test. Its expectations sit in its `test.rfla`, as
   for `.rfl` tests (TST-01).
 - `rfla` ignores comments, and `rfld` does not print them.
