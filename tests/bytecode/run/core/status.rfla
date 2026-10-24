@@ -1,0 +1,14 @@
+// expect-exit: 42
+.module status 0.0.0
+.main status.App
+.requires reflect.core
+
+// The result of an int main is the exit code (ex §2.4, README §6.2).
+.class public final status.App {
+    .method public static int main(reflect.core.String[] args) {
+        ldc.i4   6
+        ldc.i4   7
+        mul.i32
+        ret
+    }
+}

@@ -113,6 +113,10 @@ These follow from the plan. Each is made in the stage named, or when its questio
 19. BC-04 does not give the type of the count of a 64-bit shift, and BC-17 does not give the value
     of a local before its first store. VM0 needs both. Found 2026-10-23 while v0.0.5 was planned.
     Settled 2026-10-23 with Q91.
+20. README §6.2 makes the argument of `Runtime.exit` the exit code, but no rule says whether the
+    `finally` regions of EXC-07 run before the program ends, nor the collection and finalizers of
+    MOD-09. VM0 ends the run at the call, as Java's `System.exit` and .NET's `Environment.Exit` skip
+    `finally` blocks. Settle with `finally` in v0.0.8. Found 2026-10-24 in v0.0.5.
 
 ## B. Questions and answers
 

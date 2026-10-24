@@ -20,3 +20,8 @@
             reflect.core.String second) {
     }
 }
+
+.class public final reflect.core.Runtime extends reflect.core.Object {
+    .method public static native void exit(int code) {
+    }
+}

@@ -150,6 +150,37 @@ public final class SuiteTest {
     }
 
     @Test
+    public static void testComparesTheExitCodeWithExpectExit() throws Exception {
+        Path root = Files.createTempDirectory("reflect-suite-");
+        try {
+            for (String name : List.of("reflect.core", "reflect.io")) {
+                write(root, "lib/" + name + ".rfla", Files.readString(Path.of("tests/bytecode/lib/" + name + ".rfla")));
+            }
+            write(root, "format/a.rfla", "// expect-exit: 0\n.module a 0.0.0\n");
+            write(root, "run/b.rfla", returning("b", "// expect-exit: 3\n", 3));
+            write(root, "run/c.rfla", returning("c", "", 3));
+            write(root, "run/d.rfla", program("d", "// expect-exit: 3\n", ""));
+            // The low 8 bits of the exit code, as Linux gives them.
+            write(root, "run/e.rfla", returning("e", "// expect-exit: 4\n", 260));
+            write(root, "run/f.rfla", returning("f", "// expect-exit: 255\n", -1));
+            write(root, "run/g.rfla", returning("g", "// expect-exit: 3\n// expect-exit: 3\n", 3));
+            write(root, "run/h.rfla", returning("h", "// expect-exit: 256\n", 0));
+            write(root, "run/i.rfla", returning("i", "// expect-exit: x\n", 0));
+            assertEquals(new Result(1, "FAIL " + root.resolve("format/a.rfla") + ": only a file in run/ holds an"
+                    + " expect-exit\nPASS " + root.resolve("lib/reflect.core.rfla") + "\nPASS "
+                    + root.resolve("lib/reflect.io.rfla") + "\nPASS " + root.resolve("run/b.rfla") + "\nFAIL "
+                    + root.resolve("run/c.rfla") + ": the exit code is 3, expected 0\nFAIL " + root.resolve("run/d.rfla")
+                    + ": the exit code is 0, expected 3\nPASS " + root.resolve("run/e.rfla") + "\nPASS "
+                    + root.resolve("run/f.rfla") + "\nFAIL " + root.resolve("run/g.rfla") + ": a file in run/ holds at"
+                    + " most one expect-exit, not 2\nFAIL " + root.resolve("run/h.rfla") + ": expect-exit takes a number"
+                    + " from 0 to 255, not \"256\"\nFAIL " + root.resolve("run/i.rfla") + ": expect-exit takes a number"
+                    + " from 0 to 255, not \"x\"\n11 files, 6 failures\n"), test(root.toString()));
+        } finally {
+            delete(root);
+        }
+    }
+
+    @Test
     public static void testNeedsOneDirectoryWithRflaFiles() throws Exception {
         Path root = Files.createTempDirectory("reflect-suite-");
         try {
@@ -186,6 +217,14 @@ public final class SuiteTest {
         return directives + ".module " + module + " 0.0.0\n.main " + module + ".App\n.requires reflect.core\n"
                 + ".requires reflect.io\n\n.class public final " + module + ".App {\n"
                 + "    .method public static void main(reflect.core.String[] args) {\n" + main + "        ret\n    }\n}\n";
+    }
+
+    // A program of the module whose int main returns the value.
+    private static String returning(String module, String directives, int value) {
+        return directives + ".module " + module + " 0.0.0\n.main " + module + ".App\n.requires reflect.core\n\n"
+                + ".class public final " + module + ".App {\n"
+                + "    .method public static int main(reflect.core.String[] args) {\n        ldc.i4 " + value + "\n"
+                + "        ret\n    }\n}\n";
     }
 
     private static byte[] append(byte[] text, String more) {

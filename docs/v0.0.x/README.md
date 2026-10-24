@@ -250,9 +250,10 @@ have no text: a file that the reader rejects, and before v0.0.9 a module with a 
 with its `expect-error` (§6.3), and any other file must hold none, assemble into a module that the
 reader accepts, and round-trip (§7.5). A file in `run/` then runs on a new VM0 in the JVM of
 `test`, with the files directly in `lib/` as its module path, where `lib/m.rfla` holds the module of
-`requires m` (Q88, Q90). Its exit code must be 0, and its standard output must equal its
-`expect-output` lines, byte for byte (TST-01). It prints `PASS` or `FAIL` with the path of each
-file, then the counts, and exits with:
+`requires m` (Q88, Q90). The low 8 bits of its exit code, as Linux gives them, must equal its
+`expect-exit`, or 0 without one, and its standard output must equal its `expect-output` lines, byte
+for byte (TST-01). It prints `PASS` or `FAIL` with the path of each file, then the counts, and exits
+with:
 
 - 0 when every file passes;
 - 1 when a file fails;
@@ -274,7 +275,8 @@ file, then the counts, and exits with:
   and listed in [bytecode.md](../bytecode.md) §8.2 (Q79). `rfla` stops at the first error, so a
   file in `invalid/` holds one `expect-error`.
 - The value of a directive is the text after its colon and one space (TST-01). Only a file in
-  `run/` holds `expect-output` (Q90).
+  `run/` holds `expect-output` or `expect-exit` (Q90). It holds at most one `expect-exit`, with a
+  number from 0 to 255.
 - A directory under `run/` is one multi-module test. Its expectations sit in its `test.rfla`, as
   for `.rfl` tests (TST-01).
 - `rfla` ignores comments, and `rfld` does not print them.
@@ -591,12 +593,14 @@ module.
   changes only the sign bit; loads, stores and calls keep every bit. Java's arithmetic gives other
   NaNs ([sketchpad.md](sketchpad.md) D.6), so VM0 replaces them.
 - Entry: the `main` class comes from `.main` or `--main`. `main` is a `public static` method with
-  one `reflect.core.String[]` parameter, and returns `void` or `int` (ex §2.4). Until arrays
-  arrive (v0.0.7), it receives its arguments as a Java `String[]`, which no instruction reads
-  before then. `main` runs on a thread with a stack of 256 MiB, so deep recursion in Reflect does
-  not overflow the JVM stack first: in the build image, the JVM's default stack of 1 MiB holds
-  about 2,000 calls of VM0, and 256 MiB at least 860,000 (Q93, [sketchpad.md](sketchpad.md) D.6).
-  Until v0.0.8, an overflow of that stack is the fault `reflect.core.StackOverflowError` (Q94).
+  one `reflect.core.String[]` parameter, and returns `void` or `int` (ex §2.4); the `main` class has
+  one such method. The run exits with the result of `int main`; `Runtime.exit(int)` ends it at the
+  call, with its argument as the exit code (§6.2). Until arrays arrive (v0.0.7), `main` receives its
+  arguments as a Java `String[]`, which no instruction reads before then. `main` runs on a thread
+  with a stack of 256 MiB, so deep recursion in Reflect does not overflow the JVM stack first: in
+  the build image, the JVM's default stack of 1 MiB holds about 2,000 calls of VM0, and 256 MiB at
+  least 860,000 (Q93, [sketchpad.md](sketchpad.md) D.6). Until v0.0.8, an overflow of that stack is
+  the fault `reflect.core.StackOverflowError` (Q94).
 - Stub modules (Q49): `reflect.core` with `Object`, `String` and `Runtime`, and `reflect.io` with
   `Console`, written in `.rfla` with the native names of ex §2.11 (`Console.write(int, String)`).
   `String.valueOf` turns `int`, `long`, `float` and `double` into Java's text (NUM-05, Q87).

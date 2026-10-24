@@ -39,6 +39,10 @@ final class Natives {
             new Entry("reflect.core", (vm, arguments) -> Double.toString((Double) arguments[0])),
             "static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)",
             new Entry("reflect.core", (vm, arguments) -> ((String) arguments[0]).concat((String) arguments[1])),
+            "static void reflect.core.Runtime::exit(int)",
+            new Entry("reflect.core", (vm, arguments) -> {
+                throw new Exit((Integer) arguments[0]);
+            }),
             "static void reflect.io.Console::write(int, reflect.core.String)",
             new Entry("reflect.io", Natives::write));
 

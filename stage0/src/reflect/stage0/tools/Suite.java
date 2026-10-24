@@ -28,10 +28,12 @@ import reflect.stage0.vm.Vm;
  * The command test (README §6.2): checks the .rfla files under a directory, in path order. A file in
  * invalid/ must fail with the one expect-error of its leading comments (§6.3); any other file must hold
  * none, assemble into a module that the reader accepts, and round-trip (§7.5). A file in run/ then runs
- * on VM0, with the modules of lib/ as its module path, and must meet its expect-output (Q90).
+ * on VM0, with the modules of lib/ as its module path, and must meet its expect-output and expect-exit
+ * (Q90).
  */
 final class Suite {
     private static final String EXPECT_ERROR = "// expect-error:";
+    private static final String EXPECT_EXIT = "// expect-exit:";
     private static final String EXPECT_OUTPUT = "// expect-output:";
 
     /** Where a file sits under the directory, which decides what it must do. */
@@ -120,6 +122,17 @@ final class Suite {
         if (place != Place.RUN && !outputs.isEmpty()) {
             return "only a file in run/ holds an expect-output";
         }
+        List<String> exits = directives.exits();
+        if (place != Place.RUN && !exits.isEmpty()) {
+            return "only a file in run/ holds an expect-exit";
+        }
+        if (exits.size() > 1) {
+            return "a file in run/ holds at most one expect-exit, not " + exits.size();
+        }
+        int exitCode = exits.isEmpty() ? 0 : exitCode(exits.get(0));
+        if (exitCode < 0) {
+            return "expect-exit takes a number from 0 to 255, not \"" + exits.get(0) + "\"";
+        }
         byte[] module;
         try {
             module = assembly.assemble(text);
@@ -139,7 +152,7 @@ final class Suite {
             return "the reader rejects the module: " + e.getMessage();
         }
         String failure = roundTrip(module, assembly, disassembly);
-        return failure != null || place != Place.RUN ? failure : execute(file, module, outputs, lib);
+        return failure != null || place != Place.RUN ? failure : execute(file, module, outputs, exitCode, lib);
     }
 
     // The round trip of BC-08 (README §7.5): module A gives text T, T assembles to module B, and B gives
@@ -161,18 +174,19 @@ final class Suite {
         }
     }
 
-    // A program of run/ on a new VM0 in this JVM (Q90): its exit code is 0, and its standard output equals
-    // the expect-output lines, each followed by LF, byte for byte. Standard error is not compared, but a
-    // failure shows its first line.
-    private static String execute(String file, byte[] module, List<String> outputs, ModuleSource lib) {
+    // A program of run/ on a new VM0 in this JVM (Q90): the low 8 bits of its exit code, as Linux gives them,
+    // equal the expected code, and its standard output equals the expect-output lines, each followed by LF,
+    // byte for byte. Standard error is not compared, but a failure shows its first line.
+    private static String execute(String file, byte[] module, List<String> outputs, int expectedExit,
+            ModuleSource lib) {
         var out = new ByteArrayOutputStream();
         var err = new ByteArrayOutputStream();
         Vm.Result result = Vm.run(new ModuleData(file, module), lib, null, List.of(),
                 new PrintStream(out, true, StandardCharsets.UTF_8), new PrintStream(err, true, StandardCharsets.UTF_8));
         String error = err.toString(StandardCharsets.UTF_8);
         int exitCode = result.exitCode() & 0xFF;
-        if (exitCode != 0) {
-            return "the exit code is " + exitCode + ", expected 0" + (error.isEmpty() ? "" : ": "
+        if (exitCode != expectedExit) {
+            return "the exit code is " + exitCode + ", expected " + expectedExit + (error.isEmpty() ? "" : ": "
                     + error.split("\n", 2)[0]);
         }
         var expected = new StringBuilder();
@@ -217,9 +231,10 @@ final class Suite {
     }
 
     // The values of the directives of TST-01 among the leading // lines of the file. The value of
-    // expect-output is the text after its colon and one space; that of expect-error has no outer spaces.
+    // expect-output and expect-exit is the text after its colon and one space; that of expect-error has no
+    // outer spaces.
     private static Directives directives(byte[] text) {
-        var directives = new Directives(new ArrayList<>(), new ArrayList<>());
+        var directives = new Directives(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
         for (String line : new String(text, StandardCharsets.UTF_8).split("\n")) {
             if (!line.startsWith("//")) {
                 break;
@@ -227,13 +242,24 @@ final class Suite {
             if (line.startsWith(EXPECT_ERROR)) {
                 directives.errors().add(line.substring(EXPECT_ERROR.length()).strip());
             } else if (line.startsWith(EXPECT_OUTPUT)) {
-                String value = line.substring(EXPECT_OUTPUT.length());
-                directives.outputs().add(value.startsWith(" ") ? value.substring(1) : value);
+                directives.outputs().add(value(line, EXPECT_OUTPUT));
+            } else if (line.startsWith(EXPECT_EXIT)) {
+                directives.exits().add(value(line, EXPECT_EXIT));
             }
         }
         return directives;
     }
 
-    private record Directives(List<String> errors, List<String> outputs) {
+    private static String value(String line, String directive) {
+        String value = line.substring(directive.length());
+        return value.startsWith(" ") ? value.substring(1) : value;
+    }
+
+    // The exit code that an expect-exit gives: a number from 0 to 255, the codes that Linux gives, or -1.
+    private static int exitCode(String value) {
+        return value.matches("[0-9]{1,3}") && Integer.parseInt(value) <= 255 ? Integer.parseInt(value) : -1;
+    }
+
+    private record Directives(List<String> errors, List<String> outputs, List<String> exits) {
     }
 }

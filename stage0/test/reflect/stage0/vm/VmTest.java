@@ -42,6 +42,30 @@ public final class VmTest {
     }
 
     @Test
+    public static void intMainGivesTheExitCode() throws Exception {
+        String main = ".module m 0.0.0\n.main m.App\n.requires reflect.core\n.requires reflect.io\n\n"
+                + ".class public final m.App {\n    .method public static int main(reflect.core.String[] args) {\n"
+                + "        ldstr \"x\"\n" + PRINTLN + "        ldc.i4 %d\n        ret\n    }\n}\n";
+        assertEquals(new Run(3, null, "x\n", ""), run(main.formatted(3)));
+        // The run gives the whole int (README §6.2).
+        assertEquals(new Run(-1, null, "x\n", ""), run(main.formatted(-1)));
+    }
+
+    @Test
+    public static void runtimeExitEndsTheRunAtTheCall() throws Exception {
+        String quit = "    .method static void quit() {\n        ldstr \"before\"\n" + PRINTLN + "        ldc.i4 4\n"
+                + "        call static void reflect.core.Runtime::exit(int)\n        ldstr \"after\"\n" + PRINTLN
+                + "        ret\n    }\n";
+        assertEquals(new Run(4, null, "before\n", ""), run(program("        call static void m.App::quit()\n"
+                + "        ldstr \"end\"\n" + PRINTLN + "        ret\n", quit)));
+        // Its argument replaces the result of an int main.
+        String main = ".module m 0.0.0\n.main m.App\n.requires reflect.core\n.requires reflect.io\n\n"
+                + ".class public final m.App {\n    .method public static int main(reflect.core.String[] args) {\n"
+                + "        call static void m.App::quit()\n        ldc.i4 3\n        ret\n    }\n" + quit + "}\n";
+        assertEquals(new Run(4, null, "before\n", ""), run(main));
+    }
+
+    @Test
     public static void onlyTrustedModulesDeclareNatives() throws Exception {
         String hello = "        ldstr \"Hello\"\n" + PRINTLN + "        ret\n";
         // The main class loads before main runs, so its native stops the run before any output (LIB-03).
@@ -93,13 +117,20 @@ public final class VmTest {
                 + ".class public m.App {\n    .method public static void main(reflect.core.String[] args) {\n"
                 + "        ldstr \"App\"\n" + PRINTLN + "        ret\n    }\n}\n"
                 + ".class public m.Hidden {\n    .method static void main(reflect.core.String[] args) {\n        ret\n"
-                + "    }\n}\n.class public m.Odd {\n    .method public static void main(int args) {\n        ret\n    }\n}\n";
+                + "    }\n}\n.class public m.Odd {\n    .method public static void main(int args) {\n        ret\n    }\n}\n"
+                + ".class public m.Wide {\n    .method public static long main(reflect.core.String[] args) {\n"
+                + "        ldc.i8 0\n        ret\n    }\n}\n.class public m.Both {\n"
+                + "    .method public static void main(reflect.core.String[] args) {\n        ret\n    }\n"
+                + "    .method public static int main(reflect.core.String[] args) {\n        ldc.i4 0\n        ret\n"
+                + "    }\n}\n";
         assertEquals(new Run(0, null, "App\n", ""), run(classes, "m.App", Map.of()));
         assertEquals(new Run(2, null, "", "vm0: the module m defines no type m.Nope\n"), run(classes, "m.Nope", Map.of()));
-        assertEquals(new Run(2, null, "", "vm0: m.Hidden has no public static void main(reflect.core.String[])\n"),
-                run(classes, "m.Hidden", Map.of()));
-        assertEquals(new Run(2, null, "", "vm0: m.Odd has no public static void main(reflect.core.String[])\n"),
-                run(classes, "m.Odd", Map.of()));
+        String none = " has no public static main(reflect.core.String[]) that returns void or int\n";
+        assertEquals(new Run(2, null, "", "vm0: m.Hidden" + none), run(classes, "m.Hidden", Map.of()));
+        assertEquals(new Run(2, null, "", "vm0: m.Odd" + none), run(classes, "m.Odd", Map.of()));
+        assertEquals(new Run(2, null, "", "vm0: m.Wide" + none), run(classes, "m.Wide", Map.of()));
+        assertEquals(new Run(2, null, "", "vm0: m.Both has two main methods, which return void and int\n"),
+                run(classes, "m.Both", Map.of()));
         assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 2: VM0 runs the instructions of R0 only, and"
                 + " div.u32 is not one\n"), run(program("        ldc.i4 1\n        ldc.i4 2\n        div.u32\n"
                 + "        ret\n", "")));

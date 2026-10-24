@@ -44,6 +44,24 @@ public final class Vm0Test {
     }
 
     @Test
+    public static void vm0ExitsWithTheCodeOfTheProgram() throws Exception {
+        Path root = Files.createTempDirectory("reflect-vm0-");
+        try {
+            Path lib = stubs(root);
+            Path status = module(root, "status", HELLO.replace("@C4@", "x").replace("void main", "int main")
+                    .replace("        ret\n", "        ldc.i4 7\n        ret\n"));
+            assertEquals(new Result(7, "Hello, x!\n", ""), vm0(root, "run", "--module-path", lib.toString(),
+                    status.toString()));
+            // Runtime.exit ends the run before the line.
+            Path exit = module(root, "exit", HELLO.replace("@C4@", "x").replace("        ldstr", "        ldc.i4 9\n"
+                    + "        call static void reflect.core.Runtime::exit(int)\n        ldstr"));
+            assertEquals(new Result(9, "", ""), vm0(root, "run", "--module-path", lib.toString(), exit.toString()));
+        } finally {
+            delete(root);
+        }
+    }
+
+    @Test
     public static void vm0ExitsWith1AfterAFault() throws Exception {
         Path root = Files.createTempDirectory("reflect-vm0-");
         try {

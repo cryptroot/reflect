@@ -1,0 +1,26 @@
+// expect-output: before
+// expect-exit: 3
+.module exit 0.0.0
+.main exit.App
+.requires reflect.core
+.requires reflect.io
+
+// Runtime.exit ends the run at the call, with its argument as the exit code (README §6.2): no line
+// after it prints, in quit or in main.
+.class public final exit.App {
+    .method public static void main(reflect.core.String[] args) {
+        call     static void exit.App::quit()
+        ldstr    "after quit"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void quit() {
+        ldstr    "before"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   3
+        call     static void reflect.core.Runtime::exit(int)
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

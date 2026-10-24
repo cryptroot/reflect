@@ -49,7 +49,8 @@ public final class Vm {
     /**
      * Runs the main module with the modules of the source: the main class is mainClass, a qualified name
      * of GEN-12, or else that of the module (.main). main runs on a new thread with a stack of 256 MiB
-     * (Q93). A Stop exits with 2 and a fault with 1 (Q89).
+     * (Q93). The run exits with the result of int main, the argument of Runtime.exit, or 0; a Stop exits
+     * with 2 and a fault with 1 (Q89).
      */
     public static Result run(ModuleData main, ModuleSource source, @Nullable String mainClass, List<String> args,
             PrintStream out, PrintStream err) {
@@ -71,8 +72,10 @@ public final class Vm {
         try {
             Modules modules = Modules.load(main, source);
             RuntimeMethod entry = entry(modules.main(), mainClass);
-            Interpreter.invoke(this, entry, new Object[] {args.toArray(new String[0])});
-            return new Result(0, null);
+            Object result = Interpreter.invoke(this, entry, new Object[] {args.toArray(new String[0])});
+            return new Result(result == null ? 0 : (Integer) result, null);
+        } catch (Exit e) {
+            return new Result(e.code(), null);
         } catch (Stop e) {
             report("vm0: " + e.getMessage());
             return new Result(2, null);
@@ -92,21 +95,32 @@ public final class Vm {
         }
     }
 
-    // The main method (ex §2.4): public static void main(reflect.core.String[]) of the main class.
+    // The main method (ex §2.4): the one public static main(reflect.core.String[]) of the main class that
+    // returns void or int.
     private RuntimeMethod entry(RuntimeModule module, @Nullable String mainClass) {
         TypeDef type = mainClass == null ? module.definition().main() : module.type(mainClass);
         if (type == null) {
             throw new Stop(mainClass == null ? "the module " + module.name() + " names no main class; name one with"
                     + " .main or --main" : "the module " + module.name() + " defines no type " + mainClass);
         }
-        String wanted = "static void " + type.qualifiedName() + "::main([reflect.core]reflect.core.String[])";
+        String wanted = type.qualifiedName() + "::main([reflect.core]reflect.core.String[])";
+        MethodDef found = null;
         for (MethodDef method : type.methods()) {
-            if ((method.flags() & Flags.PUBLIC) != 0 && Spelling.method(type.qualifiedName(), method.name(),
-                    method.signature(), module.name(), true).equals(wanted)) {
-                return type(module, type).method(method);
+            String spelling = Spelling.method(type.qualifiedName(), method.name(), method.signature(), module.name(),
+                    true);
+            if ((method.flags() & Flags.PUBLIC) != 0 && (spelling.equals("static void " + wanted)
+                    || spelling.equals("static int " + wanted))) {
+                if (found != null) {
+                    throw new Stop(type.qualifiedName() + " has two main methods, which return void and int");
+                }
+                found = method;
             }
         }
-        throw new Stop(type.qualifiedName() + " has no public static void main(reflect.core.String[])");
+        if (found == null) {
+            throw new Stop(type.qualifiedName() + " has no public static main(reflect.core.String[]) that returns void"
+                    + " or int");
+        }
+        return type(module, type).method(found);
     }
 
     /** The run-time type of a type of the module, which loads at its first use (VM-13). */
