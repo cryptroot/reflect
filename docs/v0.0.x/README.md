@@ -254,7 +254,10 @@ reader accepts, and round-trip (§7.5). A file in `run/` then runs on a new VM0 
 `expect-exit`, or else 1 with `expect-throws` and 0 without; the qualified name of the type of its
 uncaught exception must equal its `expect-throws`, or there must be none without one; and its
 standard output must equal its `expect-output` lines, byte for byte (TST-01). It prints `PASS` or
-`FAIL` with the path of each file, then the counts, and exits with:
+`FAIL` with the path of each file, then the counts. When `run/` holds a file, it then lists the R0
+opcodes that no program executed, in the order of their numbers, as
+`159 R0 opcodes, 2 that no program runs: ldnull ldtype`; the list fails nothing before v0.0.9 (§8).
+It exits with:
 
 - 0 when every file passes;
 - 1 when a file fails;
@@ -620,8 +623,8 @@ module.
 - `test` assembles the files of `lib/`, and runs each file of `run/` on a new VM0 in the JVM of
   `test`, with those modules as the module path. The output, the exit code and the uncaught
   exception meet the directives of §6.3 (Q90).
-- VM0 counts the opcodes it executes, and `test` reports the R0 opcodes that no program executed
-  (§8). The report fails no test until v0.0.9.
+- VM0 counts each instruction that it starts, by opcode, and `test` reports the R0 opcodes that no
+  program executed (§8). The report fails no test until v0.0.9.
 
 **Commits.**
 

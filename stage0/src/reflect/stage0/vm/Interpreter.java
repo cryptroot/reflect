@@ -47,6 +47,7 @@ final class Interpreter {
                     throw new Stop(method.name() + ": the code ends without ret");
                 }
                 Instruction instruction = code[pc];
+                vm.count(instruction.opcode());
                 switch (instruction.opcode()) {
                     case Opcode.NOP -> {
                     }

@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 
 import reflect.stage0.bytecode.Assembler;
@@ -15,6 +16,7 @@ import reflect.stage0.bytecode.MethodSig;
 import reflect.stage0.bytecode.ModuleDef;
 import reflect.stage0.bytecode.ModuleRef;
 import reflect.stage0.bytecode.ModuleWriter;
+import reflect.stage0.bytecode.Opcode;
 import reflect.stage0.bytecode.SigCode;
 import reflect.stage0.bytecode.TypeRef;
 import reflect.stage0.bytecode.TypeSig;
@@ -142,8 +144,8 @@ public final class SuiteTest {
                     + root.resolve("run/e.rfla") + ": the exit code is 2, expected 0: vm0: the module e names no main"
                     + " class; name one with .main or --main\nPASS " + root.resolve("run/f.rfla") + "\nFAIL "
                     + root.resolve("run/g.rfla") + ": output line 1 is \"x\" without a line end, expected \"x\"\nFAIL "
-                    + root.resolve("run/h.rfla") + ": output line 2 is missing, expected \"y\"\n11 files, 6 failures\n"),
-                    test(root.toString()));
+                    + root.resolve("run/h.rfla") + ": output line 2 is missing, expected \"y\"\n11 files, 6 failures\n"
+                    + report("ldc.i4", "ldstr", "ldarg", "call", "ret")), test(root.toString()));
         } finally {
             delete(root);
         }
@@ -174,7 +176,7 @@ public final class SuiteTest {
                     + root.resolve("run/f.rfla") + "\nFAIL " + root.resolve("run/g.rfla") + ": a file in run/ holds at"
                     + " most one expect-exit, not 2\nFAIL " + root.resolve("run/h.rfla") + ": expect-exit takes a number"
                     + " from 0 to 255, not \"256\"\nFAIL " + root.resolve("run/i.rfla") + ": expect-exit takes a number"
-                    + " from 0 to 255, not \"x\"\n11 files, 6 failures\n"), test(root.toString()));
+                    + " from 0 to 255, not \"x\"\n11 files, 6 failures\n" + report("ldc.i4", "ret")), test(root.toString()));
         } finally {
             delete(root);
         }
@@ -212,7 +214,8 @@ public final class SuiteTest {
                     + root.resolve("run/g.rfla") + ": the exit code is 1, expected 3" + fault + "\nFAIL "
                     + root.resolve("run/h.rfla") + ": a file in run/ holds at most one expect-throws, not 2\nFAIL "
                     + root.resolve("run/i.rfla") + ": the uncaught exception is reflect.core.ArithmeticException, expected"
-                    + " ArithmeticException\n11 files, 8 failures\n"), test(root.toString()));
+                    + " ArithmeticException\n11 files, 8 failures\n" + report("ldc.i4", "div.i32", "ret")),
+                    test(root.toString()));
         } finally {
             delete(root);
         }
@@ -247,7 +250,19 @@ public final class SuiteTest {
 
     // The check of a file outside invalid/ and run/, which runs no program.
     private static String check(byte[] text, Suite.Assembly assembly, Suite.Disassembly disassembly) {
-        return Suite.check(Suite.Place.OTHER, "m.rfla", text, assembly, disassembly, name -> null);
+        return Suite.check(Suite.Place.OTHER, "m.rfla", text, assembly, disassembly, name -> null, new HashSet<>());
+    }
+
+    // The line after the counts when the programs execute only these opcodes: the 159 R0 opcodes of
+    // bytecode.md §5.1 but these, in the order of their numbers.
+    private static String report(String... executed) {
+        var missing = new ArrayList<String>();
+        for (int code = 0; code <= 0xFEFF; code++) {
+            if (Opcode.isDefined(code) && Opcode.isR0(code) && !List.of(executed).contains(Opcode.mnemonic(code))) {
+                missing.add(Opcode.mnemonic(code));
+            }
+        }
+        return "159 R0 opcodes, " + missing.size() + " that no program runs: " + String.join(" ", missing) + "\n";
     }
 
     // A program of the module whose main class prints with these lines of main.

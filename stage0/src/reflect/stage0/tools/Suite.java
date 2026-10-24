@@ -10,9 +10,11 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import reflect.stage0.bytecode.Assembler;
@@ -21,6 +23,7 @@ import reflect.stage0.bytecode.Diagnostic;
 import reflect.stage0.bytecode.Disassembler;
 import reflect.stage0.bytecode.ModuleFormatException;
 import reflect.stage0.bytecode.ModuleReader;
+import reflect.stage0.bytecode.Opcode;
 import reflect.stage0.vm.ModuleData;
 import reflect.stage0.vm.ModuleSource;
 import reflect.stage0.vm.Vm;
@@ -30,7 +33,8 @@ import reflect.stage0.vm.Vm;
  * invalid/ must fail with the one expect-error of its leading comments (§6.3); any other file must hold
  * none, assemble into a module that the reader accepts, and round-trip (§7.5). A file in run/ then runs
  * on VM0, with the modules of lib/ as its module path, and must meet its expect-output, expect-exit and
- * expect-throws (Q90).
+ * expect-throws (Q90). After the counts, when run/ holds a file, test lists the R0 opcodes that no program
+ * executed.
  */
 final class Suite {
     private static final String EXPECT_ERROR = "// expect-error:";
@@ -70,26 +74,49 @@ final class Suite {
                 return 2;
             }
             ModuleSource lib = lib(root, files);
+            var executed = new HashSet<Integer>();
             int failures = 0;
+            int programs = 0;
             for (Path file : files) {
                 Path relative = root.relativize(file);
                 Place place = relative.startsWith("invalid") ? Place.INVALID : relative.startsWith("run") ? Place.RUN
                         : Place.OTHER;
                 String failure = check(place, file.toString(), Files.readAllBytes(file), Assembler::assemble,
-                        Disassembler::disassemble, lib);
+                        Disassembler::disassemble, lib, executed);
                 if (failure == null) {
                     out.println("PASS " + file);
                 } else {
                     failures++;
                     out.println("FAIL " + file + ": " + failure);
                 }
+                programs += place == Place.RUN ? 1 : 0;
             }
             out.println(files.size() + " files, " + failures + " failures");
+            if (programs > 0) {
+                out.println(report(executed));
+            }
             return failures == 0 ? 0 : 1;
         } catch (IOException | UncheckedIOException e) {
             err.println("test: cannot read " + root + ": " + e);
             return 2;
         }
+    }
+
+    // The R0 opcodes that no program executed, in the order of their numbers (README §8). The report fails
+    // nothing until v0.0.9.
+    private static String report(Set<Integer> executed) {
+        var missing = new ArrayList<String>();
+        int r0 = 0;
+        for (int code = 0; code <= ((Opcode.PREFIX << 8) | 0xFF); code++) {
+            if (Opcode.isDefined(code) && Opcode.isR0(code)) {
+                r0++;
+                if (!executed.contains(code)) {
+                    missing.add(Opcode.mnemonic(code));
+                }
+            }
+        }
+        return r0 + " R0 opcodes, " + missing.size() + " that no program runs" + (missing.isEmpty() ? ""
+                : ": " + String.join(" ", missing));
     }
 
     // The modules of lib/ for the programs of run/: the module of requires m is lib/m.rfla, as the file
@@ -111,9 +138,10 @@ final class Suite {
         return modules::get;
     }
 
-    // The failure of one file, or null when it passes. The file names the module in messages of VM0.
+    // The failure of one file, or null when it passes. The file names the module in messages of VM0, and a
+    // program adds the opcodes that it executes to executed.
     static String check(Place place, String file, byte[] text, Assembly assembly, Disassembly disassembly,
-            ModuleSource lib) {
+            ModuleSource lib, Set<Integer> executed) {
         Directives directives = directives(text);
         List<String> errors = directives.errors();
         if (errors.size() != (place == Place.INVALID ? 1 : 0)) {
@@ -164,7 +192,7 @@ final class Suite {
         }
         String failure = roundTrip(module, assembly, disassembly);
         return failure != null || place != Place.RUN ? failure : execute(file, module, outputs, exitCode, uncaught,
-                lib);
+                lib, executed);
     }
 
     // The round trip of BC-08 (README §7.5): module A gives text T, T assembles to module B, and B gives
@@ -191,11 +219,12 @@ final class Suite {
     // and its standard output equals the expect-output lines, each followed by LF, byte for byte. Standard
     // error is not compared, but a failure shows its first line.
     private static String execute(String file, byte[] module, List<String> outputs, int expectedExit,
-            String expectedUncaught, ModuleSource lib) {
+            String expectedUncaught, ModuleSource lib, Set<Integer> executed) {
         var out = new ByteArrayOutputStream();
         var err = new ByteArrayOutputStream();
         Vm.Result result = Vm.run(new ModuleData(file, module), lib, null, List.of(),
                 new PrintStream(out, true, StandardCharsets.UTF_8), new PrintStream(err, true, StandardCharsets.UTF_8));
+        executed.addAll(result.counts().keySet());
         String error = err.toString(StandardCharsets.UTF_8);
         int exitCode = result.exitCode() & 0xFF;
         if (exitCode != expectedExit) {

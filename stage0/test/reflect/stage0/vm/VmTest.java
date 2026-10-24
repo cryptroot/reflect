@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 import reflect.stage0.bytecode.Assembler;
+import reflect.stage0.bytecode.Opcode;
 import reflect.stage0.lib.Nullable;
 import reflect.stage0.test.Test;
 
@@ -194,6 +195,20 @@ public final class VmTest {
     }
 
     @Test
+    public static void theRunCountsTheOpcodesThatItStarts() throws Exception {
+        // A loop of two rounds, then a call: an opcode counts each time that it starts, in main and in f.
+        String loop = "        .locals (int n)\n        ldc.i4 2\n        stloc n\n    LOOP:\n        ldloc n\n        brfalse END\n"
+                + "        ldloc n\n        ldc.i4 1\n        sub.i32\n        stloc n\n        br LOOP\n    END:\n"
+                + "        call static void m.App::f()\n        ret\n";
+        assertEquals(Map.of(Opcode.LDC_I4, 3L, Opcode.STLOC, 3L, Opcode.LDLOC, 5L, Opcode.BRFALSE, 3L, Opcode.SUB_I32,
+                2L, Opcode.BR, 2L, Opcode.CALL, 1L, Opcode.NOP, 1L, Opcode.RET, 2L), counts(program(loop,
+                "    .method static void f() {\n        nop\n        ret\n    }\n")));
+        // An instruction that stops VM0 counts too, and a two-byte opcode by its own number.
+        assertEquals(Map.of(Opcode.LDC_I4, 2L, Opcode.ADD_OVF_I32, 1L), counts(program("        ldc.i4 1\n"
+                + "        ldc.i4 2\n        add.ovf.i32\n        pop\n        ret\n", "")));
+    }
+
+    @Test
     public static void anErrorOfTheRunReachesTheCaller() throws Exception {
         // main runs on a thread of its own (Q93); an error that ends it, such as OutOfMemoryError, reaches the
         // caller of run unchanged.
@@ -219,18 +234,28 @@ public final class VmTest {
 
     // Runs the module on VM0 with the stub modules of lib/, or the texts that replace them.
     private static Run run(String main, @Nullable String mainClass, Map<String, String> replaced) throws Exception {
+        var out = new ByteArrayOutputStream();
+        var err = new ByteArrayOutputStream();
+        Vm.Result result = execute(main, mainClass, replaced, out, err);
+        return new Run(result.exitCode(), result.uncaught(), out.toString(StandardCharsets.UTF_8),
+                err.toString(StandardCharsets.UTF_8));
+    }
+
+    // The opcodes that a run of the module executes, by number, and how often.
+    private static Map<Integer, Long> counts(String main) throws Exception {
+        return execute(main, null, Map.of(), new ByteArrayOutputStream(), new ByteArrayOutputStream()).counts();
+    }
+
+    private static Vm.Result execute(String main, @Nullable String mainClass, Map<String, String> replaced,
+            ByteArrayOutputStream out, ByteArrayOutputStream err) throws Exception {
         var modules = new HashMap<String, ModuleData>();
         for (String name : List.of("reflect.core", "reflect.io")) {
             String file = "tests/bytecode/lib/" + name + ".rfla";
             String text = replaced.containsKey(name) ? replaced.get(name) : Files.readString(Path.of(file));
             modules.put(name, new ModuleData(file, assemble(text)));
         }
-        var out = new ByteArrayOutputStream();
-        var err = new ByteArrayOutputStream();
-        Vm.Result result = Vm.run(new ModuleData("m.rflc", assemble(main)), modules::get, mainClass, List.of(),
+        return Vm.run(new ModuleData("m.rflc", assemble(main)), modules::get, mainClass, List.of(),
                 new PrintStream(out, true, StandardCharsets.UTF_8), new PrintStream(err, true, StandardCharsets.UTF_8));
-        return new Run(result.exitCode(), result.uncaught(), out.toString(StandardCharsets.UTF_8),
-                err.toString(StandardCharsets.UTF_8));
     }
 
     private static byte[] assemble(String text) throws Exception {

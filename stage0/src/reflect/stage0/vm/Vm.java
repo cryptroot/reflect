@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
@@ -15,6 +16,7 @@ import reflect.stage0.bytecode.MethodDef;
 import reflect.stage0.bytecode.MethodHandle;
 import reflect.stage0.bytecode.MethodSig;
 import reflect.stage0.bytecode.ModuleRef;
+import reflect.stage0.bytecode.Opcode;
 import reflect.stage0.bytecode.TypeDef;
 import reflect.stage0.bytecode.TypeHandle;
 import reflect.stage0.bytecode.TypeRef;
@@ -27,8 +29,11 @@ import reflect.stage0.lib.Nullable;
  * messages as UTF-8 bytes.
  */
 public final class Vm {
-    /** How a run ends: its exit code, and the type of an uncaught exception or null. */
-    public record Result(int exitCode, @Nullable String uncaught) {
+    /**
+     * How a run ends: its exit code, the type of an uncaught exception or null, and the count of each opcode
+     * that it started, keyed by number (README §7.6).
+     */
+    public record Result(int exitCode, @Nullable String uncaught, Map<Integer, Long> counts) {
     }
 
     // The stack of the thread that runs main (Q93). In the build image a call of VM0 takes about 180 to 310
@@ -40,6 +45,8 @@ public final class Vm {
     private final PrintStream err;
     private final Map<TypeDef, RuntimeType> types = new IdentityHashMap<>();
     private final Map<String, String> literals = new HashMap<>();
+    // One slot for each one-byte opcode, then one for each two-byte opcode.
+    private final long[] counts = new long[0x200];
 
     Vm(PrintStream out, PrintStream err) {
         this.out = out;
@@ -72,27 +79,37 @@ public final class Vm {
         try {
             Modules modules = Modules.load(main, source);
             RuntimeMethod entry = entry(modules.main(), mainClass);
-            Object result = Interpreter.invoke(this, entry, new Object[] {args.toArray(new String[0])});
-            return new Result(result == null ? 0 : (Integer) result, null);
+            Object value = Interpreter.invoke(this, entry, new Object[] {args.toArray(new String[0])});
+            return result(value == null ? 0 : (Integer) value, null);
         } catch (Exit e) {
-            return new Result(e.code(), null);
+            return result(e.code(), null);
         } catch (Stop e) {
             report("vm0: " + e.getMessage());
-            return new Result(2, null);
+            return result(2, null);
         } catch (Fault e) {
             report(e.type() + ": " + e.getMessage());
-            return new Result(1, e.type());
+            return result(1, e.type());
         } catch (StackOverflowError e) {
             // A fault until v0.0.8 (Q94). The JVM has unwound the stack to here, so the report has room.
             report(Fault.STACK_OVERFLOW_ERROR + ": the calls fill the " + (STACK_SIZE >> 20) + " MiB stack of VM0");
-            return new Result(1, Fault.STACK_OVERFLOW_ERROR);
+            return result(1, Fault.STACK_OVERFLOW_ERROR);
         } catch (RuntimeException e) {
             report("vm0: VM0 failed: " + e);
-            return new Result(2, null);
+            return result(2, null);
         } finally {
             out.flush();
             err.flush();
         }
+    }
+
+    private Result result(int exitCode, @Nullable String uncaught) {
+        var executed = new TreeMap<Integer, Long>();
+        for (int slot = 0; slot < counts.length; slot++) {
+            if (counts[slot] != 0) {
+                executed.put(slot < 0x100 ? slot : (Opcode.PREFIX << 8) | (slot & 0xFF), counts[slot]);
+            }
+        }
+        return new Result(exitCode, uncaught, executed);
     }
 
     // The main method (ex §2.4): the one public static main(reflect.core.String[]) of the main class that
@@ -180,6 +197,11 @@ public final class Vm {
     /** The interned string of a literal (NUM-05). */
     String literal(String text) {
         return literals.computeIfAbsent(text, key -> key);
+    }
+
+    /** Counts an instruction that the run starts to execute (README §7.6). */
+    void count(int opcode) {
+        counts[opcode < 0x100 ? opcode : 0x100 | (opcode & 0xFF)]++;
     }
 
     /** Writes bytes to standard output (1) or standard error (2), in the order of the calls. */
