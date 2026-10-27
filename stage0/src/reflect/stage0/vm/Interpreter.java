@@ -350,7 +350,10 @@ final class Interpreter {
                         RuntimeMethod callee = (RuntimeMethod) links[pc];
                         sp -= callee.arguments();
                         Object[] values = Arrays.copyOfRange(stack, sp, sp + callee.arguments());
-                        if (!callee.isStatic()) {
+                        if (callee.isStatic()) {
+                            // A static call is an active use of its class (VM-07).
+                            callee.type().initialize(vm);
+                        } else {
                             // A call of an instance method checks its receiver, as the JVM's invokespecial does (Q100).
                             receiver(vm, values[0], callee.type(), "call " + callee.signature(), method, pc);
                         }
@@ -359,8 +362,8 @@ final class Interpreter {
                             stack[sp++] = result;
                         }
                     }
-                    // newobj makes an object of the constructor's class, every field at zero, and runs the
-                    // constructor on it, after the parameters (BC-04).
+                    // newobj initializes the constructor's class (VM-07), makes an object of it with every field at
+                    // zero, and runs the constructor on it, after the parameters (BC-04).
                     case Opcode.NEWOBJ -> {
                         if (links[pc] == null) {
                             links[pc] = constructor(vm, method, pc, ((Instruction.Method) instruction).method());
@@ -369,23 +372,35 @@ final class Interpreter {
                         Object[] values = new Object[constructor.arguments()];
                         sp -= values.length - 1;
                         System.arraycopy(stack, sp, values, 1, values.length - 1);
+                        constructor.type().initialize(vm);
                         Instance object = constructor.type().allocate();
                         values[0] = object;
                         invoke(vm, constructor, values);
                         stack[sp++] = object;
                     }
                     case Opcode.LDFLD -> {
-                        RuntimeField field = instanceField(vm, method, pc, instruction);
+                        RuntimeField field = field(vm, method, pc, instruction, false);
                         Instance object = (Instance) receiver(vm, stack[sp - 1], field.owner(), "ldfld " + field.name(),
                                 method, pc);
                         stack[sp - 1] = object.fields()[field.slot()];
                     }
                     case Opcode.STFLD -> {
-                        RuntimeField field = instanceField(vm, method, pc, instruction);
+                        RuntimeField field = field(vm, method, pc, instruction, false);
                         Object value = stack[--sp];
                         Instance object = (Instance) receiver(vm, stack[--sp], field.owner(), "stfld " + field.name(),
                                 method, pc);
                         object.fields()[field.slot()] = field.stored(value);
+                    }
+                    // An access to a static field is an active use of its class (VM-07).
+                    case Opcode.LDSFLD -> {
+                        RuntimeField field = field(vm, method, pc, instruction, true);
+                        field.owner().initialize(vm);
+                        stack[sp++] = field.owner().statics()[field.slot()];
+                    }
+                    case Opcode.STSFLD -> {
+                        RuntimeField field = field(vm, method, pc, instruction, true);
+                        field.owner().initialize(vm);
+                        field.owner().statics()[field.slot()] = field.stored(stack[--sp]);
                     }
                     case Opcode.RET -> {
                         return method.returnsValue() ? stack[--sp] : null;
@@ -451,15 +466,15 @@ final class Interpreter {
         return value;
     }
 
-    // The instance field that a ldfld or stfld names, linked at its first execution (VM-16). A static field
-    // there is a link error (Q101).
-    private static RuntimeField instanceField(Vm vm, RuntimeMethod method, int pc, Instruction instruction) {
+    // The field that a field instruction names, linked at its first execution (VM-16): a static field for
+    // ldsfld and stsfld, and an instance field for ldfld and stfld; another one there is a link error (Q101).
+    private static RuntimeField field(Vm vm, RuntimeMethod method, int pc, Instruction instruction, boolean statics) {
         Object[] links = method.links();
         if (links[pc] == null) {
             RuntimeField field = vm.field(method.type().module(), ((Instruction.Field) instruction).field());
-            if (field.isStatic()) {
-                throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " names the static field "
-                        + field.name());
+            if (field.isStatic() != statics) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " names the "
+                        + (statics ? "instance" : "static") + " field " + field.name());
             }
             links[pc] = field;
         }

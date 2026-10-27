@@ -1,0 +1,53 @@
+// expect-output: A.f sees A.x = 0
+// expect-output: B sees A.x = 0
+// expect-output: A.x = 1
+// expect-output: A.f sees A.x = 1
+.module reentry 0.0.0
+.main reentry.App
+.requires reflect.core
+.requires reflect.io
+
+// A request from the running initializer proceeds and sees the values that the fields hold, as Java
+// gives (VM-07, MEM-06): the initializer of A calls A.f and B.peek, which read A.x before the
+// initializer stores 1 to it.
+.class public final reentry.A {
+    .field public static int x
+    .method static void static() {
+        call     static void reentry.A::f()
+        call     static void reentry.B::peek()
+        ldc.i4   1
+        stsfld   int reentry.A::x
+        ret
+    }
+    .method public static void f() {
+        ldstr    "A.f sees A.x = "
+        ldsfld   int reentry.A::x
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+
+.class public final reentry.B {
+    .method public static void peek() {
+        ldstr    "B sees A.x = "
+        ldsfld   int reentry.A::x
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+
+.class public final reentry.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldstr    "A.x = "
+        ldsfld   int reentry.A::x
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        call     static void reentry.A::f()
+        ret
+    }
+}

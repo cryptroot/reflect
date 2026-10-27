@@ -680,10 +680,12 @@ tests, constants and class initialization.
   overrides it, else to the one most specific default. `call` of an instance method checks its
   receiver for null (Q100).
 - Class initialization follows VM-07: at first active use (a static field, a static call or
-  `newobj`), superclasses first, with the states not started, running, done and failed. A nested
-  request from the running initializer sees default values. Until v0.0.8, a fault that is an
-  exception ends a static initializer as `ExceptionInInitializerError`, and an error ends it
-  unchanged (Q102).
+  `newobj`), once, superclasses first. A nested request from the running initializer sees default
+  values. Until v0.0.8, a fault that is an exception ends a static initializer as
+  `ExceptionInInitializerError`, and an error ends it unchanged (Q102). With one thread the states
+  running and done behave alike, and the fault ends the run, so VM0 records only that the
+  initialization has started; the state failed comes with the later uses that meet it in v0.0.8
+  (§7.9).
 - `castclass` to a non-null type throws `NullPointerException` for `null`, and `instanceof` is
   false for `null` (NUL-05). VM0 runs type tests against classes and interfaces and their nullable
   forms; the other `TypeSpec` types wait for their stages (Q99).
@@ -796,7 +798,7 @@ boxing.
    thrown inside `finally`.
 5. The exceptions that VM0 raises, one test each.
 6. Stack overflow, tested with unbounded recursion.
-7. Initializer failure and `ExceptionInInitializerError`.
+7. Initializer failure and `ExceptionInInitializerError`, with the state failed of VM-07.
 8. Stack traces with line numbers, and with offsets only when DEBUG is absent (VM-21).
 
 **Exit check.** The programs in `run/exceptions/` pass, and the `expect-throws` tests of earlier

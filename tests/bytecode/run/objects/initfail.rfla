@@ -1,0 +1,32 @@
+// expect-output: before
+// expect-throws: reflect.core.ExceptionInInitializerError
+.module initfail 0.0.0
+.main initfail.App
+.requires reflect.core
+.requires reflect.io
+
+// An exception in a static initializer reaches the first use of the class as
+// ExceptionInInitializerError (MEM-06). Until v0.0.8 the division by zero is a fault, which ends the
+// run with exit code 1 as ExceptionInInitializerError, so this test stays valid then (Q89, Q102).
+.class public final initfail.Broken {
+    .field public static int x
+    .method static void static() {
+        ldc.i4   1
+        ldc.i4   0
+        div.i32
+        stsfld   int initfail.Broken::x
+        ret
+    }
+}
+
+.class public final initfail.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldstr    "before"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldsfld   int initfail.Broken::x
+        pop
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

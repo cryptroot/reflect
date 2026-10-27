@@ -342,12 +342,13 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
   or per instantiation for generic classes (§8). [Decided, Q60] In bytecode too, only the
   declaring type's constructors, on their own `this`, and its static initializer store to its
   finals, and reflection never does (BC-23).
-- **MEM-06 [Decided, details Proposed]** Constructors use Java's syntax and chaining:
-  `this(...)` or `super(...)` comes first, an omitted call means `super()`, and a class without
-  constructors gets a public parameterless one (or forwarders for inherited virtual constructors,
-  SVD-06). Static field initializers and `static { }` blocks run in textual order, once per class
-  or instantiation, before first use (vm.md §7). If they throw, the first use gets
-  `ExceptionInInitializerError` and later uses get a new one with the same cause. A static
+- **MEM-06 [Decided, details Proposed; errors Decided, Q102]** Constructors use Java's syntax and
+  chaining: `this(...)` or `super(...)` comes first, an omitted call means `super()`, and a class
+  without constructors gets a public parameterless one (or forwarders for inherited virtual
+  constructors, SVD-06). Static field initializers and `static { }` blocks run in textual order,
+  once per class or instantiation, before first use (vm.md §7). If they throw an exception, the
+  first use gets `ExceptionInInitializerError`, and later uses get a new one with the same cause; an
+  error, such as `StackOverflowError`, reaches the first use unchanged (JLS §12.4.2, Q102). A static
   initialization cycle behaves as in Java (the nested request sees default values, possibly
   `null` in a non-null static); the compiler warns about cycles it can see.
 - **MEM-07 [Decided, details Proposed]** `Object` declares virtual `equals(Object?)`,

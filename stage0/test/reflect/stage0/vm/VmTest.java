@@ -152,14 +152,14 @@ public final class VmTest {
                 run(program("        ldtype m.App\n        ret\n", "")));
         assertEquals(new Run(2, null, "", "vm0: m.App::main: the code ends without ret\n"),
                 run(program("        ldstr \"x\"\n", "")));
-        assertEquals(new Run(2, null, "", "vm0: VM0 does not run the static initializer of m.App yet\n"),
-                run(program("        ret\n", "    .method static void static() {\n        ret\n    }\n")));
         assertEquals(new Run(2, null, "", "vm0: m.App::main: VM0 does not run locals of value types yet\n"),
                 run(program("        .locals (valuetype m.E e)\n        ret\n", "")
                 + ".class public enum m.E : int {\n}\n"));
         // The main class loads before main runs, and its layout needs the zero value of each field.
         assertEquals(new Run(2, null, "", "vm0: m.App::e: VM0 does not run fields of value types yet\n"),
                 run(program("        ret\n", "    .field valuetype m.E e\n") + ".class public enum m.E : int {\n}\n"));
+        assertEquals(new Run(2, null, "", "vm0: m.App::e: VM0 does not run fields of value types yet\n"),
+                run(program("        ret\n", "    .field static valuetype m.E e\n") + ".class public enum m.E : int {\n}\n"));
         assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 0: VM0 does not run value types yet, such as"
                 + " m.S\n"), run(program("        newobj void m.S::new()\n        pop\n        ret\n", "")
                 + ".class public struct m.S {\n    .method public void new() {\n        ret\n    }\n}\n"));
@@ -272,6 +272,53 @@ public final class VmTest {
                 run(program("        ldstr \"x\"\n        ldfld int m.App::count\n        pop\n        ret\n", count)));
         assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": stfld names the static field int m.App::count\n"),
                 run(program("        ldstr \"x\"\n        ldc.i4 1\n        stfld int m.App::count\n        ret\n", count)));
+    }
+
+    @Test
+    public static void ldsfldAndStsfldNameStaticFields() throws Exception {
+        // An instance field there is a link error (Q101).
+        String x = "    .field int x\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": ldsfld names the instance field int m.App::x\n"),
+                run(program("        ldsfld int m.App::x\n        pop\n        ret\n", x)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": stsfld names the instance field int m.App::x\n"),
+                run(program("        ldc.i4 1\n        stsfld int m.App::x\n        ret\n", x)));
+    }
+
+    @Test
+    public static void aFaultOfAStaticInitializer() throws Exception {
+        // Until v0.0.8, a fault that is an exception ends the initializer as ExceptionInInitializerError, with
+        // the fault as its message; an error, and Runtime.exit, end it unchanged (Q102).
+        String use = "        ldstr \"before\"\n" + PRINTLN + "        ldsfld int m.B::x\n        pop\n        ret\n";
+        String eiie = "reflect.core.ExceptionInInitializerError";
+        assertEquals(new Run(1, eiie, "before\n", eiie + ": " + ARITHMETIC_EXCEPTION + ": division by zero\n"),
+                run(program(use, "") + initializer("        ldc.i4 1\n        ldc.i4 0\n        div.i32\n        pop\n")));
+        assertEquals(new Run(1, eiie, "before\n", eiie + ": reflect.io.IOException: VM0 writes to file descriptors 1 and"
+                + " 2 only, not 3\n"), run(program(use, "") + initializer("        ldc.i4 3\n        ldstr \"x\"\n"
+                + "        call static void reflect.io.Console::write(int, reflect.core.String)\n")));
+        assertEquals(new Run(1, eiie, "before\n", eiie + ": " + NULL_POINTER_EXCEPTION + ": ldfld int m.B::y: the receiver"
+                + " is null\n"), run(program(use, "") + initializer("        .locals (m.B b)\n        ldloc b\n"
+                + "        ldfld int m.B::y\n        pop\n")));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "before\n", TYPE_LOAD_ERROR + ": the module reflect.io defines no method"
+                + " static void reflect.io.Console::missing()\n"), run(program(use, "")
+                + initializer("        call static void reflect.io.Console::missing()\n")));
+        assertEquals(new Run(1, "reflect.core.StackOverflowError", "before\n", "reflect.core.StackOverflowError: the calls"
+                + " fill the 256 MiB stack of VM0\n"), run(program(use, "") + initializer("        call static void m.B::down()\n")
+                .replace("}\n}\n", "}\n    .method static void down() {\n        call static void m.B::down()\n"
+                + "        ret\n    }\n}\n")));
+        assertEquals(new Run(5, null, "before\n", ""), run(program(use, "") + initializer("        ldc.i4 5\n"
+                + "        call static void reflect.core.Runtime::exit(int)\n")));
+        // The error of a failed initializer passes through the initializer that started it, unchanged.
+        String chain = initializer("        ldsfld int m.C::z\n        pop\n") + ".class public m.C {\n"
+                + "    .field static int z\n    .method static void static() {\n        ldc.i4 1\n        ldc.i4 0\n"
+                + "        div.i32\n        pop\n        ret\n    }\n}\n";
+        assertEquals(new Run(1, eiie, "before\n", eiie + ": " + ARITHMETIC_EXCEPTION + ": division by zero\n"),
+                run(program(use, "") + chain));
+    }
+
+    // A class m.B with the static field x, the instance field y, and a static initializer with this code.
+    private static String initializer(String code) {
+        return ".class public m.B {\n    .field static int x\n    .field int y\n    .method static void static() {\n"
+                + code + "        ret\n    }\n}\n";
     }
 
     @Test

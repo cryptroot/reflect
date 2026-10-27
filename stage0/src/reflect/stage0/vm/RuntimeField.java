@@ -6,8 +6,8 @@ import reflect.stage0.bytecode.SigCode;
 import reflect.stage0.bytecode.TypeSig;
 
 /**
- * A field that VM0 has linked (VM-16): the run-time type that declares it, its row and its slot in
- * the objects of that type and of its subclasses.
+ * A field that VM0 has linked (VM-16): the run-time type that declares it, its row, and its slot in
+ * the objects of that type and of its subclasses, or in the static storage of that type.
  */
 final class RuntimeField {
     private final RuntimeType owner;
@@ -32,7 +32,7 @@ final class RuntimeField {
         return (definition.flags() & Flags.FIELD_STATIC) != 0;
     }
 
-    /** The slot of an instance field in the fields of an Instance. */
+    /** The slot of the field: in the fields of an Instance, or for a static field in the statics of its owner. */
     int slot() {
         return slot;
     }

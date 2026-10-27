@@ -1,0 +1,131 @@
+// expect-output: App init
+// expect-output: main
+// expect-output: before Derived
+// expect-output: Base init
+// expect-output: Derived init
+// expect-output: one Derived
+// expect-output: two Derived
+// expect-output: before Counted
+// expect-output: Counted init
+// expect-output: total = 5
+// expect-output: before Util
+// expect-output: Util init
+// expect-output: Util.f
+// expect-output: Util.f
+// expect-output: before Store
+// expect-output: Store init
+.module init 0.0.0
+.main init.App
+.requires reflect.core
+.requires reflect.io
+
+// A class initializes at its first active use, a static field, a static call or newobj, after its base
+// class, and the main class before main runs (VM-07). Its static initializer runs once. An interface
+// initializes when its own statics are touched, not when a class that implements it does.
+.class public init.Base {
+    .method static void static() {
+        ldstr    "Base init"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+}
+
+.class public final init.Derived extends init.Base {
+    .method static void static() {
+        ldstr    "Derived init"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method public void new() {
+        ldarg    0
+        call     void init.Base::new()
+        ret
+    }
+}
+
+.class public interface init.Counted {
+    .field public static int total
+    .method static void static() {
+        ldstr    "Counted init"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   5
+        stsfld   int init.Counted::total
+        ret
+    }
+}
+
+.class public final init.Item implements init.Counted {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+}
+
+.class public final init.Util {
+    .method static void static() {
+        ldstr    "Util init"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method public static void f() {
+        ldstr    "Util.f"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+
+// A store to a static field is an active use too.
+.class public final init.Store {
+    .field public static int value
+    .method static void static() {
+        ldstr    "Store init"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+
+.class public final init.App {
+    .method static void static() {
+        ldstr    "App init"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method public static void main(reflect.core.String[] args) {
+        ldstr    "main"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "before Derived"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void init.Derived::new()
+        pop
+        ldstr    "one Derived"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void init.Derived::new()
+        pop
+        ldstr    "two Derived"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void init.Item::new()
+        pop
+        ldstr    "before Counted"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "total = "
+        ldsfld   int init.Counted::total
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "before Util"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        call     static void init.Util::f()
+        call     static void init.Util::f()
+        ldstr    "before Store"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   1
+        stsfld   int init.Store::value
+        ret
+    }
+}

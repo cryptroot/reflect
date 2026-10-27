@@ -87,6 +87,8 @@ public final class Vm {
             Modules graph = Modules.load(main, source);
             modules = graph;
             RuntimeMethod entry = entry(graph.main(), mainClass);
+            // The call of main is a static call, an active use of the main class (VM-07).
+            entry.type().initialize(this);
             Object value = Interpreter.invoke(this, entry, new Object[] {args.toArray(new String[0])});
             return result(value == null ? 0 : (Integer) value, null);
         } catch (Exit e) {
@@ -269,7 +271,7 @@ public final class Vm {
     }
 
     // Loading checks a type (VM-13): each native belongs to a trusted module and has a Java method (LIB-03,
-    // VM-08). Static initializers arrive in v0.0.6, so until then VM0 stops at a type that has one.
+    // VM-08).
     private static void load(RuntimeModule module, TypeDef definition) {
         for (MethodDef method : definition.methods()) {
             if ((method.flags() & Flags.METHOD_NATIVE) != 0) {
@@ -282,9 +284,6 @@ public final class Vm {
                 if (Natives.find(module.name(), signature) == null) {
                     throw new Fault(Fault.TYPE_LOAD_ERROR, "VM0 has no native " + signature + " (VM-08)");
                 }
-            }
-            if ((method.flags() & Flags.METHOD_CONSTRUCTOR) != 0 && method.name().equals("static")) {
-                throw new Stop("VM0 does not run the static initializer of " + definition.qualifiedName() + " yet");
             }
         }
     }

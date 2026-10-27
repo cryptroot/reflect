@@ -130,12 +130,15 @@ VM guarantees.
 
 ## 7. Class initialization
 
-- **VM-07 [Proposed]** Lazy, at first active use (JVMS §5.5): access to a static field through any
-  receiver, a static call, instance creation, or reflective use. Each instantiation initializes
-  separately; superclasses first; an interface only when its own statics are touched. States:
-  not started, running (with the running thread, CON-02), done, failed. A failure is recorded and
-  rethrown as a new `ExceptionInInitializerError` with the same cause at every later use (MEM-06).
-  A nested request from the running initializer proceeds and sees default values (Java).
+- **VM-07 [Proposed; errors Decided, Q102]** Lazy, at first active use (JVMS §5.5): access to a
+  static field through any receiver, a static call, instance creation, or reflective use. Each
+  instantiation initializes separately; superclasses first; an interface only when its own statics
+  are touched. States: not started, running (with the running thread, CON-02), done, failed. An
+  initializer that throws an exception fails with an `ExceptionInInitializerError` whose cause is
+  that exception; an error passes to the first use unchanged, as JLS §12.4.2 gives (Q102). A
+  failure is recorded and rethrown as a new `ExceptionInInitializerError` with the same cause at
+  every later use (MEM-06). A nested request from the running initializer proceeds and sees default
+  values (Java).
 
 ## 8. Exceptions
 

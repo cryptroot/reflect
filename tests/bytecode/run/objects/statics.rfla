@@ -1,0 +1,92 @@
+// expect-output: count = 0
+// expect-output: count = 2
+// expect-output: 0
+// expect-output: 0.0
+// expect-output: null
+// expect-output: 7000000000
+// expect-output: 2.5
+// expect-output: shared
+// expect-output: tiny = 44
+// expect-output: wide = 300
+.module statics 0.0.0
+.main statics.App
+.requires reflect.core
+.requires reflect.io
+
+// A static field has one storage per class (MEM-05), which starts at zero (BC-17), and which every
+// method reads and writes through ldsfld and stsfld (BC-04). A field of type byte keeps the low 8
+// bits of a store, as an instance field does (Q104).
+.class public final statics.Counter {
+    .field public static int count
+    .field public static long big
+    .field public static double ratio
+    .field public static reflect.core.String? label
+    .field public static byte tiny
+    .field public static int wide
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ldsfld   int statics.Counter::count
+        ldc.i4   1
+        add.i32
+        stsfld   int statics.Counter::count
+        ret
+    }
+}
+
+.class public final statics.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldstr    "count"
+        ldsfld   int statics.Counter::count
+        call     static void statics.App::show(reflect.core.String, int)
+        // Each constructor adds 1 to the one count of the class.
+        newobj   void statics.Counter::new()
+        pop
+        newobj   void statics.Counter::new()
+        pop
+        ldstr    "count"
+        ldsfld   int statics.Counter::count
+        call     static void statics.App::show(reflect.core.String, int)
+        call     static void statics.App::report()
+        ldc.i8   7000000000
+        stsfld   long statics.Counter::big
+        ldc.r8   2.5
+        stsfld   double statics.Counter::ratio
+        ldstr    "shared"
+        stsfld   reflect.core.String? statics.Counter::label
+        call     static void statics.App::report()
+        ldc.i4   300
+        stsfld   byte statics.Counter::tiny
+        ldstr    "tiny"
+        ldsfld   byte statics.Counter::tiny
+        call     static void statics.App::show(reflect.core.String, int)
+        ldc.i4   300
+        stsfld   int statics.Counter::wide
+        ldstr    "wide"
+        ldsfld   int statics.Counter::wide
+        call     static void statics.App::show(reflect.core.String, int)
+        ret
+    }
+    // Reads the fields that main writes, from another method.
+    .method static void report() {
+        ldsfld   long statics.Counter::big
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldsfld   double statics.Counter::ratio
+        call     static reflect.core.String reflect.core.String::valueOf(double)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldsfld   reflect.core.String? statics.Counter::label
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void show(reflect.core.String label, int value) {
+        ldarg    label
+        ldstr    " = "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

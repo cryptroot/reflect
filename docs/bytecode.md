@@ -411,8 +411,9 @@ package-private (MOD-08).
   like the JVM's, so the interpreter never inspects stack types; `boolean`, `byte`, `short` and
   `char` values widen to `i32` on the stack and narrow with `conv` on store, and unsigned values
   share the slots of their signed widths. A field of type `boolean`, `byte`, `ubyte`, `short`,
-  `ushort` or `char` keeps the low 8 or 16 bits of the `i32` that `stfld` stores, and `ldfld` widens
-  them by the field's type: `byte` and `short` sign-extend, the others zero-extend (Q104). An
+  `ushort` or `char` keeps the low 8 or 16 bits of the `i32` that `stfld` or `stsfld` stores, and
+  `ldfld` and `ldsfld` widen them by the field's type: `byte` and `short` sign-extend, the others
+  zero-extend (Q104). An
   instruction exists only where it changes the result: equality and stores ignore signedness
   (`ceq.i32` serves `u32`, `stelem.i8` serves `u8`), and conversions exist only where bits change.
   Other pairs compose: a `double` narrows to `byte` through `conv.f64.i32` then
