@@ -15,10 +15,12 @@ import reflect.stage0.lib.Nullable;
  */
 public final class ModuleReader {
     private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.EXPORT, TableId.TYPE_DEF,
-        TableId.TYPE_REF, TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.INTERFACE_IMPL, TableId.MEMBER_REF};
+        TableId.TYPE_REF, TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.INTERFACE_IMPL, TableId.OVERRIDE,
+        TableId.MEMBER_REF};
     private static final int[] TYPE_TOKENS = {TableId.TYPE_DEF, TableId.TYPE_REF, TableId.TYPE_SPEC};
     private static final int[] SCOPE_TOKENS = {TableId.MODULE_REF, TableId.TYPE_REF};
     private static final int[] PARENT_TOKENS = {TableId.TYPE_REF, TableId.TYPE_SPEC};
+    private static final int[] METHOD_TOKENS = {TableId.METHOD, TableId.MEMBER_REF};
 
     private final ModuleFile file;
     private final HeapReader idents;
@@ -76,6 +78,8 @@ public final class ModuleReader {
         for (MemberRef ref : readMemberRefs()) {
             module.memberRefs().add(ref);
         }
+        // Override rows hold no heap reference, so they are read after the MemberRef rows that they name.
+        readOverrides(methodRuns, methods, module.memberRefs());
         Map<Integer, Code.Decoded> bodies = readBodies(methods, token -> rowOf(token, fields, methods,
                 module.memberRefs()));
         for (int row = 1; row <= typeDefRows.size(); row++) {
@@ -385,6 +389,69 @@ public final class ModuleReader {
             refs.add(new MemberRef(typeHandle(parent), name, signature));
         }
         return refs;
+    }
+
+    // Adds the overridden method of each row to its implementation, in row order. The implementation is
+    // in the run of Method rows of the row's type, and the overridden method outside it (Q97).
+    private void readOverrides(int[] methodRuns, List<MethodDef> methods, List<MemberRef> refs)
+            throws ModuleFormatException {
+        int previousType = 0;
+        int previousToken = 0;
+        for (int row = 1; row <= tables.rows(TableId.OVERRIDE); row++) {
+            int type = row(TableId.OVERRIDE, row, 0, TableId.TYPE_DEF, false);
+            int implementation = row(TableId.OVERRIDE, row, 1, TableId.METHOD, false);
+            int token = token(TableId.OVERRIDE, row, 2, METHOD_TOKENS, false, "a Method or MemberRef row");
+            if (row > 1) {
+                int order = ModuleWriter.compareRows(previousType, type);
+                if (order == 0) {
+                    order = ModuleWriter.compareRows(previousToken, token);
+                }
+                if (order >= 0) {
+                    throw new ModuleFormatException(tables.offset(TableId.OVERRIDE, row, 0), order == 0
+                            ? "two Override rows have equal keys (BC-24)"
+                            : "the Override rows are not sorted by class and overridden method (BC-24)");
+                }
+            }
+            String owner = typeDefs.get(type - 1).qualifiedName();
+            if (implementation < methodRuns[type] || implementation >= methodRuns[type + 1]) {
+                throw new ModuleFormatException(tables.offset(TableId.OVERRIDE, row, 1), "the Override row names method "
+                        + methodName(methodRuns, methods, implementation) + ", which is not a method of " + owner + " (BC-11)");
+            }
+            MethodDef method = methods.get(implementation - 1);
+            if (!ModuleWriter.hasSlot(method.flags())) {
+                throw new ModuleFormatException(tables.offset(TableId.OVERRIDE, row, 1), "the Override row names method "
+                        + owner + "::" + method.name() + ", which is not a VIRTUAL or ABSTRACT instance method (BC-11)");
+            }
+            int target = token & 0xFFFFFF;
+            MethodHandle overridden;
+            if (token >>> 24 == TableId.METHOD) {
+                if (target >= methodRuns[type] && target < methodRuns[type + 1]) {
+                    throw new ModuleFormatException(tables.offset(TableId.OVERRIDE, row, 2), "the Override row overrides"
+                            + " method " + owner + "::" + methods.get(target - 1).name() + " of its own type (BC-11)");
+                }
+                overridden = methods.get(target - 1);
+            } else {
+                MemberRef ref = refs.get(target - 1);
+                if (!(ref.signature() instanceof MethodSig)) {
+                    throw new ModuleFormatException(tables.offset(TableId.OVERRIDE, row, 2), "the Override row overrides"
+                            + " MemberRef " + ref.parent().qualifiedName() + "::" + ref.name() + ", which is not a method"
+                            + " (BC-11)");
+                }
+                overridden = ref;
+            }
+            method.overrides().add(overridden);
+            previousType = type;
+            previousToken = token;
+        }
+    }
+
+    // The qualified name of a Method row: the type whose run of Method rows holds it, then :: and the name.
+    private String methodName(int[] methodRuns, List<MethodDef> methods, int row) {
+        int type = 1;
+        while (methodRuns[type + 1] <= row) {
+            type++;
+        }
+        return typeDefs.get(type - 1).qualifiedName() + "::" + methods.get(row - 1).name();
     }
 
     // The bodies follow one another from CODE offset 0 in the order of their Method rows (BC-17).

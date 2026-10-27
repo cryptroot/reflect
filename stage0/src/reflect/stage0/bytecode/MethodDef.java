@@ -14,6 +14,7 @@ public final class MethodDef implements MethodHandle {
     private final String name;
     private final MethodSig signature;
     private final List<ParamDef> params = new ArrayList<>();
+    private final List<MethodHandle> overrides = new ArrayList<>();
     private @Nullable MethodBody body;
 
     public MethodDef(int flags, String name, MethodSig signature) {
@@ -37,6 +38,14 @@ public final class MethodDef implements MethodHandle {
     /** The Param rows, one per parameter of the signature, in order. */
     public List<ParamDef> params() {
         return params;
+    }
+
+    /**
+     * The methods whose slots this method fills, one Override row each (BC-12), in any order; the writer
+     * sorts the rows, and the reader gives them in row order.
+     */
+    public List<MethodHandle> overrides() {
+        return overrides;
     }
 
     public @Nullable MethodBody body() {

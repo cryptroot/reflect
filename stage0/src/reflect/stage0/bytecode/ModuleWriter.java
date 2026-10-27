@@ -54,6 +54,7 @@ public final class ModuleWriter {
     private final List<MemberRef> memberRefs = new ArrayList<>();
     private final Map<MemberRef, Integer> memberRefRows = new HashMap<>();
     private final Map<MemberRef, byte[]> memberRefSignatures = new HashMap<>();
+    private final List<OverrideRow> overrides = new ArrayList<>();
 
     private ModuleWriter(ModuleDef module) {
         this.module = module;
@@ -69,6 +70,7 @@ public final class ModuleWriter {
         writer.sortInterfaceImpls();
         writer.numberMembers();
         writer.numberMemberRefs();
+        writer.sortOverrides();
         return writer.file();
     }
 
@@ -420,6 +422,73 @@ public final class ModuleWriter {
                 memberRefSignatures.getOrDefault(right, new byte[0]));
     }
 
+    // The key of BC-11 is the TypeDef row, then the token of the overridden method. A method gives one
+    // row per method that it overrides, and the row's type is the type of the method.
+    private void sortOverrides() throws ModuleFormatException {
+        for (int i = 0; i < typeDefs.size(); i++) {
+            TypeDef type = typeDefs.get(i);
+            for (MethodDef method : type.methods()) {
+                for (MethodHandle overridden : method.overrides()) {
+                    int token = memberToken(overridden, "method " + type.qualifiedName() + "::" + method.name()
+                            + " overrides");
+                    check(overrideProblem(type, method, overridden));
+                    overrides.add(new OverrideRow(i + 1, methodRows.getOrDefault(method, 0), token));
+                }
+            }
+        }
+        overrides.sort(ModuleWriter::compareOverrides);
+        for (int i = 1; i < overrides.size(); i++) {
+            OverrideRow row = overrides.get(i);
+            if (compareOverrides(overrides.get(i - 1), row) == 0) {
+                throw new ModuleFormatException("type " + typeDefs.get(row.type() - 1).qualifiedName() + " overrides "
+                        + overriddenName(row.token()) + " twice (BC-24)");
+            }
+        }
+    }
+
+    private static int compareOverrides(OverrideRow left, OverrideRow right) {
+        int order = compareRows(left.type(), right.type());
+        return order != 0 ? order : compareRows(left.token(), right.token());
+    }
+
+    // The method that the token of an Override row names, as the messages of the writer name it.
+    private String overriddenName(int token) {
+        int row = token & 0xFFFFFF;
+        if (token >>> 24 == TableId.METHOD) {
+            return methodOwners.get(row - 1);
+        }
+        MemberRef ref = memberRefs.get(row - 1);
+        return "MemberRef " + ref.parent().qualifiedName() + "::" + ref.name();
+    }
+
+    /**
+     * Why the method of the type cannot fill the slot of the overridden method (BC-11, Q97), or null: the
+     * method is a VIRTUAL or ABSTRACT instance method, and the overridden method is a method of another
+     * type or a MemberRef with a METHOD signature. That the module lists the overridden method, the
+     * writer checks.
+     */
+    static @Nullable String overrideProblem(TypeDef type, MethodDef method, MethodHandle overridden) {
+        String owner = "method " + type.qualifiedName() + "::" + method.name();
+        if (!hasSlot(method.flags())) {
+            return owner + " overrides a method, but is not a VIRTUAL or ABSTRACT instance method (BC-11)";
+        }
+        if (overridden instanceof MemberRef ref && !(ref.signature() instanceof MethodSig)) {
+            return owner + " overrides MemberRef " + ref.parent().qualifiedName() + "::" + ref.name()
+                    + ", which is not a method (BC-11)";
+        }
+        for (MethodDef other : type.methods()) {
+            if (other == overridden) {
+                return owner + " overrides method " + type.qualifiedName() + "::" + other.name() + " of its own type (BC-11)";
+            }
+        }
+        return null;
+    }
+
+    /** Whether a method with these flags starts or fills a slot: a VIRTUAL or ABSTRACT instance method (Q97). */
+    static boolean hasSlot(int flags) {
+        return (flags & Flags.METHOD_STATIC) == 0 && (flags & (Flags.METHOD_VIRTUAL | Flags.METHOD_ABSTRACT)) != 0;
+    }
+
     /**
      * The first rule that the method breaks, or null: its name, defined flags with at most one visibility,
      * the name of a constructor, the limit of parameters, its signature, which has STATIC exactly when
@@ -487,6 +556,12 @@ public final class ModuleWriter {
         if (handle instanceof TypeHandle type) {
             return typeToken(type, "a type in an instruction");
         }
+        return memberToken(handle, "an instruction names");
+    }
+
+    // The token of a Field, Method or MemberRef row; a row that the module does not list is an error
+    // whose message starts with what names it.
+    private int memberToken(Handle handle, String what) throws ModuleFormatException {
         int row;
         int table;
         String name;
@@ -505,7 +580,7 @@ public final class ModuleWriter {
             name = "the MemberRef " + ref.parent().qualifiedName() + "::" + ref.name();
         }
         if (row == 0) {
-            throw new ModuleFormatException("an instruction names " + name + ", which the module does not list");
+            throw new ModuleFormatException(what + " " + name + ", which the module does not list");
         }
         return (table << 24) | row;
     }
@@ -632,6 +707,13 @@ public final class ModuleWriter {
                 tables.u32(row.token());
             }
         }
+        if (tables.begin(TableId.OVERRIDE, overrides.size())) {
+            for (OverrideRow row : overrides) {
+                tables.u32(row.type());
+                tables.u32(row.implementation());
+                tables.u32(row.token());
+            }
+        }
         if (tables.begin(TableId.MEMBER_REF, memberRefs.size())) {
             for (MemberRef ref : memberRefs) {
                 tables.u32(typeToken(ref.parent(), "the parent of a MemberRef"));
@@ -744,5 +826,10 @@ public final class ModuleWriter {
 
     // An InterfaceImpl row: the TypeDef row of the type, the token of the interface, and the interface.
     private record InterfaceImplRow(int type, int token, TypeHandle implemented) {
+    }
+
+    // An Override row: the TypeDef row of the type, the Method row of the implementation, and the token
+    // of the overridden method.
+    private record OverrideRow(int type, int implementation, int token) {
     }
 }

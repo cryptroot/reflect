@@ -225,8 +225,8 @@ u32, in the order given:
 | `InterfaceImpl` | `class` | `TypeDef` row |
 | `InterfaceImpl` | `interface` | token of a `TypeDef` row of an interface or an annotation type, or of a `TypeRef` or `TypeSpec` row |
 | `Override` | `class` | `TypeDef` row |
-| `Override` | `implementation` | `Method` row of the method, or of its bridge, that fills the slot |
-| `Override` | `overridden` | token of the `Method` or `MemberRef` row whose slot it fills |
+| `Override` | `implementation` | `Method` row of the method, or of its bridge, that fills the slot: a `VIRTUAL` or `ABSTRACT` instance method of the class (Q97) |
+| `Override` | `overridden` | token of the `Method` row of another type, or of the `MemberRef` row with a `METHOD` signature, whose slot it fills (Q97) |
 | `MemberRef` | `parent` | token of a `TypeRef` or `TypeSpec` row |
 | `MemberRef` | `name` | IDENTS offset |
 | `MemberRef` | `signature` | BLOBS offset of a `FIELD` or `METHOD` signature |
