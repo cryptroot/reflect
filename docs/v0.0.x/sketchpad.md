@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23; Q87 to Q92 asked and answered 2026-10-23; Q93 and Q94 asked and answered 2026-10-23 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23; Q87 to Q92 asked and answered 2026-10-23; Q93 and Q94 asked and answered 2026-10-23; Q95 to Q105 asked and answered 2026-10-27 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
@@ -58,6 +58,11 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [bytecode.md](../bytecode.md) BC-04, BC-17 | the `i32` count of a 64-bit shift, and locals that start at zero (Q91) | done in v0.0.5 |
 | [type-system.md](../type-system.md) NUM-04, DAT-09; [bytecode.md](../bytecode.md) BC-04; [proposals/meta-analysis.md](../proposals/meta-analysis.md) MA-01 | the canonical NaN, and *Went to* in MA-01 (Q92) | done in v0.0.5 |
 | [testing.md](../testing.md) TST-01 | how `test` compares the output, the exit code and an uncaught exception (Q90) | done in v0.0.5 |
+| [bytecode.md](../bytecode.md) BC-11, §3.1 | the flags `FINAL`, `SEALED` and `UNSEALED` (Q95), base types (Q96), and the rows of `Override`, `TypeSpec` and `Constant` (Q97 to Q99) | in v0.0.6 |
+| [bytecode.md](../bytecode.md) BC-04, BC-12, BC-14 | the slots that overrides fill (Q97), the null check of `call` (Q100), and stores to small fields (Q104) | in v0.0.6 |
+| [bytecode.md](../bytecode.md) BC-08, §8.1, BC-25 | `.typespec`, and the text of `.override`, of constants and of `TypeSpec` tokens (Q97 to Q99) | in v0.0.6 |
+| [type-system.md](../type-system.md) DAT-06, EXC-05, MEM-06, MEM-07 | `permits` at load (Q95), `AbstractMemberError` for instance members (Q101), errors in static initializers (Q102), and the default text of an object (Q103) | in v0.0.6 |
+| [vm.md](../vm.md) VM-04, VM-07, VM-13 | interface calls and defaults (Q97), errors in static initializers (Q102), and the load checks (Q95, Q96) | in v0.0.6 |
 
 ### A.2 Inconsistencies found while planning
 
@@ -81,6 +86,8 @@ These follow from the plan. Each is made in the stage named, or when its questio
 10. README §7.7 makes VM0 check `permits` at load (v0.0.6), but BC-11 has no table that lists
     the permitted subtypes of a sealed type (DAT-06). Settle before v0.0.6: a `Permits` table, or
     a check that every subtype of a sealed type is in its module. Found 2026-10-20 in v0.0.1.
+    Settled 2026-10-27 with Q95: no table; VM0 checks the module and the flags of each subtype of a
+    sealed type.
 11. A `MethodRef` states no `GENERIC` count unless it instantiates the method, so a `MemberRef`
     row with `GENERIC` that no `MethodSpec` names has no text. Settle with `MethodSpec` in
     v0.0.9. Found 2026-10-22 in v0.0.3 (Q78). Q80 keeps it for v0.0.9; until then `rfld`
@@ -121,6 +128,22 @@ These follow from the plan. Each is made in the stage named, or when its questio
     a subtype of the type named matches, as `catch` does. The faults of v0.0.5 have no hierarchy, so
     `test` compares qualified names. Settle with the exception classes in v0.0.8. Found 2026-10-24 in
     v0.0.5.
+22. No rule says what a class with base 0 extends, and `TypeDef.base` holds one type, so an
+    interface has no way to state the interfaces that it extends, although the grammar gives
+    `extends` to every kind. Found 2026-10-27 while v0.0.6 was planned. Settled 2026-10-27 with Q96.
+23. A `Constant` of an enum holds its value "as its backing type" (§3.1), but the reader does not
+    know the backing type of an enum of another module, so it can neither decode such a value nor
+    check that it is minimal. Settle in v0.0.7, with enums. Found 2026-10-27 while v0.0.6 was
+    planned (Q98).
+24. EXC-05 raises `AbstractMemberError` only for an unimplemented static abstract, but VM-04 puts
+    the stub that throws it in abstract instance slots too. Found 2026-10-27 while v0.0.6 was
+    planned. Settled 2026-10-27 with Q101.
+25. A `TypeSpec` row that no column, signature or instruction names has no text, as Q80 found for
+    `TypeRef` and `MemberRef` rows. Found 2026-10-27 while v0.0.6 was planned. Settled 2026-10-27
+    with Q99: `.typespec`.
+26. README §7.7 makes frames record the receiver class `R` of static calls in v0.0.6, but no
+    instruction reads `R` before v0.0.9, so no test can check it. Found 2026-10-27 while v0.0.6 was
+    planned. Settled 2026-10-27 with Q105.
 
 ## B. Questions and answers
 
@@ -663,6 +686,141 @@ prints a Java stack trace and `test` stops at the file; or a stop with exit code
 that VM0 cannot run, although on `rfl` the same program throws a `StackOverflowError` that it can
 catch (EXC-05). **Answer:** 2026-10-23: Accepted as recommended.
 
+### B.11 Batch 15: the v0.0.6 objects (asked and answered 2026-10-27)
+
+Found while v0.0.6 was planned. Q95 settles A.2 item 10, Q96 item 22, Q99 item 25, Q101 item 24 and
+Q105 item 26; Q98 leaves item 23 for v0.0.7.
+
+**Q95 (DAT-06, BC-11, VM-13; A.2 item 10). How VM0 checks `permits`.** README §7.7 makes VM0 check
+`permits` at load, but BC-11 has no table that lists the permitted subtypes of a sealed type. DAT-06
+puts every permitted subtype in the module of its sealed type, and a module compiles as one unit
+(MOD-01), so the subtypes that a module defines are the permitted ones. *Recommendation:* no
+`Permits` table. When VM0 loads a type, each direct supertype that is `SEALED`, the base type or an
+interface of its `InterfaceImpl` rows, belongs to the module of the type, and the type is `FINAL`,
+`SEALED` or `UNSEALED`; a record and a value type count as final, since nothing extends them
+(DAT-01, DAT-04). `UNSEALED` stands only on a type with a sealed direct supertype. A `TypeDef` row
+holds at most one of `FINAL`, `SEALED` and `UNSEALED`, which the writer and the reader check. A
+violation is a `TypeLoadError` at the load (VM-13). Alternatives: a `Permits` table, as Java's
+`PermittedSubclasses` attribute, whose rows repeat what the `TypeDef` rows say; or a check of
+`FINAL` only, which lets another module extend a sealed hierarchy. **Answer:** 2026-10-27: Accepted
+as recommended.
+
+**Q96 (TYP-02, BC-11; A.2 item 22). What base 0 means.** Every class of `run/core/` has base 0, but
+no rule said what such a class extends, and from v0.0.6 `castclass` and `Object.toString()` need
+every class to be an `Object`. `TypeDef.base` holds one type, so no rule said either how an
+interface names the interfaces that it extends. *Recommendation:* base 0 has one meaning per kind. A
+class or a class record with base 0 extends `reflect.core.Object`, as `class A {}` does in source;
+only `reflect.core.Object` has no base class, and `extends reflect.core.Object` means the same as
+base 0. An interface, an annotation type and a value type have base 0 and no base class.
+`InterfaceImpl` rows list the interfaces that an interface extends, or that a class or a struct
+implements, as CIL does. The base of a class is a class that is not `FINAL` and not a record: the
+writer and the reader check a `TypeDef` base, and VM0 a `TypeRef` base when it loads the type.
+Alternative: every class except `reflect.core.Object` names its base, as JVM class files and CIL do,
+so the programs of `run/core/` gain `extends reflect.core.Object`. **Answer:** 2026-10-27: Accepted
+as recommended, after a question in chat on how this meets structs. An interface gets no base and
+does not become a class: TYP-02 makes every non-null reference type a subtype of `Object`, and a
+value of an interface type is a reference to a class instance or a box. A struct stays outside
+`Object` and its interfaces (TYP-02), lists them as `InterfaceImpl` rows, and reaches them through
+`box` (DAT-01, TYP-03), which VM0 runs from v0.0.7. Only a concrete class or struct implements every
+abstract member; a slot that stays abstract holds a stub that throws `AbstractMemberError` (VM-04).
+
+**Q97 (BC-12, BC-25, VM-04, VM-18, MEM-02, MEM-03). Override rows and dispatch.** BC-12 makes
+overrides explicit rows, but no rule said which rows a module holds for an interface member, which
+slot a row fills when it names an override instead of the method that started the slot, or how VM0
+chooses a default method. *Recommendation:* each `VIRTUAL` or `ABSTRACT` instance method starts a
+slot, unless an `Override` row of its class names a method of a base class; then it fills that
+method's slot, and a class method fills at most one such slot. A row names the method that source
+overrides, an override included, as BC-09 assumes, so VM0 follows rows. A class has one row per
+interface method that one of its methods implements (MEM-03), and an interface method that overrides
+a method of a superinterface has one too. `callvirt` of a class method takes the slot from the
+vtable of the receiver's class. An interface method goes to the nearest class, the receiver's class
+first, with a row for it or for an interface method that overrides it; else to the one most specific
+default of the receiver's interfaces. A row's implementation is a `VIRTUAL` or `ABSTRACT` instance
+method of the row's class, and its overridden method is a `Method` row of another type or a
+`MemberRef` with a `METHOD` signature, which the writer and the reader check. `rfld` writes the
+`.override` lines of a method first in its braces, in row order (BC-25). Alternatives: rows that
+name the method that started each slot, so that removing an intermediate override breaks no
+subclass; or rows for class slots only, with interface calls found by name and parameter types, as
+the JVM's itable does, against BC-12. **Answer:** 2026-10-27: Accepted as recommended.
+
+**Q98 (MEM-05, META-07, BC-11, BC-25; A.2 item 23). Constant rows.** BC-11 gives the `Constant`
+table one row per field, and `.rfla` lets any field take `= Constant`, but no rule said which fields
+have a row, or what `ldsfld` of a `const` field does. META-07 keeps `static final` a run-time
+constant. *Recommendation:* a field has a `Constant` row exactly when it is `CONST`. `ldconst` names
+a `const` field and starts no class initialization (VM-07); `ldsfld`, `stsfld` and `ldsflda` of a
+`const` field, and `ldconst` of another field, are `TypeLoadError`s when they link. v0.0.6 accepts
+constants of `boolean`, the integers, `char`, `float`, `double` and `reflect.core.String`. An enum
+waits for v0.0.7, since the reader cannot tell the encoding of an enum of another module (A.2 item
+23); class references and read-only arrays wait for their stages. `rfld` writes `=` and the value in
+the forms of BC-25 item 8: signed decimal for a signed type, unsigned decimal for an unsigned type
+and `char`, `true` or `false`, a float as an operand, and a string with its escapes. Alternative:
+rows for `static final` fields too, as Java's `ConstantValue` attribute gives, against META-07.
+**Answer:** 2026-10-27: Accepted as recommended.
+
+**Q99 (BC-03, BC-24, BC-25, Q80, Q81; A.2 item 25). TypeSpec rows.** *Recommendation:* a `TypeSpec`
+row holds a type that a token names when no `TypeDef` or `TypeRef` row is that type: a primitive
+(Q81), a nullable type, an array, an instantiation, a type parameter, an intersection or a pointer;
+never a plain named type, `VOID`, a wildcard or `BYREF`, so each type has one token (BC-24). The
+rows are sorted by their blobs. `rfld` prints the type, `valuetype` included, where the token
+stands, and `.typespec` with the type for a row that nothing names, as Q80 gives `.typeref` (A.2
+item 25). VM0 runs `NULLABLE` types in `castclass` and `instanceof` in v0.0.6, and stops at the
+others until their stages. Alternative: `NULLABLE` types only in v0.0.6, with `RFA0303` for the
+others until their stages, and one writer and reader rule per stage. **Answer:** 2026-10-27:
+Accepted as recommended.
+
+**Q100 (BC-06, BC-14, EXC-05). A null receiver of `call`.** *Recommendation:* `call` of an instance
+method throws `NullPointerException` for a null receiver, as the JVM's `invokespecial` does. EXC-05
+makes `e.m` on a null `e` throw, and BC-06 lets the compiler use `call` for non-virtual targets in
+its own module, so the check must be in `call`. Until v0.0.8 it is a fault. Alternative: CIL's
+`call`, which runs the method on a null receiver, with `callvirt` for every instance call on a
+receiver that may be null, as C# writes it. **Answer:** 2026-10-27: Accepted as recommended.
+
+**Q101 (VM-04, VM-16, EXC-05, Q89; A.2 item 24). The errors of v0.0.6.** *Recommendation:*
+`NullPointerException` for a null receiver of `ldfld`, `stfld`, `callvirt` and `call` (Q100), and
+for `castclass` of null to a non-null type (NUL-05); `ClassCastException` for a failed `castclass`;
+`AbstractMemberError` for a call that reaches an abstract method, so EXC-05 gains instance members,
+as VM-04 has them (A.2 item 24); and `TypeLoadError` for what an instruction finds when it links
+(VM-16), such as `ldfld` of a static field or `newobj` of a constructor of an abstract class, for
+two defaults that conflict, at the call, and for the load checks. VM0 exits with 2 for what it finds
+in the values on the stack, such as a receiver of another class. All are faults until v0.0.8.
+Alternatives: `InstantiationError` for `newobj` of an abstract class, as the JVM's `new` throws it;
+or a conflict of two defaults as a `TypeLoadError` when the class loads. **Answer:** 2026-10-27:
+Accepted as recommended.
+
+**Q102 (VM-07, MEM-06, Q89). A fault in a static initializer before v0.0.8.** *Recommendation:* a
+fault that is an exception, such as `ArithmeticException`, ends the run as
+`reflect.core.ExceptionInInitializerError`, with the fault as its message, so a test with
+`expect-throws` stays valid in v0.0.8. An error, such as `TypeLoadError` or `StackOverflowError`,
+ends the run unchanged, as JLS 12.4.2 lets an `Error` pass. The class becomes failed (VM-07). MEM-06
+and VM-07 gain the rule for errors. Alternatives: every fault becomes `ExceptionInInitializerError`,
+errors included, as MEM-06 stated; or no wrapping before v0.0.8. **Answer:** 2026-10-27: Accepted as
+recommended.
+
+**Q103 (MEM-07, NUM-05, BOOT-05). The default text of an object.** *Recommendation:*
+`reflect.core.Object` declares `public virtual String toString()`, whose default gives the qualified
+name of the run-time type (GEN-12), such as `demo.zoo.Dog`, as .NET's `Object.ToString()` gives the
+full name of the type, so the text depends only on the type (BOOT-05). `String.toString()` returns
+the string, and `String.valueOf(Object?)` gives `"null"` for null and otherwise calls `toString()`.
+MEM-07 states the default. Alternatives: Java's name, `@` and the identity hash in hexadecimal, with
+hashes numbered in the order of first use; or no default before v0.1. **Answer:** 2026-10-27:
+Accepted as recommended.
+
+**Q104 (BC-04, VM-02). Stores to small fields.** BC-04 makes code narrow a `boolean`, `byte`,
+`short` or `char` with `conv` before a store, but did not say what such a field holds after a store
+of an `i32` that does not fit it. *Recommendation:* the field keeps the low 8 or 16 bits, as
+`stelem.i8` and `stelem.i16` keep them for an element, and `ldfld` and `ldsfld` widen them by the
+field's type: `byte` and `short` sign-extend; `boolean`, `ubyte`, `ushort` and `char` zero-extend.
+Only hand-written code sees this, and VM0 then agrees with `rfl`, whose fields have those sizes
+(VM-02). Alternatives: the field keeps the whole `i32`; or the JVM's rule for `boolean`, which keeps
+the lowest bit. **Answer:** 2026-10-27: Accepted as recommended.
+
+**Q105 (BC-05, VM-20; A.2 item 26). The receiver class in frames.** README §7.7 made frames record
+the receiver class `R` of static calls in v0.0.6, but no instruction reads `R` before v0.0.9, so no
+test could check it. *Recommendation:* v0.0.9 commit 5 adds `R` to the frames with its first reader,
+the type context of static code; v0.0.6 drops the item, and VM-20 does not change. Alternative:
+v0.0.6 records `R`, and a unit test reads it through a method that exists only for tests.
+**Answer:** 2026-10-27: Accepted as recommended.
+
 <!-- questions:end -->
 
 ## C. Traceability
@@ -673,7 +831,7 @@ catch (EXC-05). **Answer:** 2026-10-23: Accepted as recommended.
 | the `.rflc` format | v0.0.1, v0.0.2 | BC-02, BC-03, BC-04, BC-10, BC-11, BC-12, BC-17, BC-18, BC-19, BC-20, BC-21, BC-22, BOOT-05 |
 | the `reflect.bytecode` design | v0.0.2 to v0.0.4 | ARC-11, BC-08, Q47 |
 | the assembler | v0.0.3, v0.0.4 | BC-04, BC-08, BC-11, TST-01, TST-09 |
-| VM0 in stage0 | v0.0.5 to v0.0.9 | BOOT-04, VM-03, VM-06, VM-07, VM-12, VM-13, VM-17, VM-20, VM-21, BC-05, BC-06, BC-14, BC-15, BC-16, BC-23, NUL-01, NUL-05, NUL-07, DAT-09, GEN-02, GEN-04, GEN-09, EXC-05, EXC-06, EXC-07, UNS-03, LIB-03 |
+| VM0 in stage0 | v0.0.5 to v0.0.9 | BOOT-04, VM-03, VM-04, VM-06, VM-07, VM-12, VM-13, VM-17, VM-20, VM-21, BC-05, BC-06, BC-12, BC-14, BC-15, BC-16, BC-23, NUL-01, NUL-05, NUL-07, DAT-06, DAT-09, GEN-02, GEN-04, GEN-09, EXC-05, EXC-06, EXC-07, UNS-03, LIB-03 |
 | exit test | v0.0.4 (round trip), v0.0.5 (runs on VM0), v0.0.9 (the whole suite) | RM-03 |
 | Docker on Windows and Linux, Lean in Docker (instruction, 2026-10-19) | v0.0.0 | BLD-05, BLD-06, TST-05, LEAN-04 |
 | a branch per version and frequent small commits (instruction, 2026-10-19) | every stage | RM-04 |

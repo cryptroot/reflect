@@ -656,24 +656,45 @@ with `run/core/hello.rfla`. Tag `v0.0.5`.
 ### 7.7 v0.0.6: VM0 objects and dispatch
 
 **Goal.** VM0 runs classes, interfaces, fields, constructors, virtual and interface calls, type
-tests and class initialization.
+tests, constants and class initialization.
 
 **Design.**
 
+- Tables added: `Override`, `TypeSpec` and `Constant`, with their rules in the writer and the
+  reader, and their text in `rfla` and `rfld` (Q97 to Q99). `InterfaceImpl` comes from v0.0.3
+  (Q75).
 - A run-time type per class (VM-03): field slots, a vtable built from the `Override` rows
   (BC-12), an interface table, static storage and the initialization state.
-- An object is a Java object that holds its run-time type and an array of slots (BOOT-04).
-- `callvirt` becomes a direct call when the target is not virtual (BC-06). Default methods of
-  interfaces are found through the interface table.
-- Class initialization follows VM-07: at first active use, superclasses first, with the states
-  not started, running, done and failed. A nested request from the running initializer sees
-  default values.
-- Frames record the receiver class `R` of static calls (BC-05, VM-20). No instruction reads it
-  before v0.4.
+- An object is a Java object that holds its run-time type and an array of slots, and a string is
+  a Java `String` (BOOT-04).
+- Base types (Q96): a class or a class record with base 0 extends `reflect.core.Object`, and an
+  interface, an annotation type and a value type have no base class. `InterfaceImpl` rows list the
+  interfaces that an interface extends, or that a class or a struct implements.
+- Fields start at zero. A field of type `boolean`, `byte`, `short` or `char` keeps the low 8 or 16
+  bits of the `i32` that a store gives, and a load widens them by the field's type (Q104).
+- Dispatch (Q97): each `VIRTUAL` or `ABSTRACT` instance method starts a slot, unless an `Override`
+  row of its class names a method of a base class; then it fills that method's slot. A row names
+  the method that source overrides, an override included. `callvirt` becomes a direct call when
+  the target is not virtual (BC-06). A class method takes the slot of the receiver's vtable; an
+  interface method goes to the nearest class with a row for it, or for an interface method that
+  overrides it, else to the one most specific default. `call` of an instance method checks its
+  receiver for null (Q100).
+- Class initialization follows VM-07: at first active use (a static field, a static call or
+  `newobj`), superclasses first, with the states not started, running, done and failed. A nested
+  request from the running initializer sees default values. Until v0.0.8, a fault that is an
+  exception ends a static initializer as `ExceptionInInitializerError`, and an error ends it
+  unchanged (Q102).
 - `castclass` to a non-null type throws `NullPointerException` for `null`, and `instanceof` is
-  false for `null` (NUL-05).
-- Loading checks `final`, `sealed` and `permits`, that every `Override` row names an existing
-  method, and that the override's return type converts to that method's (BC-12, VM-13). An
+  false for `null` (NUL-05). VM0 runs type tests against classes and interfaces and their nullable
+  forms; the other `TypeSpec` types wait for their stages (Q99).
+- `ldconst` pushes the value of a `const` field, whose `Constant` row holds a `boolean`, an
+  integer, a `char`, a float, a double or a string, and starts no class initialization (Q98).
+- `Object.toString()` gives the qualified name of the run-time type, `String.toString()` gives the
+  string, and `String.valueOf(Object?)` gives `"null"` for null and otherwise the `toString()` of
+  the object (Q103).
+- Loading checks `final`, `sealed` and `permits` (Q95), the base types (Q96), that every `Override`
+  row names an existing method of a supertype that the row may override, and that the override's
+  return type converts to that of the method that it replaces in the slot (BC-12, VM-13). An
   override that returns a subtype fills the base slot itself (MEM-02).
 - Final fields follow BC-23. When a `stfld` or `stsfld` links, VM0 checks that its method may
   store to the field; when a `stfld` of a final runs, it checks that the target is the
@@ -681,23 +702,30 @@ tests and class initialization.
   `TypeLoadError`.
 - `ceq.ref` compares identity, and two boxes by class and contents (DAT-09). Boxes arrive in
   v0.0.7, which tests that path.
-- Tables added: `Override`, `Constant`, and `TypeSpec` for nullable types (`NULLABLE`, BC-03).
-  `InterfaceImpl` comes from v0.0.3 (Q75).
+- Errors (Q101): `NullPointerException`, `ClassCastException` and `AbstractMemberError`, and
+  `TypeLoadError` for what an instruction finds when it links (VM-16) and for the load checks. VM0
+  exits with 2 for what it finds in the values on the stack. All are faults until v0.0.8.
+- The receiver class `R` of static calls joins the frames in v0.0.9, with its first reader (Q105).
 
 **Commits.**
 
-1. Type loading and layout; `newobj`, constructors, `ldfld` and `stfld`.
-2. Static fields and class initialization, with tests of order, re-entry and failure.
-3. Non-virtual instance calls; `callvirt` and vtables, with an override that returns a subtype
-   of its base's return type (MEM-02).
-4. Interfaces, default methods and interface tables.
-5. `ldnull`, `brnull`, `brnonnull`, `ceq.ref`, `instanceof` and `castclass`, with the null
+1. Type loading and layout, with the base types of Q96; `newobj`, constructors, `ldfld`, `stfld`
+   and stores to small fields (Q104); non-virtual instance calls, with their null check (Q100).
+2. Static fields and class initialization, with tests of order, re-entry and failure (Q102).
+3. The `Override` table, and `.override` in `rfla` and `rfld` (Q97).
+4. `callvirt` and vtables, with an override that returns a subtype of its base's return type
+   (MEM-02), and abstract slots; `Object.toString()` and `String.valueOf(Object?)` (Q103).
+5. Interfaces, default methods and interface tables (Q97).
+6. The `TypeSpec` table, and `.typespec` (Q99).
+7. `ldnull`, `brnull`, `brnonnull`, `ceq.ref`, `instanceof` and `castclass`, with the null
    rules.
-6. `ldconst` and the `Constant` table.
-7. The load-time checks, and the final-field and constructor rules of BC-23, with one test per
-   violation: a store from another method, a store to another object, a store to a `const`, and
-   a constructor called on a finished object; and an override that widens its return type
-   (BC-12).
+8. The `Constant` table, and `ldconst` (Q98).
+9. The load-time checks: `final`, `sealed` and `permits` (Q95), the base types (Q96) and the
+   `Override` rows (BC-12), with one test per violation, among them an override that widens its
+   return type.
+10. The final-field and constructor rules of BC-23, with one test per violation: a store from
+    another method, a store to another object, a store to a `const`, and a constructor called on
+    a finished object.
 
 **Exit check.** The programs in `run/objects/` pass. Tag `v0.0.6`.
 
@@ -717,6 +745,8 @@ boxing.
 - `box` and `unbox` work for primitives and enums; an enum value is its backing integer on the
   stack (DAT-05). Boxes have no identity (DAT-09): `ceq.ref` on two boxes compares their classes
   and bit patterns, and `unbox` copies the value out.
+- A `Constant` of an enum gets an encoding that the reader can decode without the enum's module
+  ([sketchpad.md](sketchpad.md) A.2 item 23, Q98).
 - String operations are natives of the stub `reflect.core`. The set grows with the tests that
   need it; v0.1 fixes it with the stdlib sources.
 - `main` receives its arguments as a `String[]`.
@@ -789,7 +819,8 @@ generic code reads its exact type arguments.
   push it.
 - The type context (GEN-09, VM-17): instance code reads the run-time type of `this`, static code
   reads `R`, and a generic method receives a hidden method-instantiation argument. VM0 runs the
-  shared bytecode for every instantiation.
+  shared bytecode for every instantiation. Frames record `R` from here, with this first reader
+  (BC-05, VM-20, Q105).
 - `instanceof`, `castclass`, `newarr`, `ldelem`, `stelem` and field access accept type
   parameters; `(T) o` checks for null when `T` is instantiated with a non-null type (NUL-05).
 - A type test with wildcards checks each type argument (GEN-04).
@@ -807,7 +838,7 @@ generic code reads its exact type arguments.
 2. `Class<T>` objects, `ldtype` and `getclass`.
 3. `VAR` in instance code.
 4. `MVAR`, `MethodSpec` and the method-instantiation argument.
-5. `R` as the type context of static code.
+5. `R` in each frame, as the type context of static code (Q105).
 6. Type tests, casts and arrays over type parameters, with the null rules.
 7. Type tests with wildcards.
 8. `ldarga`, `ldloca` and `call.constrained`.
