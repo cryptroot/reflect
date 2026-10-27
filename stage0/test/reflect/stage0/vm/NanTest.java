@@ -3,6 +3,8 @@ package reflect.stage0.vm;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import reflect.stage0.bytecode.Assembler;
 import reflect.stage0.bytecode.MethodDef;
@@ -69,12 +71,15 @@ public final class NanTest {
     }
 
     private static Object run(String type, String body, String params) throws Exception {
-        String text = ".module m 0.0.0\n.class public m.N {\n    .method public static " + type + " f(" + params + ") {\n"
-                + body + "\nret\n    }\n    .method public static double pass(double value) {\n        ldarg 0\n"
-                + "        ret\n    }\n}\n";
-        Modules modules = Modules.load(new ModuleData("m.rflc", Assembler.assemble(text.getBytes(StandardCharsets.UTF_8))),
-                name -> null);
+        String text = ".module m 0.0.0\n.requires reflect.core\n.class public m.N {\n    .method public static " + type
+                + " f(" + params + ") {\n" + body + "\nret\n    }\n    .method public static double pass(double value) {\n"
+                + "        ldarg 0\n        ret\n    }\n}\n";
+        // m.N extends reflect.core.Object (Q96), which the stub module gives.
+        String file = "tests/bytecode/lib/reflect.core.rfla";
+        var core = new ModuleData(file, Assembler.assemble(Files.readAllBytes(Path.of(file))));
         var vm = new Vm(new PrintStream(new ByteArrayOutputStream()), new PrintStream(new ByteArrayOutputStream()));
+        Modules modules = vm.resolve(new ModuleData("m.rflc", Assembler.assemble(text.getBytes(StandardCharsets.UTF_8))),
+                name -> name.equals("reflect.core") ? core : null);
         RuntimeModule module = modules.main();
         TypeDef owner = module.type("m.N");
         for (MethodDef method : owner.methods()) {

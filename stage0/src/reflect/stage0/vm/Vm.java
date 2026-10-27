@@ -84,8 +84,7 @@ public final class Vm {
 
     private Result start(ModuleData main, ModuleSource source, @Nullable String mainClass, List<String> args) {
         try {
-            Modules graph = Modules.load(main, source);
-            modules = graph;
+            Modules graph = resolve(main, source);
             RuntimeMethod entry = entry(graph.main(), mainClass);
             // The call of main is a static call, an active use of the main class (VM-07).
             entry.type().initialize(this);
@@ -110,6 +109,13 @@ public final class Vm {
             out.flush();
             err.flush();
         }
+    }
+
+    /** Reads the modules of the run (VM-12), whose reflect.core gives the base of a class with base 0 (Q96). */
+    Modules resolve(ModuleData main, ModuleSource source) {
+        Modules graph = Modules.load(main, source);
+        modules = graph;
+        return graph;
     }
 
     private Result result(int exitCode, @Nullable String uncaught) {
