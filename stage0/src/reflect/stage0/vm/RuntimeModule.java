@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
 
+import reflect.stage0.bytecode.FieldDef;
 import reflect.stage0.bytecode.MethodDef;
 import reflect.stage0.bytecode.ModuleDef;
 import reflect.stage0.bytecode.ModuleRef;
@@ -17,6 +18,7 @@ final class RuntimeModule {
     private final Map<ModuleRef, RuntimeModule> required = new IdentityHashMap<>();
     private final Map<String, TypeDef> types = new HashMap<>();
     private final Map<MethodDef, TypeDef> owners = new IdentityHashMap<>();
+    private final Map<FieldDef, TypeDef> fieldOwners = new IdentityHashMap<>();
 
     RuntimeModule(String file, ModuleDef definition) {
         this.file = file;
@@ -25,6 +27,9 @@ final class RuntimeModule {
             types.put(type.qualifiedName(), type);
             for (MethodDef method : type.methods()) {
                 owners.put(method, type);
+            }
+            for (FieldDef field : type.fields()) {
+                fieldOwners.put(field, type);
             }
         }
     }
@@ -58,5 +63,10 @@ final class RuntimeModule {
     /** The type that lists a method of the module. */
     TypeDef owner(MethodDef method) {
         return owners.get(method);
+    }
+
+    /** The type that lists a field of the module. */
+    TypeDef owner(FieldDef field) {
+        return fieldOwners.get(field);
     }
 }

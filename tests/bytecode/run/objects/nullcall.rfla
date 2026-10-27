@@ -1,0 +1,30 @@
+// expect-output: before
+// expect-throws: reflect.core.NullPointerException
+.module nullcall 0.0.0
+.main nullcall.App
+.requires reflect.core
+.requires reflect.io
+
+// call of an instance method checks its receiver for null before the method runs, as the JVM's
+// invokespecial does (Q100), so "inside" does not print, although bump never reads this. Until v0.0.8
+// the exception is a fault, which ends the run with exit code 1 (Q89).
+.class public final nullcall.Counter {
+    .method public void bump() {
+        ldstr    "inside"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+
+.class public final nullcall.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (nullcall.Counter counter)
+        ldstr    "before"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldloc    counter
+        call     void nullcall.Counter::bump()
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

@@ -21,6 +21,7 @@ import static reflect.stage0.test.Assertions.assertTrue;
 public final class VmTest {
     private static final String PRINTLN = "        call static void reflect.io.Console::println(reflect.core.Object?)\n";
     private static final String ARITHMETIC_EXCEPTION = "reflect.core.ArithmeticException";
+    private static final String NULL_POINTER_EXCEPTION = "reflect.core.NullPointerException";
     private static final String TYPE_LOAD_ERROR = "reflect.core.TypeLoadError";
 
     @Test
@@ -103,6 +104,17 @@ public final class VmTest {
         assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": the module reflect.io defines no type"
                 + " reflect.io.Missing\n"), run(program("        call static void reflect.io.Missing::f()\n        ret\n",
                 "")));
+        // A field of another module resolves by its name and its type (Q69), when the instruction links.
+        String core = Files.readString(Path.of("tests/bytecode/lib/reflect.core.rfla")).replace(
+                ".class public reflect.core.Object {\n", ".class public reflect.core.Object {\n    .field public int count\n");
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": the module reflect.core defines no field long"
+                + " reflect.core.Object::count\n"), run(program("        ldstr \"x\"\n"
+                + "        ldfld long reflect.core.Object::count\n        pop\n        ret\n", ""), null,
+                Map.of("reflect.core", core)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": the module reflect.core defines no field int"
+                + " reflect.core.Object::total\n"), run(program("        ldstr \"x\"\n"
+                + "        ldfld int reflect.core.Object::total\n        pop\n        ret\n", ""), null,
+                Map.of("reflect.core", core)));
         String absent = ".module m 0.0.0\n.main m.App\n.requires reflect.core\n.requires static x\n\n"
                 + ".class public final m.App {\n"
                 + "    .method public static void main(reflect.core.String[] args) {\n"
@@ -138,9 +150,6 @@ public final class VmTest {
                 + "        ret\n", "")));
         assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 0: VM0 does not run ldtype yet\n"),
                 run(program("        ldtype m.App\n        ret\n", "")));
-        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run instance calls yet\n"),
-                run(program("        ldstr \"x\"\n        call void m.App::f()\n        ret\n",
-                "    .method void f() {\n        ret\n    }\n")));
         assertEquals(new Run(2, null, "", "vm0: m.App::main: the code ends without ret\n"),
                 run(program("        ldstr \"x\"\n", "")));
         assertEquals(new Run(2, null, "", "vm0: VM0 does not run the static initializer of m.App yet\n"),
@@ -148,6 +157,12 @@ public final class VmTest {
         assertEquals(new Run(2, null, "", "vm0: m.App::main: VM0 does not run locals of value types yet\n"),
                 run(program("        .locals (valuetype m.E e)\n        ret\n", "")
                 + ".class public enum m.E : int {\n}\n"));
+        // The main class loads before main runs, and its layout needs the zero value of each field.
+        assertEquals(new Run(2, null, "", "vm0: m.App::e: VM0 does not run fields of value types yet\n"),
+                run(program("        ret\n", "    .field valuetype m.E e\n") + ".class public enum m.E : int {\n}\n"));
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 0: VM0 does not run value types yet, such as"
+                + " m.S\n"), run(program("        newobj void m.S::new()\n        pop\n        ret\n", "")
+                + ".class public struct m.S {\n    .method public void new() {\n        ret\n    }\n}\n"));
         // Code that a verifier would reject: two integers where a call takes strings, and a stack deeper than
         // maxStack.
         Run cast = run(program("        ldc.i4 1\n        ldc.i4 2\n        call static reflect.core.String"
@@ -219,6 +234,72 @@ public final class VmTest {
                 name -> {
                     throw error;
                 }, null, List.of(), out, out)));
+    }
+
+    @Test
+    public static void aNullReceiverIsANullPointerException() throws Exception {
+        // A local of a class type starts at null (BC-17). ldfld and stfld check their object (BC-14), and call
+        // of an instance method its receiver (Q100). Until v0.0.8 each is a fault.
+        String point = ".class public m.P {\n    .field public int x\n    .method public void f() {\n        ret\n    }\n}\n";
+        String load = "        .locals (m.P p)\n        ldloc p\n";
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": ldfld int m.P::x: the receiver is"
+                + " null\n"), run(program(load + "        ldfld int m.P::x\n        pop\n        ret\n", "") + point));
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": stfld int m.P::x: the receiver is"
+                + " null\n"), run(program(load + "        ldc.i4 1\n        stfld int m.P::x\n        ret\n", "") + point));
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": call void m.P::f(): the receiver"
+                + " is null\n"), run(program(load + "        call void m.P::f()\n        ret\n", "") + point));
+    }
+
+    @Test
+    public static void newobjNamesAConstructorOfAClass() throws Exception {
+        // What newobj names is checked when it links (VM-16); a violation is a TypeLoadError (Q101).
+        String types = ".class public abstract m.Shape {\n    .method public void new() {\n        ret\n    }\n}\n"
+                + ".class public interface m.I {\n    .method public void new() {\n        ret\n    }\n}\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": newobj names static void m.App::f(), which is"
+                + " not a constructor\n"), run(program("        newobj static void m.App::f()\n        pop\n        ret\n",
+                "    .method static void f() {\n        ret\n    }\n")));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": newobj names a constructor of the abstract class"
+                + " m.Shape\n"), run(program("        newobj void m.Shape::new()\n        pop\n        ret\n", "") + types));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": newobj names a constructor of the interface"
+                + " m.I\n"), run(program("        newobj void m.I::new()\n        pop\n        ret\n", "") + types));
+    }
+
+    @Test
+    public static void ldfldAndStfldNameInstanceFields() throws Exception {
+        // A static field there is a link error (Q101), found before the object.
+        String count = "    .field static int count\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": ldfld names the static field int m.App::count\n"),
+                run(program("        ldstr \"x\"\n        ldfld int m.App::count\n        pop\n        ret\n", count)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": stfld names the static field int m.App::count\n"),
+                run(program("        ldstr \"x\"\n        ldc.i4 1\n        stfld int m.App::count\n        ret\n", count)));
+    }
+
+    @Test
+    public static void aReceiverOfAnotherClassIsInvalidCode() throws Exception {
+        // A verifier rejects these (BC-07), and VM0, which has none, stops when it meets them (Q101).
+        String classes = ".class public m.A {\n    .field public int x\n    .method public void f() {\n        ret\n    }\n}\n"
+                + ".class public m.B {\n    .method public void new() {\n        ldarg 0\n"
+                + "        call void reflect.core.Object::new()\n        ret\n    }\n}\n";
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: the code is invalid: the receiver of ldfld int"
+                + " m.A::x is not a m.A\n"), run(program("        newobj void m.B::new()\n        ldfld int m.A::x\n"
+                + "        pop\n        ret\n", "") + classes));
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: the code is invalid: the receiver of call void"
+                + " m.A::f() is not a m.A\n"), run(program("        ldstr \"x\"\n        call void m.A::f()\n        ret\n", "")
+                + classes));
+    }
+
+    @Test
+    public static void aClassWithoutABaseNeedsReflectCoreObject() throws Exception {
+        // A class with base 0 extends reflect.core.Object (Q96), which loads before it; here no module holds it.
+        String main = ".module m 0.0.0\n.main m.App\n.requires static reflect.core\n\n.class public final m.App {\n"
+                + "    .method public static void main(reflect.core.String[] args) {\n        ret\n    }\n}\n";
+        var out = new ByteArrayOutputStream();
+        var err = new ByteArrayOutputStream();
+        Vm.Result result = Vm.run(new ModuleData("m.rflc", assemble(main)), name -> null, null, List.of(),
+                new PrintStream(out, true, StandardCharsets.UTF_8), new PrintStream(err, true, StandardCharsets.UTF_8));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.App needs reflect.core.Object, which the module"
+                + " graph does not hold\n"), new Run(result.exitCode(), result.uncaught(), out.toString(StandardCharsets.UTF_8),
+                err.toString(StandardCharsets.UTF_8)));
     }
 
     // A module m whose main class m.App has this main and these other members.

@@ -45,6 +45,11 @@ final class Modules {
         return all;
     }
 
+    /** The module of this name in the graph, or null. */
+    @Nullable RuntimeModule named(String name) {
+        return byName.get(name);
+    }
+
     private RuntimeModule resolve(ModuleData data, @Nullable String name) {
         ModuleDef definition;
         try {

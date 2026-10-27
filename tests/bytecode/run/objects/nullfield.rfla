@@ -1,0 +1,26 @@
+// expect-output: before
+// expect-throws: reflect.core.NullPointerException
+.module nullfield 0.0.0
+.main nullfield.App
+.requires reflect.core
+.requires reflect.io
+
+// ldfld of a field of null throws NullPointerException (BC-14). A local of a reference type starts
+// at null (BC-17). Until v0.0.8 the exception is a fault, which ends the run with exit code 1 (Q89).
+.class public final nullfield.Point {
+    .field public int x
+}
+
+.class public final nullfield.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (nullfield.Point point)
+        ldstr    "before"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldloc    point
+        ldfld    int nullfield.Point::x
+        pop
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

@@ -7,6 +7,7 @@ package reflect.stage0.vm;
  */
 final class Fault extends RuntimeException {
     static final String ARITHMETIC_EXCEPTION = "reflect.core.ArithmeticException";
+    static final String NULL_POINTER_EXCEPTION = "reflect.core.NullPointerException";
     static final String STACK_OVERFLOW_ERROR = "reflect.core.StackOverflowError";
     static final String TYPE_LOAD_ERROR = "reflect.core.TypeLoadError";
 

@@ -10,6 +10,9 @@ import java.util.TreeMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+import reflect.stage0.bytecode.FieldDef;
+import reflect.stage0.bytecode.FieldHandle;
+import reflect.stage0.bytecode.FieldSig;
 import reflect.stage0.bytecode.Flags;
 import reflect.stage0.bytecode.MemberRef;
 import reflect.stage0.bytecode.MethodDef;
@@ -20,6 +23,7 @@ import reflect.stage0.bytecode.Opcode;
 import reflect.stage0.bytecode.TypeDef;
 import reflect.stage0.bytecode.TypeHandle;
 import reflect.stage0.bytecode.TypeRef;
+import reflect.stage0.bytecode.TypeSig;
 import reflect.stage0.lib.Nullable;
 
 /**
@@ -41,12 +45,15 @@ public final class Vm {
     // (sketchpad D.6).
     private static final long STACK_SIZE = 256L << 20;
 
+    private static final String CORE = "reflect.core";
+
     private final PrintStream out;
     private final PrintStream err;
     private final Map<TypeDef, RuntimeType> types = new IdentityHashMap<>();
     private final Map<String, String> literals = new HashMap<>();
     // One slot for each one-byte opcode, then one for each two-byte opcode.
     private final long[] counts = new long[0x200];
+    private @Nullable Modules modules;
 
     Vm(PrintStream out, PrintStream err) {
         this.out = out;
@@ -77,8 +84,9 @@ public final class Vm {
 
     private Result start(ModuleData main, ModuleSource source, @Nullable String mainClass, List<String> args) {
         try {
-            Modules modules = Modules.load(main, source);
-            RuntimeMethod entry = entry(modules.main(), mainClass);
+            Modules graph = Modules.load(main, source);
+            modules = graph;
+            RuntimeMethod entry = entry(graph.main(), mainClass);
             Object value = Interpreter.invoke(this, entry, new Object[] {args.toArray(new String[0])});
             return result(value == null ? 0 : (Integer) value, null);
         } catch (Exit e) {
@@ -140,15 +148,63 @@ public final class Vm {
         return type(module, type).method(found);
     }
 
-    /** The run-time type of a type of the module, which loads at its first use (VM-13). */
+    /** The run-time type of a type of the module, which loads at its first use, after its base class (VM-13). */
     RuntimeType type(RuntimeModule module, TypeDef definition) {
         RuntimeType type = types.get(definition);
         if (type == null) {
             load(module, definition);
-            type = new RuntimeType(module, definition);
+            type = new RuntimeType(module, definition, base(module, definition));
             types.put(definition, type);
         }
         return type;
+    }
+
+    // The base class (Q96): the type that the base names, or reflect.core.Object for a class or a class
+    // record with base 0. reflect.core.Object, an interface, an annotation type and a value type have none.
+    private @Nullable RuntimeType base(RuntimeModule module, TypeDef definition) {
+        TypeHandle base = definition.base();
+        if (base != null) {
+            return type(module, base);
+        }
+        boolean isClass = definition.kind() == Flags.KIND_CLASS || definition.kind() == Flags.KIND_RECORD;
+        boolean isObject = module.name().equals(CORE) && definition.qualifiedName().equals(CORE + ".Object");
+        return isClass && !isObject ? core("Object", definition.qualifiedName()) : null;
+    }
+
+    // A type of the module reflect.core, which a base of 0 names without a TypeRef (Q96).
+    private RuntimeType core(String name, String user) {
+        @Nullable Modules graph = modules;
+        @Nullable RuntimeModule core = graph == null ? null : graph.named(CORE);
+        @Nullable TypeDef definition = core == null ? null : core.type(CORE + "." + name);
+        if (core == null || definition == null) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, user + " needs " + CORE + "." + name + ", which the module graph"
+                    + " does not hold");
+        }
+        return type(core, definition);
+    }
+
+    /** The run-time type of a value on the stack: the type of an Instance, or null for any other value. */
+    @Nullable RuntimeType typeOf(@Nullable Object value) {
+        return value instanceof Instance object ? object.type() : null;
+    }
+
+    /** The run-time field that a field token of the module names: a Field row, or a MemberRef (Q69). */
+    RuntimeField field(RuntimeModule from, FieldHandle handle) {
+        if (handle instanceof FieldDef definition) {
+            return type(from, from.owner(definition)).field(definition);
+        }
+        MemberRef ref = (MemberRef) handle;
+        RuntimeType parent = type(from, ref.parent());
+        TypeSig type = ((FieldSig) ref.signature()).type();
+        String wanted = Spelling.type(type, from.name(), true);
+        for (FieldDef definition : parent.definition().fields()) {
+            if (definition.name().equals(ref.name())
+                    && Spelling.type(definition.type(), parent.module().name(), true).equals(wanted)) {
+                return parent.field(definition);
+            }
+        }
+        throw new Fault(Fault.TYPE_LOAD_ERROR, "the module " + parent.module().name() + " defines no field "
+                + Spelling.field(parent.name(), ref.name(), type, from.name(), false));
     }
 
     /** The run-time type that a type token or a signature of the module names. */

@@ -237,6 +237,10 @@ u32, in the order given:
 
 - IDENTS offset 0 holds the empty identifier. A type in the global namespace and a nested type
   have namespace 0; a nested type takes its namespace from its outermost enclosing type.
+- A class or a class record with base 0 extends `reflect.core.Object`; only `reflect.core.Object`
+  of module `reflect.core`, an interface, an annotation type and a value type have no base class.
+  `InterfaceImpl` rows list the interfaces that an interface extends, or that a class or a struct
+  implements (Q96).
 - Each name has the form that `.rfla` spells (Q83): the name of a type, a field, a method, a
   parameter, a `MemberRef` and a local in DEBUG is an `Ident` of §8.1, and a module name, a
   namespace and the target of an `Export` row are a `QName`. Only a namespace, the name of a
@@ -402,13 +406,16 @@ package-private (MOD-08).
 
 ## 5. Instruction set
 
-- **BC-04 [Proposed; encoding Decided, Q67, Q68; shift counts and NaN Decided, Q91, Q92]** Opcodes
-  are one byte; `0xFE` prefixes a second byte. Arithmetic is typed like the JVM's, so the
-  interpreter never inspects stack types; `boolean`, `byte`, `short` and `char` values widen to
-  `i32` on the stack and narrow with `conv` on store, and unsigned values share the slots of their
-  signed widths. An instruction exists only where it changes the result: equality and stores ignore
-  signedness (`ceq.i32` serves `u32`, `stelem.i8` serves `u8`), and conversions exist only where
-  bits change. Other pairs compose: a `double` narrows to `byte` through `conv.f64.i32` then
+- **BC-04 [Proposed; encoding Decided, Q67, Q68; shift counts and NaN Decided, Q91, Q92; small
+  fields Decided, Q104]** Opcodes are one byte; `0xFE` prefixes a second byte. Arithmetic is typed
+  like the JVM's, so the interpreter never inspects stack types; `boolean`, `byte`, `short` and
+  `char` values widen to `i32` on the stack and narrow with `conv` on store, and unsigned values
+  share the slots of their signed widths. A field of type `boolean`, `byte`, `ubyte`, `short`,
+  `ushort` or `char` keeps the low 8 or 16 bits of the `i32` that `stfld` stores, and `ldfld` widens
+  them by the field's type: `byte` and `short` sign-extend, the others zero-extend (Q104). An
+  instruction exists only where it changes the result: equality and stores ignore signedness
+  (`ceq.i32` serves `u32`, `stelem.i8` serves `u8`), and conversions exist only where bits change.
+  Other pairs compose: a `double` narrows to `byte` through `conv.f64.i32` then
   `conv.i32.i8`, which gives Java's result, 44 for `(byte) 300.0` (NUM-03). Float arithmetic and the
   conversions between `f32` and `f64` give the canonical NaN of NUM-04 for every NaN result, and
   `neg` changes only the sign bit (MA-01, Q92). Operands: `<tok>` is a ULEB128 token, `<n>` a
@@ -445,11 +452,13 @@ package-private (MOD-08).
   | unsafe only | `FE 60`-`FE 6F` | `localloc` (size → pointer); `ptradd <tok>`, `ptrdiff <tok>` (scaled by the element size); `conv.ptr.i64`, `conv.i64.ptr`; `syscall <n> <n>`, the call number and the argument count (UNS-04) |
   | reserved | `FF` | `breakpoint` for debuggers |
 
-- **BC-14 [Proposed]** Checks performed by instructions: every dereference checks null
-  (`NullPointerException`); `stfld`, `stsfld`, `stelem`, `stobj` and `stind` of references run
-  the write barrier (memory.md §5); a reference `stelem` checks no element type, since arrays are
-  invariant (NUL-07); `castclass` throws `ClassCastException`, or `NullPointerException` for null
-  to a non-null type (NUL-05); `checkalive` throws `ObjectDestroyedException`.
+- **BC-14 [Proposed; `call` Decided, Q100]** Checks performed by instructions: every dereference
+  checks null (`NullPointerException`), and so does `call` of an instance method with its receiver,
+  before the method runs, as the JVM's `invokespecial` does (Q100); `stfld`, `stsfld`, `stelem`,
+  `stobj` and `stind` of references run the write barrier (memory.md §5); a reference `stelem`
+  checks no element type, since arrays are invariant (NUL-07); `castclass` throws
+  `ClassCastException`, or `NullPointerException` for null to a non-null type (NUL-05); `checkalive`
+  throws `ObjectDestroyedException`.
 - **BC-15 [Proposed]** A class handle on the stack is a `Class<T>` reference. Every run-time type
   owns its `Class<T>` object from creation, so `ldtype`, `getclass` and `ldrecv` never allocate.
 - **BC-05 [Proposed]** Receivers (SVD-09): `call C::m` on a static passes `C` as `R`;

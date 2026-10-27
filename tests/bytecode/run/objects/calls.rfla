@@ -1,0 +1,119 @@
+// expect-output: 7
+// expect-output: 14
+// expect-output: hello, Rex
+// expect-output: 8000000005
+.module calls 0.0.0
+.main calls.App
+.requires reflect.core
+.requires reflect.io
+
+// call of an instance method passes the receiver as argument 0, before the parameters, and calls
+// the method that it names, also on an object of a subclass (BC-04, BC-06).
+.class public calls.Counter {
+    .field private int count
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    // Adds n, and returns this, so calls can follow one another.
+    .method public calls.Counter add(int n) {
+        ldarg    0
+        ldarg    0
+        ldfld    int calls.Counter::count
+        ldarg    n
+        add.i32
+        stfld    int calls.Counter::count
+        ldarg    0
+        ret
+    }
+    .method public int get() {
+        ldarg    0
+        ldfld    int calls.Counter::count
+        ret
+    }
+    // Calls two methods of its own object.
+    .method public void twice() {
+        ldarg    0
+        ldarg    0
+        call     int calls.Counter::get()
+        call     calls.Counter calls.Counter::add(int)
+        pop
+        ret
+    }
+    // Takes a long, a double and a string after its receiver.
+    .method public long mix(long a, double b, reflect.core.String c) {
+        ldarg    a
+        ldarg    b
+        conv.f64.i64
+        add.i64
+        ldarg    0
+        ldfld    int calls.Counter::count
+        conv.i32.i64
+        add.i64
+        ret
+    }
+}
+
+.class public calls.Animal {
+    .field protected reflect.core.String name
+    .method public void new(reflect.core.String name) {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ldarg    0
+        ldarg    name
+        stfld    reflect.core.String calls.Animal::name
+        ret
+    }
+    .method public reflect.core.String hello() {
+        ldstr    "hello, "
+        ldarg    0
+        ldfld    reflect.core.String calls.Animal::name
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ret
+    }
+}
+
+.class public final calls.Dog extends calls.Animal {
+    .method public void new(reflect.core.String name) {
+        ldarg    0
+        ldarg    name
+        call     void calls.Animal::new(reflect.core.String)
+        ret
+    }
+}
+
+.class public final calls.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (calls.Counter counter)
+        newobj   void calls.Counter::new()
+        ldc.i4   3
+        call     calls.Counter calls.Counter::add(int)
+        ldc.i4   4
+        call     calls.Counter calls.Counter::add(int)
+        dup
+        stloc    counter
+        call     int calls.Counter::get()
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldloc    counter
+        call     void calls.Counter::twice()
+        ldloc    counter
+        call     int calls.Counter::get()
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "Rex"
+        newobj   void calls.Dog::new(reflect.core.String)
+        call     reflect.core.String calls.Animal::hello()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // 7999999986 + 5 (5.75 truncated) + 14 (the count) = 8000000005.
+        ldloc    counter
+        ldc.i8   7999999986
+        ldc.r8   5.75
+        ldstr    "unused"
+        call     long calls.Counter::mix(long, double, reflect.core.String)
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

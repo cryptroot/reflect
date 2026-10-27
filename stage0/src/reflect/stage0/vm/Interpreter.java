@@ -2,8 +2,10 @@ package reflect.stage0.vm;
 
 import java.util.Arrays;
 
+import reflect.stage0.bytecode.Flags;
 import reflect.stage0.bytecode.Instruction;
 import reflect.stage0.bytecode.Label;
+import reflect.stage0.bytecode.MethodHandle;
 import reflect.stage0.bytecode.Opcode;
 import reflect.stage0.lib.List;
 import reflect.stage0.lib.Nullable;
@@ -11,7 +13,7 @@ import reflect.stage0.lib.Nullable;
 /**
  * The interpreter of VM0 (BOOT-04): one Java call per Reflect call, and a switch over the opcodes
  * of the stack bytecode. Locals and the operand stack hold Java values: Integer for i32, Long for
- * i64, Float for f32, Double for f64, and String or null for a reference.
+ * i64, Float for f32, Double for f64, and an Instance, a String or null for a reference.
  */
 final class Interpreter {
     // The canonical NaN of each format (NUM-04, MA-01, Q92): the positive quiet NaN with payload 0. Java's
@@ -343,18 +345,47 @@ final class Interpreter {
                     }
                     case Opcode.CALL -> {
                         if (links[pc] == null) {
-                            RuntimeMethod callee = vm.method(method.type().module(), ((Instruction.Method) instruction).method());
-                            if (!callee.isStatic()) {
-                                throw new Stop(where(method, pc) + ": VM0 does not run instance calls yet");
-                            }
-                            links[pc] = callee;
+                            links[pc] = vm.method(method.type().module(), ((Instruction.Method) instruction).method());
                         }
                         RuntimeMethod callee = (RuntimeMethod) links[pc];
                         sp -= callee.arguments();
-                        Object result = invoke(vm, callee, Arrays.copyOfRange(stack, sp, sp + callee.arguments()));
+                        Object[] values = Arrays.copyOfRange(stack, sp, sp + callee.arguments());
+                        if (!callee.isStatic()) {
+                            // A call of an instance method checks its receiver, as the JVM's invokespecial does (Q100).
+                            receiver(vm, values[0], callee.type(), "call " + callee.signature(), method, pc);
+                        }
+                        Object result = invoke(vm, callee, values);
                         if (callee.returnsValue()) {
                             stack[sp++] = result;
                         }
+                    }
+                    // newobj makes an object of the constructor's class, every field at zero, and runs the
+                    // constructor on it, after the parameters (BC-04).
+                    case Opcode.NEWOBJ -> {
+                        if (links[pc] == null) {
+                            links[pc] = constructor(vm, method, pc, ((Instruction.Method) instruction).method());
+                        }
+                        RuntimeMethod constructor = (RuntimeMethod) links[pc];
+                        Object[] values = new Object[constructor.arguments()];
+                        sp -= values.length - 1;
+                        System.arraycopy(stack, sp, values, 1, values.length - 1);
+                        Instance object = constructor.type().allocate();
+                        values[0] = object;
+                        invoke(vm, constructor, values);
+                        stack[sp++] = object;
+                    }
+                    case Opcode.LDFLD -> {
+                        RuntimeField field = instanceField(vm, method, pc, instruction);
+                        Instance object = (Instance) receiver(vm, stack[sp - 1], field.owner(), "ldfld " + field.name(),
+                                method, pc);
+                        stack[sp - 1] = object.fields()[field.slot()];
+                    }
+                    case Opcode.STFLD -> {
+                        RuntimeField field = instanceField(vm, method, pc, instruction);
+                        Object value = stack[--sp];
+                        Instance object = (Instance) receiver(vm, stack[--sp], field.owner(), "stfld " + field.name(),
+                                method, pc);
+                        object.fields()[field.slot()] = field.stored(value);
                     }
                     case Opcode.RET -> {
                         return method.returnsValue() ? stack[--sp] : null;
@@ -403,6 +434,57 @@ final class Interpreter {
 
     private static int target(Instruction instruction) {
         return ((Instruction.Branch) instruction).target().index();
+    }
+
+    // The receiver of an instruction that names a member of the owner. null is a NullPointerException
+    // (BC-14, Q100); a value that is no instance of the owner is code that a verifier would reject (Q101).
+    private static Object receiver(Vm vm, @Nullable Object value, RuntimeType owner, String what, RuntimeMethod method,
+            int pc) {
+        if (value == null) {
+            throw new Fault(Fault.NULL_POINTER_EXCEPTION, what + ": the receiver is null");
+        }
+        RuntimeType type = vm.typeOf(value);
+        if (type == null || !type.isSubtypeOf(owner)) {
+            throw new Stop(where(method, pc) + ": the code is invalid: the receiver of " + what + " is not a "
+                    + owner.name());
+        }
+        return value;
+    }
+
+    // The instance field that a ldfld or stfld names, linked at its first execution (VM-16). A static field
+    // there is a link error (Q101).
+    private static RuntimeField instanceField(Vm vm, RuntimeMethod method, int pc, Instruction instruction) {
+        Object[] links = method.links();
+        if (links[pc] == null) {
+            RuntimeField field = vm.field(method.type().module(), ((Instruction.Field) instruction).field());
+            if (field.isStatic()) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " names the static field "
+                        + field.name());
+            }
+            links[pc] = field;
+        }
+        return (RuntimeField) links[pc];
+    }
+
+    // The constructor that a newobj names, linked at its first execution (VM-16): a constructor of a class
+    // that is not abstract, or else a link error (Q101). Value types arrive in v0.0.7.
+    private static RuntimeMethod constructor(Vm vm, RuntimeMethod method, int pc, MethodHandle handle) {
+        RuntimeMethod constructor = vm.method(method.type().module(), handle);
+        if ((constructor.definition().flags() & Flags.METHOD_CONSTRUCTOR) == 0 || constructor.isStatic()) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, "newobj names " + constructor.signature()
+                    + ", which is not a constructor");
+        }
+        RuntimeType type = constructor.type();
+        if (type.isValueType()) {
+            throw new Stop(where(method, pc) + ": VM0 does not run value types yet, such as " + type.name());
+        }
+        if (type.isInterface()) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, "newobj names a constructor of the interface " + type.name());
+        }
+        if ((type.definition().flags() & Flags.TYPE_ABSTRACT) != 0) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, "newobj names a constructor of the abstract class " + type.name());
+        }
+        return constructor;
     }
 
     // An i32 of the stack; boolean, byte, short and char values are i32 values there too (BC-04).

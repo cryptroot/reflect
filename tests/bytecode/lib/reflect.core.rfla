@@ -3,6 +3,9 @@
 .exports reflect.core
 
 .class public reflect.core.Object {
+    .method public void new() {
+        ret
+    }
 }
 
 .class public final reflect.core.String extends reflect.core.Object {

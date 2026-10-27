@@ -42,6 +42,11 @@ final class Spelling {
         return text.append(')').toString();
     }
 
+    /** A field of a type: its type, the type and the name, as a FieldRef in full form states it (Q69). */
+    static String field(String owner, String name, TypeSig type, String module, boolean scoped) {
+        return type(type, module, scoped) + " " + owner + "::" + name;
+    }
+
     /** A type of a signature that the module holds. */
     static String type(TypeSig type, String module, boolean scoped) {
         return switch (type) {

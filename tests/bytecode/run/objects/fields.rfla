@@ -1,0 +1,191 @@
+// expect-output: a.x = 3
+// expect-output: a.y = 4
+// expect-output: b.x = 0
+// expect-output: b.x = 10
+// expect-output: a.x = 3
+// expect-output: c.x = 5
+// expect-output: c.y = 6
+// expect-output: c.z = 7
+// expect-output: pair.first = 8
+// expect-output: 0
+// expect-output: 0.0
+// expect-output: 0.0
+// expect-output: null
+// expect-output: 9000000000
+// expect-output: 1.5
+// expect-output: 2.25
+// expect-output: full
+.module fields 0.0.0
+.main fields.App
+.requires reflect.core
+.requires reflect.io
+
+// newobj makes an object of the constructor's class with every field at zero, then runs the
+// constructor on it (BC-04, BC-17). A class without extends extends reflect.core.Object (Q96), and a
+// subclass appends its fields to those of its base class (VM-02).
+.class public fields.Point {
+    .field public int x
+    .field public int y
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public void new(int x, int y) {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ldarg    0
+        ldarg    x
+        stfld    int fields.Point::x
+        ldarg    0
+        ldarg    y
+        stfld    int fields.Point::y
+        ret
+    }
+}
+
+.class public final fields.Point3 extends fields.Point {
+    .field public int z
+    .method public void new(int x, int y, int z) {
+        ldarg    0
+        ldarg    x
+        ldarg    y
+        call     void fields.Point::new(int, int)
+        ldarg    0
+        ldarg    z
+        stfld    int fields.Point3::z
+        ret
+    }
+}
+
+// A class record extends reflect.core.Object as a class does (Q96).
+.class public final record fields.Pair {
+    .field public int first
+    .method public void new(int first) {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ldarg    0
+        ldarg    first
+        stfld    int fields.Pair::first
+        ret
+    }
+}
+
+// A field of each other kind of value, which a new Bag holds at zero.
+.class public final fields.Bag {
+    .field public long count
+    .field public float ratio
+    .field public double mean
+    .field public reflect.core.String? name
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+}
+
+.class public final fields.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (fields.Point a, fields.Point b, fields.Point3 c, fields.Bag bag)
+        ldc.i4   3
+        ldc.i4   4
+        newobj   void fields.Point::new(int, int)
+        stloc    a
+        ldstr    "a.x"
+        ldloc    a
+        ldfld    int fields.Point::x
+        call     static void fields.App::show(reflect.core.String, int)
+        ldstr    "a.y"
+        ldloc    a
+        ldfld    int fields.Point::y
+        call     static void fields.App::show(reflect.core.String, int)
+        newobj   void fields.Point::new()
+        stloc    b
+        ldstr    "b.x"
+        ldloc    b
+        ldfld    int fields.Point::x
+        call     static void fields.App::show(reflect.core.String, int)
+        // stfld changes the field of one object only.
+        ldloc    b
+        ldc.i4   10
+        stfld    int fields.Point::x
+        ldstr    "b.x"
+        ldloc    b
+        ldfld    int fields.Point::x
+        call     static void fields.App::show(reflect.core.String, int)
+        ldstr    "a.x"
+        ldloc    a
+        ldfld    int fields.Point::x
+        call     static void fields.App::show(reflect.core.String, int)
+        // A Point3 holds the fields of Point, then its own.
+        ldc.i4   5
+        ldc.i4   6
+        ldc.i4   7
+        newobj   void fields.Point3::new(int, int, int)
+        stloc    c
+        ldstr    "c.x"
+        ldloc    c
+        ldfld    int fields.Point::x
+        call     static void fields.App::show(reflect.core.String, int)
+        ldstr    "c.y"
+        ldloc    c
+        ldfld    int fields.Point::y
+        call     static void fields.App::show(reflect.core.String, int)
+        ldstr    "c.z"
+        ldloc    c
+        ldfld    int fields.Point3::z
+        call     static void fields.App::show(reflect.core.String, int)
+        ldstr    "pair.first"
+        ldc.i4   8
+        newobj   void fields.Pair::new(int)
+        ldfld    int fields.Pair::first
+        call     static void fields.App::show(reflect.core.String, int)
+        newobj   void fields.Bag::new()
+        stloc    bag
+        ldloc    bag
+        call     static void fields.App::showBag(fields.Bag)
+        ldloc    bag
+        ldc.i8   9000000000
+        stfld    long fields.Bag::count
+        ldloc    bag
+        ldc.r4   1.5
+        stfld    float fields.Bag::ratio
+        ldloc    bag
+        ldc.r8   2.25
+        stfld    double fields.Bag::mean
+        ldloc    bag
+        ldstr    "full"
+        stfld    reflect.core.String? fields.Bag::name
+        ldloc    bag
+        call     static void fields.App::showBag(fields.Bag)
+        ret
+    }
+    .method static void show(reflect.core.String label, int value) {
+        ldarg    label
+        ldstr    " = "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+    .method static void showBag(fields.Bag bag) {
+        ldarg    bag
+        ldfld    long fields.Bag::count
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldarg    bag
+        ldfld    float fields.Bag::ratio
+        call     static reflect.core.String reflect.core.String::valueOf(float)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldarg    bag
+        ldfld    double fields.Bag::mean
+        call     static reflect.core.String reflect.core.String::valueOf(double)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldarg    bag
+        ldfld    reflect.core.String? fields.Bag::name
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

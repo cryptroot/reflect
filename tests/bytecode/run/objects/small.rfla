@@ -1,0 +1,181 @@
+// expect-output: byte 300 = 44
+// expect-output: byte 200 = -56
+// expect-output: ubyte 300 = 44
+// expect-output: ubyte -1 = 255
+// expect-output: short 70000 = 4464
+// expect-output: short 40000 = -25536
+// expect-output: ushort 70000 = 4464
+// expect-output: ushort -1 = 65535
+// expect-output: char 65601 = 65
+// expect-output: char 40000 = 40000
+// expect-output: boolean 2 = 2
+// expect-output: boolean 255 = 255
+// expect-output: boolean 256 = 0
+// expect-output: int 300 = 300
+.module small 0.0.0
+.main small.App
+.requires reflect.core
+.requires reflect.io
+
+// A field of type boolean, byte, ubyte, short, ushort or char keeps the low 8 or 16 bits of the i32
+// that stfld stores, and ldfld widens them: byte and short sign-extend, the others zero-extend (BC-04,
+// Q104). The expected lines come from typed arrays of the same widths, outside VM0.
+.class public final small.Fields {
+    .field public byte b
+    .field public ubyte ub
+    .field public short s
+    .field public ushort us
+    .field public char c
+    .field public boolean f
+    .field public int i
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public int storeB(int value) {
+        ldarg    0
+        ldarg    value
+        stfld    byte small.Fields::b
+        ldarg    0
+        ldfld    byte small.Fields::b
+        ret
+    }
+    .method public int storeUb(int value) {
+        ldarg    0
+        ldarg    value
+        stfld    ubyte small.Fields::ub
+        ldarg    0
+        ldfld    ubyte small.Fields::ub
+        ret
+    }
+    .method public int storeS(int value) {
+        ldarg    0
+        ldarg    value
+        stfld    short small.Fields::s
+        ldarg    0
+        ldfld    short small.Fields::s
+        ret
+    }
+    .method public int storeUs(int value) {
+        ldarg    0
+        ldarg    value
+        stfld    ushort small.Fields::us
+        ldarg    0
+        ldfld    ushort small.Fields::us
+        ret
+    }
+    .method public int storeC(int value) {
+        ldarg    0
+        ldarg    value
+        stfld    char small.Fields::c
+        ldarg    0
+        ldfld    char small.Fields::c
+        ret
+    }
+    .method public int storeF(int value) {
+        ldarg    0
+        ldarg    value
+        stfld    boolean small.Fields::f
+        ldarg    0
+        ldfld    boolean small.Fields::f
+        ret
+    }
+    .method public int storeI(int value) {
+        ldarg    0
+        ldarg    value
+        stfld    int small.Fields::i
+        ldarg    0
+        ldfld    int small.Fields::i
+        ret
+    }
+}
+
+.class public final small.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (small.Fields o)
+        newobj   void small.Fields::new()
+        stloc    o
+        ldstr    "byte 300"
+        ldloc    o
+        ldc.i4   300
+        call     int small.Fields::storeB(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "byte 200"
+        ldloc    o
+        ldc.i4   200
+        call     int small.Fields::storeB(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "ubyte 300"
+        ldloc    o
+        ldc.i4   300
+        call     int small.Fields::storeUb(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "ubyte -1"
+        ldloc    o
+        ldc.i4   -1
+        call     int small.Fields::storeUb(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "short 70000"
+        ldloc    o
+        ldc.i4   70000
+        call     int small.Fields::storeS(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "short 40000"
+        ldloc    o
+        ldc.i4   40000
+        call     int small.Fields::storeS(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "ushort 70000"
+        ldloc    o
+        ldc.i4   70000
+        call     int small.Fields::storeUs(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "ushort -1"
+        ldloc    o
+        ldc.i4   -1
+        call     int small.Fields::storeUs(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "char 65601"
+        ldloc    o
+        ldc.i4   65601
+        call     int small.Fields::storeC(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "char 40000"
+        ldloc    o
+        ldc.i4   40000
+        call     int small.Fields::storeC(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "boolean 2"
+        ldloc    o
+        ldc.i4   2
+        call     int small.Fields::storeF(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "boolean 255"
+        ldloc    o
+        ldc.i4   255
+        call     int small.Fields::storeF(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "boolean 256"
+        ldloc    o
+        ldc.i4   256
+        call     int small.Fields::storeF(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ldstr    "int 300"
+        ldloc    o
+        ldc.i4   300
+        call     int small.Fields::storeI(int)
+        call     static void small.App::show(reflect.core.String, int)
+        ret
+    }
+    .method static void show(reflect.core.String label, int value) {
+        ldarg    label
+        ldstr    " = "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

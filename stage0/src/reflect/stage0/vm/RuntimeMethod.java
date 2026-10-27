@@ -55,19 +55,10 @@ final class RuntimeMethod {
     // The value of a local before its first store: the zero value of its type (BC-17, Q91). Value types
     // other than primitives arrive with enums in v0.0.7.
     private @Nullable Object zero(TypeSig local) {
-        if (local instanceof TypeSig.Primitive primitive) {
-            return switch (primitive.code()) {
-                case SigCode.I64, SigCode.U64 -> 0L;
-                case SigCode.F32 -> 0.0f;
-                case SigCode.F64 -> 0.0;
-                default -> 0;
-            };
-        }
-        if (local instanceof TypeSig.Named named && named.valueType()
-                || local instanceof TypeSig.GenericInst instance && instance.type().valueType()) {
+        if (Values.valueType(local)) {
             throw new Stop(name() + ": VM0 does not run locals of value types yet");
         }
-        return null;
+        return Values.zero(local);
     }
 
     RuntimeType type() {
@@ -117,5 +108,10 @@ final class RuntimeMethod {
     /** The name that messages give: the type, then the method after "::". */
     String name() {
         return type.name() + "::" + definition.name();
+    }
+
+    /** The method in the full form of a MethodRef, as messages about a call give it (Q69). */
+    String signature() {
+        return Spelling.method(type.name(), definition.name(), definition.signature(), type.module().name(), false);
     }
 }
