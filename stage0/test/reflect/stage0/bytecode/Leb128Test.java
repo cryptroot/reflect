@@ -30,6 +30,26 @@ public final class Leb128Test {
     }
 
     @Test
+    public static void unsigned64BitValuesAtEachByteLengthBoundary() throws ModuleFormatException {
+        for (int length = 1; length <= 10; length++) {
+            long smallest = length == 1 ? 0 : 1L << (7 * (length - 1));
+            long largest = length == 10 ? -1L : (1L << (7 * length)) - 1;
+            for (long value : new long[] {smallest, largest}) {
+                byte[] bytes = unsigned64(value);
+                assertEquals(length, bytes.length);
+                assertEquals(length, Leb128.sizeUnsigned64(value));
+                var source = new ByteSource(bytes);
+                assertEquals(value, source.uleb64());
+                assertTrue(source.atEnd());
+            }
+        }
+        assertEquals("FF FF FF FF 0F", hex(unsigned64(0xFFFFFFFFL)));
+        assertEquals("80 80 80 80 10", hex(unsigned64(1L << 32)));
+        assertEquals("80 80 80 80 80 80 80 80 80 01", hex(unsigned64(Long.MIN_VALUE)));
+        assertEquals("FF FF FF FF FF FF FF FF FF 01", hex(unsigned64(-1L)));
+    }
+
+    @Test
     public static void signedValuesAtEachByteLengthBoundary() throws ModuleFormatException {
         for (int length = 1; length <= 10; length++) {
             long largest = length == 10 ? Long.MAX_VALUE : (1L << (7 * length - 1)) - 1;
@@ -63,6 +83,8 @@ public final class Leb128Test {
         rejectUnsigned("ULEB128 value is not minimal", 0x80, 0x00);
         rejectUnsigned("ULEB128 value is not minimal", 0x81, 0x80, 0x00);
         rejectUnsigned("ULEB128 value is not minimal", 0xFF, 0xFF, 0xFF, 0xFF, 0x00);
+        rejectUnsigned64("ULEB128 value is not minimal", 0x80, 0x00);
+        rejectUnsigned64("ULEB128 value is not minimal", 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x80, 0x00);
         rejectSigned32("SLEB128 value is not minimal", 0x80, 0x00);
         rejectSigned32("SLEB128 value is not minimal", 0xFF, 0x7F);
         rejectSigned32("SLEB128 value is not minimal", 0xBF, 0x00);
@@ -74,6 +96,9 @@ public final class Leb128Test {
     public static void valuesThatDoNotFitTheirFieldAreRejected() {
         rejectUnsigned("ULEB128 value does not fit 32 bits", 0x80, 0x80, 0x80, 0x80, 0x10);
         rejectUnsigned("ULEB128 value longer than 5 bytes", 0x80, 0x80, 0x80, 0x80, 0x80, 0x01);
+        rejectUnsigned64("ULEB128 value does not fit 64 bits", 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x02);
+        rejectUnsigned64("ULEB128 value longer than 10 bytes", 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x81,
+                0x00);
         rejectSigned32("SLEB128 value does not fit 32 bits", 0x80, 0x80, 0x80, 0x80, 0x08);
         rejectSigned32("SLEB128 value does not fit 32 bits", 0xFF, 0xFF, 0xFF, 0xFF, 0x77);
         rejectSigned32("SLEB128 value longer than 5 bytes", 0x80, 0x80, 0x80, 0x80, 0x80, 0x00);
@@ -84,6 +109,7 @@ public final class Leb128Test {
     @Test
     public static void truncatedValuesAndErrorsNameTheOffsetOfTheValue() {
         rejectUnsigned("truncated ULEB128 value", 0x80);
+        rejectUnsigned64("truncated ULEB128 value", 0xFF, 0xFF);
         rejectSigned64("truncated SLEB128 value", 0xFF, 0xFF);
         byte[] data = {0x00, 0x00, (byte) 0x80, 0x00};
         var source = new ByteSource(data, 2, 4);
@@ -98,6 +124,12 @@ public final class Leb128Test {
         return sink.toByteArray();
     }
 
+    private static byte[] unsigned64(long value) {
+        var sink = new ByteSink();
+        sink.uleb64(value);
+        return sink.toByteArray();
+    }
+
     private static byte[] signed(long value) {
         var sink = new ByteSink();
         sink.sleb(value);
@@ -106,6 +138,10 @@ public final class Leb128Test {
 
     private static void rejectUnsigned(String message, int... bytes) {
         reject(message, bytes, source -> source.uleb());
+    }
+
+    private static void rejectUnsigned64(String message, int... bytes) {
+        reject(message, bytes, source -> source.uleb64());
     }
 
     private static void rejectSigned32(String message, int... bytes) {

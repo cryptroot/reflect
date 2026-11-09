@@ -63,8 +63,13 @@ public final class ByteSink {
 
     /** Writes a u32 value in minimal ULEB128. */
     public void uleb(int value) {
-        long rest = value & 0xFFFFFFFFL;
-        while (rest >= 0x80) {
+        uleb64(value & 0xFFFFFFFFL);
+    }
+
+    /** Writes a u64 value in minimal ULEB128. */
+    public void uleb64(long value) {
+        long rest = value;
+        while (Long.compareUnsigned(rest, 0x80) >= 0) {
             u8((int) (rest & 0x7F) | 0x80);
             rest >>>= 7;
         }

@@ -104,6 +104,30 @@ public final class ByteSource {
         return (int) value;
     }
 
+    /** Reads a ULEB128 value that is minimal and fits 64 bits (BC-24); values from 2^63 are negative. */
+    public long uleb64() throws ModuleFormatException {
+        int start = position;
+        long value = 0;
+        int shift = 0;
+        int b;
+        do {
+            if (shift == 70) {
+                throw new ModuleFormatException(start, "ULEB128 value longer than 10 bytes");
+            }
+            b = leb128Byte(start, "ULEB128");
+            // The tenth byte holds only bit 63.
+            if (shift == 63 && (b & 0x7E) != 0) {
+                throw new ModuleFormatException(start, "ULEB128 value does not fit 64 bits");
+            }
+            value |= (long) (b & 0x7F) << shift;
+            shift += 7;
+        } while ((b & 0x80) != 0);
+        if (Leb128.sizeUnsigned64(value) != position - start) {
+            throw new ModuleFormatException(start, "ULEB128 value is not minimal");
+        }
+        return value;
+    }
+
     /** Reads an SLEB128 value that is minimal and fits 32 bits (BC-24). */
     public int sleb32() throws ModuleFormatException {
         int start = position;

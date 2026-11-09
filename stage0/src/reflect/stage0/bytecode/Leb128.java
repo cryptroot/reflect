@@ -10,9 +10,14 @@ public final class Leb128 {
 
     /** The number of bytes of a u32 value in ULEB128. */
     public static int sizeUnsigned(int value) {
-        long rest = value & 0xFFFFFFFFL;
+        return sizeUnsigned64(value & 0xFFFFFFFFL);
+    }
+
+    /** The number of bytes of a u64 value in ULEB128. */
+    public static int sizeUnsigned64(long value) {
+        long rest = value;
         int size = 1;
-        while (rest >= 0x80) {
+        while (Long.compareUnsigned(rest, 0x80) >= 0) {
             rest >>>= 7;
             size++;
         }
