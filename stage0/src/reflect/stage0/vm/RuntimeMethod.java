@@ -4,6 +4,7 @@ import reflect.stage0.bytecode.Flags;
 import reflect.stage0.bytecode.Instruction;
 import reflect.stage0.bytecode.MethodBody;
 import reflect.stage0.bytecode.MethodDef;
+import reflect.stage0.bytecode.MethodHandle;
 import reflect.stage0.bytecode.SigCode;
 import reflect.stage0.bytecode.TypeSig;
 import reflect.stage0.lib.Nullable;
@@ -90,6 +91,22 @@ final class RuntimeMethod {
 
     void setSlot(int slot) {
         this.slot = slot;
+    }
+
+    /**
+     * Whether the method is the other one, or overrides it: an Override row of the method names the other
+     * one, or a method that overrides it (Q97).
+     */
+    boolean overrides(Vm vm, RuntimeMethod other) {
+        if (this == other) {
+            return true;
+        }
+        for (MethodHandle overridden : definition.overrides()) {
+            if (vm.method(type.module(), overridden).overrides(vm, other)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     int arguments() {

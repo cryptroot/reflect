@@ -359,9 +359,58 @@ public final class VmTest {
         assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: the code is invalid: the receiver of callvirt"
                 + " void m.App::g() is not a m.App\n"), run(program("        ldstr \"x\"\n        callvirt void m.App::g()\n"
                 + "        ret\n", "    .method public virtual void g() {\n        ret\n    }\n")));
-        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run calls of interface methods"
-                + " yet, such as void m.I::f()\n"), run(program("        ldstr \"x\"\n        callvirt void m.I::f()\n"
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: the code is invalid: the receiver of callvirt"
+                + " void m.I::f() is not a m.I\n"), run(program("        ldstr \"x\"\n        callvirt void m.I::f()\n"
                 + "        ret\n", "") + ".class public interface m.I {\n    .method public abstract void f() {\n    }\n}\n"));
+    }
+
+    @Test
+    public static void anInterfaceMethodWithoutOneImplementationIsAnError() throws Exception {
+        // I::f has a default, which A and B override with defaults of their own; J makes it abstract again (Q97).
+        String types = ".class public interface m.I {\n    .method public virtual void f() {\n        ret\n    }\n}\n"
+                + ".class public interface m.A implements m.I {\n    .method public virtual void f() {\n"
+                + "        .override void m.I::f()\n        ret\n    }\n}\n"
+                + ".class public interface m.B implements m.I {\n    .method public virtual void f() {\n"
+                + "        .override void m.I::f()\n        ret\n    }\n}\n"
+                + ".class public interface m.J implements m.I {\n    .method public abstract void f() {\n"
+                + "        .override void m.I::f()\n    }\n}\n"
+                + ".class public interface m.K {\n    .method public abstract void g() {\n    }\n}\n";
+        String call = "        callvirt void m.I::f()\n        ret\n";
+        // Two most specific defaults conflict, a TypeLoadError at the call (Q101), unless a class member wins (MEM-03).
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": the defaults void m.A::f() and void m.B::f() of"
+                + " void m.I::f() conflict in m.C\n"), run(program("        newobj void m.C::new()\n" + call, "") + types
+                + type("m.C implements m.A, m.B", "")));
+        assertEquals(new Run(0, null, "C\n", ""), run(program("        newobj void m.C::new()\n" + call, "") + types
+                + type("m.C implements m.A, m.B", "    .method public virtual void f() {\n        .override void m.I::f()\n"
+                + "        ldstr \"C\"\n" + PRINTLN + "        ret\n    }\n")));
+        assertEquals(new Run(1, ABSTRACT_MEMBER_ERROR, "", ABSTRACT_MEMBER_ERROR + ": m.C does not implement void"
+                + " m.J::f()\n"), run(program("        newobj void m.C::new()\n" + call, "") + types
+                + type("m.C implements m.J", "")));
+        assertEquals(new Run(1, ABSTRACT_MEMBER_ERROR, "", ABSTRACT_MEMBER_ERROR + ": m.C does not implement void"
+                + " m.K::g()\n"), run(program("        newobj void m.C::new()\n        callvirt void m.K::g()\n        ret\n",
+                "") + types + type("m.C implements m.K", "")));
+    }
+
+    // A public class with a constructor and these other members.
+    private static String type(String head, String members) {
+        return ".class public " + head + " {\n    .method public void new() {\n        ldarg 0\n"
+                + "        call void reflect.core.Object::new()\n        ret\n    }\n" + members + "}\n";
+    }
+
+    @Test
+    public static void anInterfaceCallTakesTheSlotOfTheClassMethodThatImplementsIt() throws Exception {
+        // K::m implements I::m and fills the slot of B::m. S::m names B::m, not K::m, and fills the same slot, so
+        // a call of I::m on an S runs S::m, as a call of K::m does (Q97).
+        String print = "        ldstr \"%s\"\n" + PRINTLN + "        ret\n    }\n";
+        String types = ".class public interface m.I {\n    .method public abstract void m() {\n    }\n}\n"
+                + type("m.B", "    .method public virtual void m() {\n" + print.formatted("B"))
+                + type("m.K extends m.B implements m.I", "    .method public virtual void m() {\n"
+                + "        .override void m.B::m()\n        .override void m.I::m()\n" + print.formatted("K"))
+                + type("m.S extends m.K", "    .method public virtual void m() {\n        .override void m.B::m()\n"
+                + print.formatted("S"));
+        assertEquals(new Run(0, null, "S\nS\n", ""), run(program("        newobj void m.S::new()\n"
+                + "        callvirt void m.I::m()\n        newobj void m.S::new()\n        callvirt void m.K::m()\n"
+                + "        ret\n", "") + types));
     }
 
     @Test

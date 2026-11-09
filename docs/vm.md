@@ -93,9 +93,14 @@ VM guarantees.
 
 ## 5. Dispatch
 
-- **VM-04 [Proposed]**
+- **VM-04 [Proposed; interface calls Decided, Q97]**
   - `callvirt` loads the vtable slot of the receiver's run-time type. For an interface method it
-    searches the receiver's interface table, and the call site caches the result.
+    searches the receiver's interface table, and the call site caches the result. The table gives
+    the method in the slot of the nearest class's method, the receiver's class first, with an
+    `Override` row for the interface method or for an interface method that overrides it (BC-12);
+    else the one most specific default of the receiver's interfaces, which no other method of them
+    overrides (MEM-03). Two such defaults are a `TypeLoadError` at the call, and a most specific
+    method that is abstract an `AbstractMemberError` (Q97, Q101).
   - `call.svirt` loads the static dispatch table slot of the class handle; interface statics are
     found through the class's interface table like instance interface methods.
   - Abstract slots, instance or static, hold stubs that throw `AbstractMemberError`; an abstract

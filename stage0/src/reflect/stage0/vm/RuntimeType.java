@@ -11,20 +11,24 @@ import reflect.stage0.bytecode.Flags;
 import reflect.stage0.bytecode.MethodDef;
 import reflect.stage0.bytecode.MethodHandle;
 import reflect.stage0.bytecode.TypeDef;
+import reflect.stage0.bytecode.TypeHandle;
 import reflect.stage0.lib.Nullable;
 
 /**
  * A run-time type (VM-03): a type of a module that VM0 has loaded at its first use (VM-13), with its
- * base class (Q96), the slots of its instance fields, those of the base class first (VM-02), its
- * vtable (VM-04), the storage of its static fields, whether its initialization has started (VM-07),
- * and the methods and fields that VM0 has linked.
+ * base class (Q96) and its interfaces, the slots of its instance fields, those of the base class first
+ * (VM-02), its vtable and interface table (VM-04), the storage of its static fields, whether its
+ * initialization has started (VM-07), and the methods and fields that VM0 has linked.
  */
 final class RuntimeType {
     private final RuntimeModule module;
     private final TypeDef definition;
     private final @Nullable RuntimeType base;
+    private final List<RuntimeType> interfaces = new ArrayList<>();
     private final Map<MethodDef, RuntimeMethod> methods = new IdentityHashMap<>();
     private final Map<FieldDef, RuntimeField> fields = new IdentityHashMap<>();
+    // The implementation of each interface method that a call on an object of the class has named.
+    private final Map<RuntimeMethod, RuntimeMethod> itable = new IdentityHashMap<>();
     private final @Nullable Object[] zeros;
     private final @Nullable Object[] statics;
     private final @Nullable MethodDef initializer;
@@ -103,11 +107,19 @@ final class RuntimeType {
         return definition.kind() == Flags.KIND_INTERFACE || definition.kind() == Flags.KIND_ANNOTATION;
     }
 
-    /** Whether the type is this one or a class of its base chain. */
+    /**
+     * Whether the type is this one, a class of its base chain, or an interface that one of them implements,
+     * directly or through the interfaces that an interface extends (TYP-02, Q96).
+     */
     boolean isSubtypeOf(RuntimeType other) {
         for (RuntimeType type = this; type != null; type = type.base) {
             if (type == other) {
                 return true;
+            }
+            for (RuntimeType implemented : type.interfaces) {
+                if (implemented.isSubtypeOf(other)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -158,13 +170,16 @@ final class RuntimeType {
     }
 
     /**
-     * Builds the vtable of a class (VM-04, BC-12, Q97), after its base class has built its own: the
-     * slots of the base class, then for each VIRTUAL or ABSTRACT instance method, in row order, the
-     * slot of each method of a base class that an Override row of the method names, or else a new
-     * slot. A row may name an override, whose slot is the one that it fills. Interface tables, value
-     * types (v0.0.7) and the load checks of the rows come later (README §7.7).
+     * Links the type after its base class: the interfaces of its InterfaceImpl rows (Q96), then, for a
+     * class, its vtable (VM-04, BC-12, Q97): the slots of the base class, then for each VIRTUAL or
+     * ABSTRACT instance method, in row order, the slot of each method of a base class that an Override
+     * row of the method names, or else a new slot. A row may name an override, whose slot is the one that
+     * it fills. Value types (v0.0.7) and the load checks of the rows come later (README §7.7).
      */
     void link(Vm vm) {
+        for (TypeHandle implemented : definition.interfaces()) {
+            interfaces.add(vm.type(module, implemented));
+        }
         if (isInterface() || isValueType()) {
             return;
         }
@@ -192,6 +207,97 @@ final class RuntimeType {
     /** The method in the slot of a method of the type or of a base class, which the slot of this type holds. */
     RuntimeMethod implementation(RuntimeMethod method) {
         return vtable[method.slot()];
+    }
+
+    /**
+     * The method that a call of an interface method runs on an object of this class (VM-04, Q97): the
+     * method in the slot of the nearest class, this one first, with an Override row for the interface
+     * method or for an interface method that overrides it; else the one most specific default of the
+     * interfaces of the class, or an abstract method when none is. Two defaults that conflict are a
+     * TypeLoadError at the call (Q101). The interface table keeps each result.
+     */
+    RuntimeMethod implementation(Vm vm, RuntimeMethod method) {
+        RuntimeMethod found = itable.get(method);
+        if (found == null) {
+            found = classImplementation(vm, method);
+            if (found == null) {
+                found = defaultImplementation(vm, method);
+            }
+            itable.put(method, found);
+        }
+        return found;
+    }
+
+    private @Nullable RuntimeMethod classImplementation(Vm vm, RuntimeMethod method) {
+        for (RuntimeType type = this; type != null; type = type.base) {
+            for (MethodDef definition : type.definition.methods()) {
+                RuntimeMethod candidate = type.method(definition);
+                if (candidate.slot() < 0) {
+                    continue;
+                }
+                for (MethodHandle overridden : definition.overrides()) {
+                    if (vm.method(type.module, overridden).overrides(vm, method)) {
+                        return vtable[candidate.slot()];
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    // The most specific methods are those that no other method of the interfaces overrides; one of them
+    // with a body is the default (MEM-03). The method itself is a candidate, so without a default one of
+    // them is abstract.
+    private RuntimeMethod defaultImplementation(Vm vm, RuntimeMethod method) {
+        var candidates = new ArrayList<RuntimeMethod>();
+        for (RuntimeType implemented : allInterfaces()) {
+            for (MethodDef definition : implemented.definition.methods()) {
+                RuntimeMethod candidate = implemented.method(definition);
+                if (candidate.hasSlot() && candidate.overrides(vm, method)) {
+                    candidates.add(candidate);
+                }
+            }
+        }
+        var defaults = new ArrayList<RuntimeMethod>();
+        RuntimeMethod abstractMethod = method;
+        for (RuntimeMethod candidate : candidates) {
+            boolean overridden = false;
+            for (RuntimeMethod other : candidates) {
+                overridden |= other != candidate && other.overrides(vm, candidate);
+            }
+            if (!overridden && candidate.isAbstract()) {
+                abstractMethod = candidate;
+            } else if (!overridden) {
+                defaults.add(candidate);
+            }
+        }
+        if (defaults.size() > 1) {
+            var names = new ArrayList<String>();
+            for (RuntimeMethod found : defaults) {
+                names.add(found.signature());
+            }
+            throw new Fault(Fault.TYPE_LOAD_ERROR, "the defaults " + String.join(" and ", names) + " of "
+                    + method.signature() + " conflict in " + name());
+        }
+        return defaults.isEmpty() ? abstractMethod : defaults.get(0);
+    }
+
+    // The interfaces of the class and of its base classes, and those that they extend, each once.
+    private List<RuntimeType> allInterfaces() {
+        var all = new ArrayList<RuntimeType>();
+        for (RuntimeType type = this; type != null; type = type.base) {
+            type.addInterfaces(all);
+        }
+        return all;
+    }
+
+    private void addInterfaces(List<RuntimeType> all) {
+        for (RuntimeType implemented : interfaces) {
+            if (!all.contains(implemented)) {
+                all.add(implemented);
+                implemented.addInterfaces(all);
+            }
+        }
     }
 
     /** The run-time field of a field that the type lists, with its slot among the instance or the static fields. */

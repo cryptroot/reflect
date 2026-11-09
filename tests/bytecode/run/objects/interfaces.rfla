@@ -1,0 +1,159 @@
+// expect-output: Rex
+// expect-output: Rex
+// expect-output: Hello, Rex
+// expect-output: Bit
+// expect-output: Hello, Bit!
+// expect-output: Rex
+// expect-output: Hello, Buddy
+// expect-output: HELLO, POLLY
+// expect-output: Hello, Polly
+.module interfaces 0.0.0
+.main interfaces.App
+.requires reflect.core
+.requires reflect.io
+
+// A call of an interface method goes to the nearest class, the receiver's class first, with an Override
+// row for the method or for an interface method that overrides it, and takes the slot of that class's
+// method; else to the one most specific default of the receiver's interfaces (VM-04, Q97).
+.class public interface interfaces.Named {
+    .method public abstract reflect.core.String name() {
+    }
+    // A default: an interface method with a body.
+    .method public virtual reflect.core.String greeting() {
+        ldstr    "Hello, "
+        ldarg    0
+        callvirt reflect.core.String interfaces.Named::name()
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ret
+    }
+}
+
+// Pet::name overrides Named::name, so a row for Pet::name implements Named::name too.
+.class public interface interfaces.Pet implements interfaces.Named {
+    .method public abstract reflect.core.String name() {
+        .override reflect.core.String interfaces.Named::name()
+    }
+}
+
+// Guide::name overrides Pet::name, so a row for Guide::name implements Named::name through two rows.
+.class public interface interfaces.Guide implements interfaces.Pet {
+    .method public abstract reflect.core.String name() {
+        .override reflect.core.String interfaces.Pet::name()
+    }
+}
+
+// Shouting::greeting overrides the default of Named, so it is the more specific default.
+.class public interface interfaces.Shouting implements interfaces.Named {
+    .method public virtual reflect.core.String greeting() {
+        .override reflect.core.String interfaces.Named::greeting()
+        ldstr    "HELLO, POLLY"
+        ret
+    }
+}
+
+.class public interfaces.Dog implements interfaces.Pet {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public virtual reflect.core.String name() {
+        .override reflect.core.String interfaces.Pet::name()
+        ldstr    "Rex"
+        ret
+    }
+}
+
+// Puppy::name overrides the class method Dog::name, so a call of Pet::name reaches it through the slot of
+// Dog::name. Puppy::greeting, a class member, wins over the default, which it calls with call.
+.class public interfaces.Puppy extends interfaces.Dog {
+    .method public void new() {
+        ldarg    0
+        call     void interfaces.Dog::new()
+        ret
+    }
+    .method public virtual reflect.core.String name() {
+        .override reflect.core.String interfaces.Dog::name()
+        ldstr    "Bit"
+        ret
+    }
+    .method public virtual reflect.core.String greeting() {
+        .override reflect.core.String interfaces.Named::greeting()
+        ldarg    0
+        call     reflect.core.String interfaces.Named::greeting()
+        ldstr    "!"
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ret
+    }
+}
+
+// Husky has no row, so a call of Named::name reaches Dog::name, the method of its base class.
+.class public interfaces.Husky extends interfaces.Dog {
+    .method public void new() {
+        ldarg    0
+        call     void interfaces.Dog::new()
+        ret
+    }
+}
+
+.class public interfaces.Labrador implements interfaces.Guide {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public virtual reflect.core.String name() {
+        .override reflect.core.String interfaces.Guide::name()
+        ldstr    "Buddy"
+        ret
+    }
+}
+
+// Parrot names Named beside Shouting, which extends it; Named comes first in the InterfaceImpl rows, but
+// Shouting::greeting stays the most specific default.
+.class public interfaces.Parrot implements interfaces.Named, interfaces.Shouting {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public virtual reflect.core.String name() {
+        .override reflect.core.String interfaces.Named::name()
+        ldstr    "Polly"
+        ret
+    }
+}
+
+.class public final interfaces.App {
+    .method public static void main(reflect.core.String[] args) {
+        newobj   void interfaces.Dog::new()
+        callvirt reflect.core.String interfaces.Named::name()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void interfaces.Dog::new()
+        callvirt reflect.core.String interfaces.Pet::name()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void interfaces.Dog::new()
+        callvirt reflect.core.String interfaces.Named::greeting()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void interfaces.Puppy::new()
+        callvirt reflect.core.String interfaces.Pet::name()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void interfaces.Puppy::new()
+        callvirt reflect.core.String interfaces.Named::greeting()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void interfaces.Husky::new()
+        callvirt reflect.core.String interfaces.Named::name()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void interfaces.Labrador::new()
+        callvirt reflect.core.String interfaces.Named::greeting()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void interfaces.Parrot::new()
+        callvirt reflect.core.String interfaces.Named::greeting()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // call runs the default that it names, here the less specific one.
+        newobj   void interfaces.Parrot::new()
+        call     reflect.core.String interfaces.Named::greeting()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
