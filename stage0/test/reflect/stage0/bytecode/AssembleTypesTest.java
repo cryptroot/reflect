@@ -6,6 +6,7 @@ import static reflect.stage0.bytecode.TestModules.assemble;
 import static reflect.stage0.bytecode.TestModules.list;
 import static reflect.stage0.bytecode.TestModules.unassemblable;
 import static reflect.stage0.test.Assertions.assertEquals;
+import static reflect.stage0.test.Assertions.assertTrue;
 
 public final class AssembleTypesTest {
     private static final String M = ".module m 0.0.0\n";
@@ -202,8 +203,11 @@ public final class AssembleTypesTest {
         String core32 = M + ".requires reflect.core\n.class a.A {\n";
         unassemblable(core32 + ".field [reflect.core]reflect.core.Int32 x\n}",
                 "4:8: RFA0301: the primitive reflect.core.Int32 is its code, not its struct by name (BC-03)");
-        unassemblable(core32 + ".method static void f() {\nbox reflect.core.Int32\n}\n}",
-                "5:5: RFA0303: the type needs a TypeSpec row, which arrives in v0.0.6");
+        // Without brackets the struct's name is the primitive, which a token names by its TypeSpec row (Q99).
+        ModuleDef boxed = ModuleReader.read(assemble(core32 + ".method static void f() {\nldc.i4 1\n"
+                + "box reflect.core.Int32\npop\nret\n}\n}"));
+        TypeHandle box = ((Instruction.Type) boxed.types().get(0).methods().get(0).body().code().get(1)).type();
+        assertTrue(box instanceof TypeSpec spec && spec.type().equals(primitive(SigCode.I32)));
         unassemblable(M + ".class a.A extends [m]a.B {\n}", "2:23: RFA0201: the module defines no type a.B");
         unassemblable(M + ".requires m", "2:11: RFA0301: the module m requires itself; a requires cycle is an error (MOD-03)");
     }
@@ -276,6 +280,47 @@ public final class AssembleTypesTest {
     }
 
     @Test
+    public static void typeSpecDeclaresRowsThatNothingNames() throws Exception {
+        // The module of TypeSpecTableTest.specs, whose rows of int and long .typespec declares too, although
+        // newarr names int: each spelling of a type gives its one row (Q52), and a row that something names
+        // gains nothing by .typespec (Q99).
+        String text = ".module a 0.0.0\n"
+                + ".requires reflect.core\n"
+                + ".requires reflect.collections\n"
+                + ".typespec long\n"
+                + ".class public a.Ints extends reflect.collections.ArrayList<int>"
+                + " implements reflect.collections.Iterable<reflect.core.Int32> {\n"
+                + "    .method public static void f() {\n"
+                + "        .locals (reflect.core.Object)\n"
+                + "        ldc.i4 1\n"
+                + "        newarr int\n"
+                + "        castclass reflect.core.Object?\n"
+                + "        stloc 0\n"
+                + "        ret\n"
+                + "    }\n"
+                + "}\n"
+                + ".typespec int[]\n"
+                + ".typespec reflect.core.Int64\n"
+                + ".typespec reflect.core.Int32\n"
+                + ".memberref boolean reflect.collections.ArrayList<reflect.core.Int32>::add(!0)\n"
+                + ".memberref int reflect.core.Object::hashCode()\n";
+        assertEquals(Leb128Test.hex(ModuleWriter.write(TypeSpecTableTest.specs())), Leb128Test.hex(assemble(text)));
+        String core = M + ".requires reflect.core\n.class a.A {\n}\n";
+        String byName = "5:11: RFA0301: a type by name is its TypeDef or TypeRef row, never a TypeSpec (Q99)";
+        unassemblable(core + ".typespec reflect.core.Object", byName);
+        unassemblable(core + ".typespec [reflect.core]reflect.core.Int32", byName);
+        unassemblable(core + ".typespec valuetype a.A", byName);
+        unassemblable(core + ".typespec ref int",
+                "5:11: RFA0301: BYREF stands only as a type that a signature lists, never in a TypeSpec (Q99)");
+        unassemblable(core + ".typespec int?",
+                "5:11: RFA0301: NULLABLE wraps CLASS, a GENERICINST of CLASS, ARRAY, VAR or MVAR (BC-03)");
+        unassemblable(core + ".typespec void", "5:11: RFA0101: void stands only as a return type (BC-03)");
+        unassemblable(core + ".typespec x.Y[]",
+                "5:11: RFA0202: no required module holds the namespace x of x.Y; name its module in brackets (Q76)");
+        unassemblable(core + ".typespec int x", "5:15: RFA0101: expected a directive of the module, found x");
+    }
+
+    @Test
     public static void eachClassAndFieldHasItsDiagnostics() {
         unassemblable(M + ".class public public a.A {\n}", "2:15: RFA0104: public appears twice");
         unassemblable(M + ".class public private a.A {\n}", "2:23: RFA0301: type A has more than one visibility flag (BC-11)");
@@ -291,9 +336,9 @@ public final class AssembleTypesTest {
         unassemblable(M + ".class enum a.E : a.B {\n}", "2:19: " + backing);
         unassemblable(M + ".class ref a.A {\n}", "2:12: RFA0101: expected struct, found a.A");
         unassemblable(M + ".class a.A<T> {\n}", "2:11: RFA0303: the GenericParam table arrives in v0.0.9");
-        String typeSpec = "RFA0303: the type needs a TypeSpec row, which arrives in v0.0.6";
-        unassemblable(M + ".class a.A extends int {\n}", "2:20: " + typeSpec);
-        unassemblable(M + ".class a.A extends a.B<int> {\n}\n.class a.B {\n}", "2:20: " + typeSpec);
+        unassemblable(M + ".class a.A extends !0 {\n}", "2:20: RFA0301: VAR 0 names no type parameter of the type (BC-03)");
+        unassemblable(M + ".class a.A extends a.B<int> {\n}\n.class a.B {\n}",
+                "2:20: RFA0301: GENERICINST instantiates a.B, which has no type parameters (BC-03)");
         unassemblable(M + ".class a.A implements a.B {\n}\n.class a.B {\n}",
                 "2:23: RFA0301: type a.A implements a.B, which is not an interface (BC-11)");
         unassemblable(M + ".class a.A implements a.I, a.I {\n}\n.class interface a.I {\n}",

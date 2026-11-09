@@ -109,8 +109,8 @@ public final class AssembleLinesAndFramesTest {
         String branch = "ldarg x\nbrtrue L\nL: ";
         unassemblable(B + branch + ".stackmap (foo) ()\nret" + E, "7:15: RFA0101: expected a verification type, found foo");
         unassemblable(B + branch + ".stackmap (i32 i64) ()\nret" + E, "7:19: RFA0101: expected ), found i64");
-        unassemblable(B + branch + ".stackmap (ref int) ()\nret" + E,
-                "7:19: RFA0303: the type needs a TypeSpec row, which arrives in v0.0.6");
+        unassemblable(B + branch + ".stackmap (ref !!0) ()\nret" + E,
+                "7:19: RFA0301: MVAR 0 names no type parameter of the method (BC-03)");
         unassemblable(B + branch + ".stackmap (i32) ()\n.stackmap (i32) ()\nret" + E,
                 "8:1: RFA0104: two .stackmap directives precede one instruction");
         unassemblable(B + ".stackmap (i32) ()\nret" + E, "5:1: RFA0301: the stack map frame is at instruction 0, which is"

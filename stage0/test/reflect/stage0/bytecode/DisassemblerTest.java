@@ -479,6 +479,59 @@ public final class DisassemblerTest {
         assertEquals(Leb128Test.hex(file), Leb128Test.hex(assemble(canonical)));
     }
 
+    @Test
+    public static void typeSpecsTakeTheTextOfTheirTypesAndTypeSpecDeclaresTheOthers() throws Exception {
+        byte[] file = ModuleWriter.write(TypeSpecTableTest.specs());
+        String canonical = Disassembler.text(ModuleReader.read(file));
+        // Nothing names TypeSpec rows 2 and 6, long and int[], so .typespec declares them in row order, after
+        // the .typeref lines and before the .memberref lines (Q99). The TypeRef row of ArrayList needs no
+        // .typeref, since TypeSpec rows name it.
+        assertEquals(".module a 0.0.0\n"
+                + ".requires reflect.collections\n"
+                + ".requires reflect.core\n"
+                + "\n"
+                + ".class public a.Ints extends reflect.collections.ArrayList<reflect.core.Int32>"
+                + " implements reflect.collections.Iterable<reflect.core.Int32> {\n"
+                + "    .method public static void f() {\n"
+                + "        .maxstack 1\n"
+                + "        .locals (reflect.core.Object)\n"
+                + "        ldc.i4 1\n"
+                + "        newarr reflect.core.Int32\n"
+                + "        castclass reflect.core.Object?\n"
+                + "        stloc 0\n"
+                + "        ret\n"
+                + "    }\n"
+                + "}\n"
+                + "\n"
+                + ".typespec reflect.core.Int64\n"
+                + ".typespec reflect.core.Int32[]\n"
+                + ".memberref reflect.core.Int32 reflect.core.Object::hashCode()\n"
+                + ".memberref reflect.core.Boolean reflect.collections.ArrayList<reflect.core.Int32>::add(!0)\n", canonical);
+        assertEquals(Leb128Test.hex(file), Leb128Test.hex(assemble(canonical)));
+        // Only a stack map frame names reflect.core.Object?, and a value type in a TypeSpec takes valuetype, as
+        // in a signature.
+        String text = ".module m 0.0.0\n"
+                + ".requires reflect.core\n"
+                + "\n"
+                + ".class a.A {\n"
+                + "    .method static void f(reflect.core.Object? x) {\n"
+                + "        .maxstack 1\n"
+                + "        ldarg 0\n"
+                + "        brnull L0\n"
+                + "        ldarg 0\n"
+                + "        castclass valuetype a.P[]\n"
+                + "        pop\n"
+                + "    L0:\n"
+                + "        .stackmap (ref reflect.core.Object?) ()\n"
+                + "        ret\n"
+                + "    }\n"
+                + "}\n"
+                + "\n"
+                + ".class struct a.P {\n"
+                + "}\n";
+        assertEquals(text, roundTrip(text));
+    }
+
     // The canonical text of the module that the text gives, which assembles to the same bytes (BC-08).
     static String roundTrip(String text) throws Exception {
         byte[] module = assemble(text);

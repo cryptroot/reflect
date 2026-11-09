@@ -914,23 +914,25 @@ DEBUG (BC-02) holds no offset into another section, so a tool can strip it or ke
 ## 8. Assembly syntax
 
 - **BC-08 [Proposed; references, regions, module scopes, `@` and declared rows Decided, Q69, Q71,
-  Q76, Q78, Q80, Q81, Q82]** `.rfla` maps one-to-one to the binary, so `rfld` then `rfla` reproduces
-  a module byte for byte (ex §12.2). Directives: `.module name version`, `.main`, `.requires`,
-  `.exports`, `.opens`, `.unsafe`, `.source`, `.class`, `.field`, `.method`, `.property`, `.event`,
-  `.override`, `.annotation`, `.locals`, `.maxstack`, `.try`, `.catch`, `.finally`, `.line`,
-  `.stackmap`, `.typeref`, `.memberref`, `.section`; labels end in `:`; type names use the
-  canonical spelling (GEN-12), with `!0` and `!!0` for type parameters, and `@` before a name makes
-  it a name, never a word of the grammar (Q82).
+  Q76, Q78, Q80, Q81, Q82, Q99]** `.rfla` maps one-to-one to the binary, so `rfld` then `rfla`
+  reproduces a module byte for byte (ex §12.2). Directives: `.module name version`, `.main`,
+  `.requires`, `.exports`, `.opens`, `.unsafe`, `.source`, `.class`, `.field`, `.method`, `.property`,
+  `.event`, `.override`, `.annotation`, `.locals`, `.maxstack`, `.try`, `.catch`, `.finally`, `.line`,
+  `.stackmap`, `.typeref`, `.typespec`, `.memberref`, `.section`; labels end in `:`; type names use
+  the canonical spelling (GEN-12), with `!0` and `!!0` for type parameters, and `@` before a name
+  makes it a name, never a word of the grammar (Q82).
   `.main` names the descriptor's `main` class (VM-12), and `.unsafe` sets the header flag `UNSAFE`.
   A reference to another module states the signature that its row holds (Q69), so `rfla` reads no
   other module. A type of another module belongs to the required module whose name is its
   namespace or the longest prefix of it at a dot; otherwise the text names the module in brackets,
   `[reflect.core]reflect.meta.Type` (Q76). Brackets also name the struct of a primitive, whose name
   alone is the primitive, and brackets that hold the module's own name name a type of the module
-  (Q81). `rfld` prints a `TypeRef` or `MemberRef` row that nothing else names as `.typeref` or
-  `.memberref` (Q80), and a section it cannot print as directives, such as an unknown ancillary
-  section (BC-20), as `.section <id> hex "..."`, so the round trip covers them too. §8.1 gives the
-  grammar; `.property`, `.event` and `.annotation` join it with their tables.
+  (Q81). A token names any type that no `TypeDef` or `TypeRef` row is, such as `int` or
+  `reflect.core.Object?`, through the `TypeSpec` row of that type (Q99). `rfld` prints a `TypeRef`,
+  `TypeSpec` or `MemberRef` row that nothing else names as `.typeref`, `.typespec` or `.memberref`
+  (Q80, Q99), and a section it cannot print as directives, such as an unknown ancillary section
+  (BC-20), as `.section <id> hex "..."`, so the round trip covers them too. §8.1 gives the grammar;
+  `.property`, `.event` and `.annotation` join it with their tables.
 
   ```text
   .module demo 0.1.0
@@ -957,7 +959,7 @@ in either case, and `Char` is any character but `"`, `\` and a line end.
 ```text
 File         = ModuleDecl TopLevel* ;
 TopLevel     = Main | Requires | Exports | Opens | Unsafe | Source | Section | Class | TypeRef
-             | MemberRef ;
+             | TypeSpec | MemberRef ;
 ModuleDecl   = ".module" QName Version ;
 Main         = ".main" TypeName ;
 Requires     = ".requires" ( "transitive" | "static" )* QName ;
@@ -968,6 +970,7 @@ Unsafe       = ".unsafe" ;
 Source       = ".source" String Hex ;
 Section      = ".section" Int Hex ;
 TypeRef      = ".typeref" ModuleScope? TypeName ;
+TypeSpec     = ".typespec" Type ;
 MemberRef    = ".memberref" ( FieldRef | MethodRef ) ;
 
 Class        = ".class" TypeFlag* TypeKind? TypeName TypeParams? Backing? Extends? Implements?
@@ -1053,7 +1056,7 @@ HexDigits    = HexDigit+ ;
   own name, `ModuleScope` names a type of the module, since a module does not require itself
   (MOD-03).
 - Without brackets the struct of a primitive is the primitive, which a token names through a
-  `TypeSpec` row (v0.0.6); in brackets it is the struct's own row: `[reflect.core]reflect.core.Int32`
+  `TypeSpec` row (Q99); in brackets it is the struct's own row: `[reflect.core]reflect.core.Int32`
   is the `TypeRef` row, and in module `reflect.core` the `TypeDef` row (Q81). A signature names the
   primitive by its code (BC-03).
 - The short form of `FieldRef` and `MethodRef`, without the leading field type, `static` or
@@ -1061,10 +1064,11 @@ HexDigits    = HexDigit+ ;
   the full form (Q69). `TypeArgs` after a method name instantiate it (a `MethodSpec`), and `...`
   after its types marks a variadic method (MEM-10, Q78).
 - `.override` in a method makes the method fill the slot of the method it names (BC-12).
-- `.typeref` declares the `TypeRef` row of a type of another module, and `.memberref` the
-  `MemberRef` row of a member of another module, in the full form; a `MethodRef` has `static` or
-  parentheses after its name. Rows that a column, a signature or an instruction names need no
-  directive, and gain nothing by one; `rfld` writes the directives only for the other rows (Q80).
+- `.typeref` declares the `TypeRef` row of a type of another module, `.typespec` the `TypeSpec` row
+  of a type that no `TypeDef` or `TypeRef` row is (Q99), and `.memberref` the `MemberRef` row of a
+  member of another module, in the full form; a `MethodRef` has `static` or parentheses after its
+  name. Rows that a column, a signature or an instruction names need no directive, and gain nothing
+  by one; `rfld` writes the directives only for the other rows (Q80).
 - A `Method` named `new` is a constructor and one named `static` a static initializer, so both
   get the `CONSTRUCTOR` flag (§3.1). Only the last `Param` takes `...`, which makes the method
   variadic (MEM-10). A method without a body holds no `BodyItem` but `.override`.
@@ -1135,21 +1139,24 @@ module are `RFA0301`, and the message names the rule.
 
 ### 8.3 Canonical text
 
-- **BC-25 [Decided, Q86, Q97]** `rfld` prints the canonical text of a module: the text that `rfla`
-  assembles back to the same bytes (BC-08), and that `rfld` then prints again unchanged. Lines end
-  in LF, each level of nesting indents by four spaces, and `rfld` prints no comments.
+- **BC-25 [Decided, Q86, Q97, Q99]** `rfld` prints the canonical text of a module: the text that
+  `rfla` assembles back to the same bytes (BC-08), and that `rfld` then prints again unchanged. Lines
+  end in LF, each level of nesting indents by four spaces, and `rfld` prints no comments.
   1. The text follows the order of the binary. `.module` comes first, then `.unsafe`, `.main`,
      `.requires` per `ModuleRef` row and `.exports` or `.opens` per `Export` row. Each top-level
      type follows in `TypeDef` row order after one blank line, with its `.field` and `.method` rows in
      row order, then its nested types in row order. After one more blank line come `.typeref` per
-     `TypeRef` row that no column, signature, instruction or other `TypeRef` row names, `.memberref`
-     per `MemberRef` row that no instruction or `Override` row names (Q80), `.source` per source file
-     in the order of DEBUG, which is the order of first use, and `.section` per section kept as bytes,
-     by ID.
+     `TypeRef` row that no column, signature, `TypeSpec` row, instruction or other `TypeRef` row
+     names, `.typespec` per `TypeSpec` row that no column, instruction, region or stack map frame
+     names (Q99), `.memberref` per `MemberRef` row that no instruction or `Override` row names (Q80),
+     `.source` per source file in the order of DEBUG, which is the order of first use, and `.section`
+     per section kept as bytes, by ID.
   2. A token names a type by its qualified name (GEN-12), with its module in brackets where the name
      alone means another row or the primitive: where the prefix rule of BC-08 gives another module
      or none, where the module defines a top-level type of that name, and before the struct of a
-     primitive. The module's own name stands in brackets before its own struct (Q81).
+     primitive. The module's own name stands in brackets before its own struct (Q81). A token of a
+     `TypeSpec` row names the row's type as a signature spells it (item 5), `valuetype` included
+     (Q99).
   3. `@` comes before a type name or a module name that is a quoted word of §8.1 (Q82); nested type
      names after `/`, namespaces, member names, parameter names and local names follow a type or a
      `/`, so they need none.
@@ -1157,9 +1164,9 @@ module are `RFA0301`, and the message names the rule.
      `new` or `static` gives it. Versions are three unsigned decimal numbers; `.section` IDs are
      uppercase hexadecimal after `0x`, and hex strings are pairs of uppercase hexadecimal digits.
   5. A signature spells a primitive by its struct (Q52), and `void` as `void`. It puts `valuetype`
-     before each value type, the module's own too; a token holds no such bit, so it has none. `...`
-     follows the type of the last parameter of a variadic method, and `!n` and `!!n` name type
-     parameters by number.
+     before each value type, the module's own too; the token of a `TypeDef` or `TypeRef` row holds
+     no such bit, so it has none. `...` follows the type of the last parameter of a variadic method,
+     and `!n` and `!!n` name type parameters by number.
   6. A reference to a field or a method takes its full form (Q69): the field's type, or `static` and
      the return type, before the type that holds it.
   7. The braces of a method start with one `.override` per `Override` row of the method, in row

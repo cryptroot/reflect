@@ -43,6 +43,7 @@ public final class Disassembler {
     // The top-level types by qualified name, which the name alone means (Q76).
     private final Map<String, TypeDef> types = new HashMap<>();
     private final Map<TypeRef, Boolean> namedTypes = new HashMap<>();
+    private final Map<TypeSpec, Boolean> namedSpecs = new HashMap<>();
     private final Map<MemberRef, Boolean> namedMembers = new HashMap<>();
     private final Map<FieldDef, TypeDef> fieldOwners = new HashMap<>();
     private final Map<MethodDef, TypeDef> methodOwners = new HashMap<>();
@@ -64,9 +65,9 @@ public final class Disassembler {
         return disassembler.text.toString();
     }
 
-    // The TypeRef and MemberRef rows that a column, a signature, an instruction or an Override row names;
-    // .typeref and .memberref declare the others (Q80). A GENERIC MemberRef has no text before MethodSpec
-    // (v0.0.9).
+    // The TypeRef, TypeSpec and MemberRef rows that a column, a signature, a TypeSpec row, an instruction, a
+    // region, a stack map frame or an Override row names; .typeref, .typespec and .memberref declare the
+    // others (Q80, Q99). A GENERIC MemberRef has no text before MethodSpec (v0.0.9).
     private void collect() throws ModuleFormatException {
         for (TypeDef type : module.types()) {
             if (type.enclosing() == null) {
@@ -96,6 +97,9 @@ public final class Disassembler {
             if (ref.scope() instanceof TypeRef outer) {
                 namedTypes.put(outer, true);
             }
+        }
+        for (TypeSpec spec : module.typeSpecs()) {
+            name(spec.type());
         }
         for (MemberRef ref : module.memberRefs()) {
             name(ref.parent());
@@ -144,6 +148,8 @@ public final class Disassembler {
     private void name(@Nullable Handle handle) {
         if (handle instanceof TypeRef ref) {
             namedTypes.put(ref, true);
+        } else if (handle instanceof TypeSpec spec) {
+            namedSpecs.put(spec, true);
         } else if (handle instanceof MemberRef ref) {
             namedMembers.put(ref, true);
         }
@@ -210,6 +216,11 @@ public final class Disassembler {
         for (TypeRef ref : module.typeRefs()) {
             if (!namedTypes.containsKey(ref)) {
                 trailing.add(".typeref " + typeName(ref));
+            }
+        }
+        for (TypeSpec spec : module.typeSpecs()) {
+            if (!namedSpecs.containsKey(spec)) {
+                trailing.add(".typespec " + type(spec.type()));
             }
         }
         for (MemberRef ref : module.memberRefs()) {
@@ -571,9 +582,13 @@ public final class Disassembler {
         return text.append(')').toString();
     }
 
-    // A type as a token names it: by its name, with the module in brackets where the name alone means
-    // another type or the primitive (Q76, Q81).
+    // A type as a token names it: a TypeDef or TypeRef row by its name, with the module in brackets where the
+    // name alone means another type or the primitive (Q76, Q81), and a TypeSpec row by its type as a
+    // signature spells it, valuetype included (Q99).
     private String typeName(TypeHandle type) {
+        if (type instanceof TypeSpec spec) {
+            return type(spec.type());
+        }
         if (type instanceof TypeDef def) {
             boolean struct = def.enclosing() == null && Signatures.primitiveCode(def.namespace(), def.name()) != 0;
             return (struct ? "[" + escape(module.name()) + "]" : "") + qualified(def);

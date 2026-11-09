@@ -135,7 +135,7 @@ public final class TypeSpecTableTest {
     // a.Ints extends reflect.collections.ArrayList<int> and implements reflect.collections.Iterable<int>, and its
     // static f() makes an int[] and casts it to reflect.core.Object?. The TypeSpec and MemberRef rows come out of
     // order, and nothing names long and int[].
-    private static ModuleDef specs() {
+    static ModuleDef specs() {
         var module = new ModuleDef("a", 0, 0, 0);
         var collections = new ModuleRef("reflect.collections", 0);
         module.requires().add(CORE);

@@ -104,8 +104,8 @@ public final class AssembleRegionsTest {
         String body = "A: nop\nB: nop\nC: nop\nD: ret";
         unassemblable(B + ".try A B .bogus C D\n" + body + E, "4:10: RFA0101: expected .catch or .finally, found .bogus");
         unassemblable(B + ".try A B .finally C" + E, "5:1: RFA0101: expected a label, found }");
-        unassemblable(B + ".try A B .catch int C D\n" + body + E,
-                "4:17: RFA0303: the type needs a TypeSpec row, which arrives in v0.0.6");
+        unassemblable(B + ".try A B .catch int? C D\n" + body + E,
+                "4:17: RFA0301: NULLABLE wraps CLASS, a GENERICINST of CLASS, ARRAY, VAR or MVAR (BC-03)");
         unassemblable(B + ".try A X .finally C D\n" + body + E, "4:8: RFA0206: the body marks no label X");
         unassemblable(B + ".try A A .finally C D\n" + body + E, "4:1: RFA0301: the try of the region holds no instruction (BC-18)");
         unassemblable(B + ".try A C .finally B D\n" + body + E, "4:1: RFA0301: the handler of the region overlaps its try (BC-18)");

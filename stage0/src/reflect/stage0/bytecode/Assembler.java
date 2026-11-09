@@ -15,7 +15,8 @@ import reflect.stage0.lib.Nullable;
  *
  * A type may name a type that the text defines later, and code a member that it defines later, so
  * rfla reads the text three times: first the module directives and the head of each .class, which
- * declare the types, then the members, .typeref and .memberref, then the bodies of the methods.
+ * declare the types, then the members, .typeref, .typespec and .memberref, then the bodies of the
+ * methods.
  */
 public final class Assembler {
     private static final String[] REQUIRES_WORDS = {"transitive", "static"};
@@ -47,6 +48,7 @@ public final class Assembler {
     private final Map<Export, Boolean> exports = new HashMap<>();
     private final Map<String, TypeDef> types = new HashMap<>();
     private final Map<String, TypeRef> typeRefs = new HashMap<>();
+    private final Map<TypeSig, TypeSpec> typeSpecs = new HashMap<>();
     private final Map<MemberKey, MemberRef> memberRefs = new HashMap<>();
     private final Map<String, SourceFile> sources = new HashMap<>();
     // Each method of the module as the messages of the writer name it.
@@ -101,7 +103,8 @@ public final class Assembler {
                 source();
             } else if (parser.atDirective(".class")) {
                 declare(null);
-            } else if (parser.atDirective(".typeref") || parser.atDirective(".memberref")) {
+            } else if (parser.atDirective(".typeref") || parser.atDirective(".typespec")
+                    || parser.atDirective(".memberref")) {
                 rows.add(parser.position());
                 parser.next();
                 while (!parser.atKind(Token.END) && !parser.atKind(Token.DIRECTIVE)) {
@@ -917,13 +920,17 @@ public final class Assembler {
         return new MethodSig(flags, 0, returnType, params);
     }
 
-    // TypeRef and MemberRef of §8.1, read once every type is declared: rows that nothing else in the
-    // module needs to name. A row that something names needs no directive, and gains nothing by one (Q80).
+    // TypeRef, TypeSpec and MemberRef of §8.1, read once every type is declared: rows that nothing else in
+    // the module needs to name. A row that something names needs no directive, and gains nothing by one
+    // (Q80, Q99).
     private void rows() throws AssemblyException {
         for (int position : rows) {
             parser.seek(position);
             if (parser.atDirective(".typeref")) {
                 declareType();
+            } else if (parser.atDirective(".typespec")) {
+                parser.next();
+                typeSpec(parser.type("a type"));
             } else {
                 declareMember();
             }
@@ -1108,16 +1115,30 @@ public final class Assembler {
         return new TypeSig.GenericInst(type, arguments);
     }
 
-    // The TypeDef or TypeRef row of a type in a token, as the base type and an interface are; any
-    // other type needs a TypeSpec row. A primitive's struct by name is the primitive, but in brackets it
-    // is the struct's own row, which a token may name (Q81).
+    // The row of a type in a token, as the base type and an interface are: the TypeDef or TypeRef row of a
+    // type by name, and the TypeSpec row of any other type (Q99). A primitive's struct by name is the
+    // primitive, but in brackets it is the struct's own row, which a token may name (Q81).
     private TypeHandle tokenType(TypeSyntax syntax) throws AssemblyException {
         if (syntax instanceof TypeSyntax.Named named && named.arguments().isEmpty() && primitiveStruct(named) == 0) {
             TypeHandle handle = handle(named);
             check(syntax.token(), Signatures.kindProblem(new TypeSig.Named(named.valueType() || valueKind(handle), handle)));
             return handle;
         }
-        throw Parser.error(Diagnostic.LATER, syntax.token(), "the type needs a TypeSpec row, which arrives in v0.0.6");
+        return typeSpec(syntax);
+    }
+
+    // One TypeSpec row per type, so each type has one token (BC-24), checked at its start with the rules of
+    // the writer (Q99).
+    private TypeSpec typeSpec(TypeSyntax syntax) throws AssemblyException {
+        TypeSig type = resolve(syntax);
+        check(syntax.token(), Signatures.specProblem(type, module.name()));
+        @Nullable TypeSpec spec = typeSpecs.get(type);
+        if (spec == null) {
+            spec = new TypeSpec(type);
+            typeSpecs.put(type, spec);
+            module.typeSpecs().add(spec);
+        }
+        return spec;
     }
 
     // A name of the module is its TypeDef, and so is a name in brackets that hold the module's own name.

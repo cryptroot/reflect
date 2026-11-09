@@ -192,7 +192,8 @@ public final class AssembleInstructionsTest {
         unassemblable(B + "ldsfld other.C::s" + E, "7:8: RFA0101: a field of another module states its type (Q69)");
         unassemblable(B + "call other.C::v()" + E, "7:6: RFA0101: a method of another module states its return type (Q69)");
         unassemblable(B + "call void other.C::v<int>()" + E, "7:21: RFA0303: the MethodSpec table arrives in v0.0.9");
-        unassemblable(B + "ldtype int" + E, "7:8: RFA0303: the type needs a TypeSpec row, which arrives in v0.0.6");
+        unassemblable(B + "ldtype ref int" + E,
+                "7:8: RFA0301: BYREF stands only as a type that a signature lists, never in a TypeSpec (Q99)");
         unassemblable(B + "call static void other.C::v(int...)" + E,
                 "7:27: RFA0301: the last parameter of a VARIADIC signature is an array (BC-03)");
         unassemblable(B + "ldsfld !!0 other.C::f" + E, "7:8: RFA0301: MVAR 0 names no type parameter of the method (BC-03)");
