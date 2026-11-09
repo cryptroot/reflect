@@ -347,6 +347,20 @@ public final class VmTest {
     }
 
     @Test
+    public static void aNumberWhereAReferenceStandsIsInvalidCode() throws Exception {
+        // A verifier rejects these (BC-07), and VM0 stops when it meets them (Q101).
+        String invalid = "vm0: m.App::main: instruction %d: the code is invalid: a number stands where a reference does\n";
+        assertEquals(new Run(2, null, "", invalid.formatted(1)), run(program("        ldc.i4 0\n        brnull L\n"
+                + "    L:\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(1)), run(program("        ldc.i4 0\n        brnonnull L\n"
+                + "    L:\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(2)), run(program("        ldnull\n        ldc.i8 0\n"
+                + "        ceq.ref\n        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(2)), run(program("        ldc.r4 0\n        ldnull\n"
+                + "        ceq.ref\n        pop\n        ret\n", "")));
+    }
+
+    @Test
     public static void callvirtNamesAnInstanceMethodOfAClass() throws Exception {
         // What callvirt names is checked when it links (VM-16, Q101), and its receiver when it runs (BC-14).
         assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": callvirt names static void m.App::f(), which is"

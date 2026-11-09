@@ -1,0 +1,103 @@
+// expect-output: null
+// expect-output: object
+// expect-output: null
+// expect-output: object
+// expect-output: null
+// expect-output: 1
+// expect-output: 0
+// expect-output: 1
+// expect-output: 0
+// expect-output: 0
+// expect-output: 1
+// expect-output: 0
+// expect-output: 0
+.module references 0.0.0
+.main references.App
+.requires reflect.core
+.requires reflect.io
+
+// ldnull pushes null, brnull and brnonnull test a reference for null, and ceq.ref compares identity
+// (BC-04, OPR-04). Two strings with one text are one object when both load one literal (NUM-05), and two
+// objects otherwise. Boxes, which compare by class and contents (DAT-09), arrive in v0.0.7.
+.class public final references.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (reflect.core.Object? a)
+        ldnull
+        call     static void references.App::byNull(reflect.core.Object?)
+        newobj   void reflect.core.Object::new()
+        call     static void references.App::byNull(reflect.core.Object?)
+        ldnull
+        call     static void references.App::byNonNull(reflect.core.Object?)
+        ldstr    "x"
+        call     static void references.App::byNonNull(reflect.core.Object?)
+        // A local starts at null (BC-17).
+        ldloc    a
+        call     static void references.App::byNonNull(reflect.core.Object?)
+        newobj   void reflect.core.Object::new()
+        stloc    a
+        ldloc    a
+        ldloc    a
+        call     static void references.App::same(reflect.core.Object?, reflect.core.Object?)
+        ldloc    a
+        newobj   void reflect.core.Object::new()
+        call     static void references.App::same(reflect.core.Object?, reflect.core.Object?)
+        ldnull
+        ldnull
+        call     static void references.App::same(reflect.core.Object?, reflect.core.Object?)
+        ldloc    a
+        ldnull
+        call     static void references.App::same(reflect.core.Object?, reflect.core.Object?)
+        ldnull
+        ldloc    a
+        call     static void references.App::same(reflect.core.Object?, reflect.core.Object?)
+        ldstr    "7"
+        ldstr    "7"
+        call     static void references.App::same(reflect.core.Object?, reflect.core.Object?)
+        ldc.i4   7
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        ldc.i4   7
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void references.App::same(reflect.core.Object?, reflect.core.Object?)
+        ldstr    "7"
+        ldc.i4   7
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void references.App::same(reflect.core.Object?, reflect.core.Object?)
+        ret
+    }
+
+    // Prints null or object, by brnull.
+    .method static void byNull(reflect.core.Object? value) {
+        ldarg    value
+        brnull   NULL
+        ldstr    "object"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    NULL:
+        ldstr    "null"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+
+    // Prints null or object, by brnonnull.
+    .method static void byNonNull(reflect.core.Object? value) {
+        ldarg    value
+        brnonnull OBJECT
+        ldstr    "null"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    OBJECT:
+        ldstr    "object"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+
+    // Prints 1 when the two references are one object or both null, and 0 otherwise.
+    .method static void same(reflect.core.Object? first, reflect.core.Object? second) {
+        ldarg    first
+        ldarg    second
+        ceq.ref
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

@@ -76,6 +76,7 @@ final class Interpreter {
                 switch (instruction.opcode()) {
                     case Opcode.NOP -> {
                     }
+                    case Opcode.LDNULL -> stack[sp++] = null;
                     case Opcode.LDC_I4 -> stack[sp++] = ((Instruction.Value32) instruction).value();
                     case Opcode.LDC_I8 -> stack[sp++] = ((Instruction.Value64) instruction).value();
                     case Opcode.LDC_R4 -> stack[sp++] = Float.intBitsToFloat(((Instruction.Value32) instruction).value());
@@ -318,6 +319,11 @@ final class Interpreter {
                         double b = f64(stack[--sp]);
                         stack[sp - 1] = f64(stack[sp - 1]) >= b ? 1 : 0;
                     }
+                    // ceq.ref compares identity (OPR-04); two boxes compare by class and contents from v0.0.7 (DAT-09).
+                    case Opcode.CEQ_REF -> {
+                        Object b = reference(stack[--sp], method, pc);
+                        stack[sp - 1] = reference(stack[sp - 1], method, pc) == b ? 1 : 0;
+                    }
                     // Java's casts give the conversions of BC-04: integers wrap, an integer becomes the nearest
                     // float, and a float becomes an integer by truncation, saturated, with NaN as 0 (NUM-03).
                     // Between f32 and f64, a NaN becomes the canonical NaN (MA-01, Q92).
@@ -343,6 +349,12 @@ final class Interpreter {
                     }
                     case Opcode.BRTRUE, Opcode.BRFALSE -> {
                         if ((i32(stack[--sp]) != 0) == (instruction.opcode() == Opcode.BRTRUE)) {
+                            pc = target(instruction);
+                            continue;
+                        }
+                    }
+                    case Opcode.BRNULL, Opcode.BRNONNULL -> {
+                        if ((reference(stack[--sp], method, pc) == null) == (instruction.opcode() == Opcode.BRNULL)) {
                             pc = target(instruction);
                             continue;
                         }
@@ -487,6 +499,15 @@ final class Interpreter {
 
     private static int target(Instruction instruction) {
         return ((Instruction.Branch) instruction).target().index();
+    }
+
+    // A reference of the stack: null, an object or a string. A number there is code that a verifier would
+    // reject (BC-07), which VM0 meets only when it runs it (Q101).
+    private static @Nullable Object reference(@Nullable Object value, RuntimeMethod method, int pc) {
+        if (value instanceof Number) {
+            throw new Stop(where(method, pc) + ": the code is invalid: a number stands where a reference does");
+        }
+        return value;
     }
 
     // The receiver of an instruction that names a member of the owner. null is a NullPointerException
