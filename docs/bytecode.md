@@ -117,9 +117,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 3. Metadata tables
 
-- **BC-11 [Proposed; names and member signatures Decided, Q83, Q85]** Tables, their IDs and their
-  main columns, sorted by the key in parentheses; a table without a key keeps its rows in runs by
-  owner (§3.1):
+- **BC-11 [Proposed; names, member signatures and `TypeSpec` rows Decided, Q83, Q85, Q99]**
+  Tables, their IDs and their main columns, sorted by the key in parentheses; a table without a key
+  keeps its rows in runs by owner (§3.1):
 
   | ID | Table | Columns |
   |---|---|---|
@@ -129,7 +129,7 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   | `04` | `Service` (service) | kind `provides`/`uses`, service type, provider types |
   | `05` | `TypeDef` (namespace, name, enclosing type) | name, namespace, kind (class, interface, struct, ref struct, record, record struct, enum, annotation), modifiers, base type, enum backing type, enclosing type, first field, first method, first generic parameter |
   | `06` | `TypeRef` (scope, namespace, name) | resolution scope (module reference or enclosing type reference), namespace, name |
-  | `07` | `TypeSpec` (signature) | signature blob: instantiations, arrays, nullability, wildcards, intersections, pointers, tuples |
+  | `07` | `TypeSpec` (signature) | signature blob: primitives, nullable types, arrays, instantiations, type parameters, intersections, pointers (Q99) |
   | `08` | `Field` | flags (visibility, static, final, const, backing field), name, type signature |
   | `09` | `Method` | flags (visibility, static, virtual, abstract, final, constructor, native, extern, unsafe, mutating, const, precompile, synthesized), name, method signature, code offset, first parameter, first generic parameter |
   | `0A` | `Param` | flags (`scoped`, extension `this`), name; `ref`, `in` and `out` are in the parameter's type, and variadic in the method signature (BC-03) |
@@ -210,7 +210,7 @@ u32, in the order given:
 | `TypeRef` | `scope` | token of a `ModuleRef` row, or of the `TypeRef` row of the enclosing type |
 | `TypeRef` | `namespace` | IDENTS offset, 0 for a nested type |
 | `TypeRef` | `name` | IDENTS offset |
-| `TypeSpec` | `signature` | BLOBS offset of a type |
+| `TypeSpec` | `signature` | BLOBS offset of a bare type (BC-03) that no `TypeDef` or `TypeRef` row is (Q99) |
 | `Field` | `flags` | visibility and `Field` flags |
 | `Field` | `name` | IDENTS offset |
 | `Field` | `signature` | BLOBS offset of a `FIELD` signature |
@@ -262,6 +262,10 @@ u32, in the order given:
 - A reference names a member by its type, its name and its signature (Q69), so no two `Field` rows
   of a type have the same name and type, and no two `Method` rows the same name and signature
   (Q85). Overloads, and fields of one name with other types, stay valid, as in CIL.
+- A token names a type by name through its `TypeDef` or `TypeRef` row, and any other type through
+  the `TypeSpec` row of that type, so each type has one token (BC-24). A `TypeSpec` row holds a
+  primitive (Q81), a nullable type, an array, an instantiation, a type parameter, an intersection or
+  a pointer, never a type by name, `VOID`, a wildcard or `BYREF` (Q99).
 - Keys compare column by column: identifiers by their UTF-8 bytes, signatures by their bytes, and
   the other columns as unsigned numbers.
 - A constructor is named `new` and a static initializer `static`. Both have the `CONSTRUCTOR`

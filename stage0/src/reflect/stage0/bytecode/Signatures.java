@@ -75,6 +75,21 @@ final class Signatures {
         return problem(type, position, scope, module, 1);
     }
 
+    /**
+     * The first rule that the type of a TypeSpec row breaks, or null: a type by name has its TypeDef or
+     * TypeRef row, so each type has one token, and the type stands where a signature lists a type, without
+     * BYREF (BC-24, Q99).
+     */
+    static @Nullable String specProblem(TypeSig type, String module) {
+        if (type instanceof TypeSig.Named) {
+            return "a type by name is its TypeDef or TypeRef row, never a TypeSpec (Q99)";
+        }
+        if (type instanceof TypeSig.ByRef) {
+            return "BYREF stands only as a type that a signature lists, never in a TypeSpec (Q99)";
+        }
+        return problem(type, OTHER, ModuleWriter.DEFINITION, module);
+    }
+
     /** The first rule that the types of a LOCALS signature break, or null. */
     static @Nullable String localsProblem(List<TypeSig> types, Scope scope, String module) {
         if (types.isEmpty()) {
@@ -215,9 +230,12 @@ final class Signatures {
                 || type instanceof TypeSig.TypeVar || type instanceof TypeSig.ArrayOf;
     }
 
-    // A type by name: never a primitive's struct, and CLASS or VALUETYPE by the kind of a type that
-    // the module defines.
+    // A type by name: a TypeDef or TypeRef row, never a primitive's struct, and CLASS or VALUETYPE by the
+    // kind of a type that the module defines.
     private static @Nullable String named(TypeSig.Named named, String module) {
+        if (named.type() instanceof TypeSpec) {
+            return "CLASS and VALUETYPE name a TypeDef or TypeRef row, never a TypeSpec (BC-03)";
+        }
         String problem = primitiveStruct(named, module);
         return problem != null ? problem : kindProblem(named);
     }
@@ -324,6 +342,13 @@ final class Signatures {
         return method((MethodSig) signature, tokens);
     }
 
+    /** The blob of a TypeSpec row: a bare type, without a kind (BC-03). */
+    static byte[] spec(TypeSig type, Tokens tokens) throws ModuleFormatException {
+        var out = new ByteSink();
+        encode(type, out, tokens);
+        return out.toByteArray();
+    }
+
     private static void encode(TypeSig type, ByteSink out, Tokens tokens) throws ModuleFormatException {
         if (type instanceof TypeSig.Primitive primitive) {
             out.u8(primitive.code());
@@ -394,6 +419,13 @@ final class Signatures {
         }
         end(in);
         return types;
+    }
+
+    /** Decodes the bare type of a TypeSpec row, which fills the source. */
+    static TypeSig spec(ByteSource in, Handles handles) throws ModuleFormatException {
+        TypeSig type = type(in, handles, 1);
+        end(in);
+        return type;
     }
 
     /** Decodes the FIELD or METHOD signature of a MemberRef row. */
@@ -494,6 +526,55 @@ final class Signatures {
             throw new ModuleFormatException(at, "token " + hex(token) + " does not name a TypeDef or TypeRef row (BC-03)");
         }
         return type;
+    }
+
+    /**
+     * The type as GEN-12 spells it, which names a TypeSpec in messages: qualified names, type arguments in
+     * angle brackets, ? for nullability, intersections in parentheses and primitives by struct name. A type
+     * that breaks a rule gets a spelling too, so the message that reports it can name it.
+     */
+    static String name(TypeSig type) {
+        if (type instanceof TypeSig.Primitive primitive) {
+            int code = primitive.code();
+            return code == SigCode.VOID ? "void" : code >= SigCode.BOOLEAN && code <= SigCode.F64 ? primitiveName(code)
+                    : "code " + hex(code);
+        }
+        if (type instanceof TypeSig.Named named) {
+            return named.type().qualifiedName();
+        }
+        if (type instanceof TypeSig.GenericInst generic) {
+            return name(generic.type()) + "<" + names(generic.arguments(), ", ") + ">";
+        }
+        if (type instanceof TypeSig.TypeVar variable) {
+            return (variable.method() ? "!!" : "!") + (variable.index() & 0xFFFFFFFFL);
+        }
+        if (type instanceof TypeSig.NullableRef nullable) {
+            return name(nullable.type()) + "?";
+        }
+        if (type instanceof TypeSig.ArrayOf array) {
+            return name(array.element()) + "[]";
+        }
+        if (type instanceof TypeSig.PointerTo pointer) {
+            return name(pointer.element()) + "*";
+        }
+        if (type instanceof TypeSig.ByRef byRef) {
+            return (byRef.kind() == SigCode.BYREF_IN ? "in " : byRef.kind() == SigCode.BYREF_OUT ? "out " : "ref ")
+                    + name(byRef.type());
+        }
+        if (type instanceof TypeSig.Wildcard wildcard) {
+            TypeSig bound = wildcard.bound();
+            return bound == null ? "?" : (wildcard.kind() == SigCode.WILDCARD_SUPER ? "? super " : "? extends ")
+                    + name(bound);
+        }
+        return "(" + names(((TypeSig.Intersection) type).components(), " & ") + ")";
+    }
+
+    private static String names(List<TypeSig> types, String separator) {
+        var text = new StringBuilder();
+        for (int i = 0; i < types.size(); i++) {
+            text.append(i == 0 ? "" : separator).append(name(types.get(i)));
+        }
+        return text.toString();
     }
 
     // Each item of a count takes at least one byte, so a larger count cannot fit.

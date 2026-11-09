@@ -157,8 +157,8 @@ public final class ModuleTableTest {
         tables(new TestModules.Tables().rows(TableId.MODULE, module).table(0x18, 1, 4, 0), 16, "unknown table 0x18 (BC-20)");
         tables(new TestModules.Tables().rows(TableId.MODULE, module).table(TableId.SERVICE, 1, 4, 0), 16,
                 "unknown table 0x4 (BC-20)");
-        tables(new TestModules.Tables().rows(TableId.MODULE, module).table(TableId.TYPE_SPEC, 1, 4, 0), 16,
-                "this reader does not support table 0x7 yet");
+        tables(new TestModules.Tables().rows(TableId.MODULE, module).table(TableId.METHOD_SPEC, 1, 8, 0, 0), 16,
+                "this reader does not support table 0x10 yet");
         tables(new TestModules.Tables().rows(TableId.MODULE, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0), 0,
                 "the Module table has 2 rows; it has exactly one (BC-24)");
         tables(new TestModules.Tables().table(TableId.MODULE, 0, 24), 8,

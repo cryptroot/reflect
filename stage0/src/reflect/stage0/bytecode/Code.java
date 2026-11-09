@@ -379,7 +379,7 @@ final class Code {
             ByteSource signature = blobs.blob(locals, localsAt);
             int start = signature.position();
             List<TypeSig> types = Signatures.locals(signature, token -> handles.handle(token) instanceof TypeHandle type
-                    ? type : null);
+                    && !(type instanceof TypeSpec) ? type : null);
             check(start, Signatures.localsProblem(types, ModuleWriter.DEFINITION, module));
             for (TypeSig type : types) {
                 body.locals().add(type);

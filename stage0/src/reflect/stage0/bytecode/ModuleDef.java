@@ -19,6 +19,7 @@ public final class ModuleDef {
     private final List<Export> exports = new ArrayList<>();
     private final List<TypeDef> types = new ArrayList<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
+    private final List<TypeSpec> typeSpecs = new ArrayList<>();
     private final List<MemberRef> memberRefs = new ArrayList<>();
     private final List<Section> ancillary = new ArrayList<>();
 
@@ -82,6 +83,11 @@ public final class ModuleDef {
     /** The TypeRef rows, in any order. */
     public List<TypeRef> typeRefs() {
         return typeRefs;
+    }
+
+    /** The TypeSpec rows, in any order. */
+    public List<TypeSpec> typeSpecs() {
+        return typeSpecs;
     }
 
     /** The MemberRef rows, in any order. */

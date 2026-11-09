@@ -15,8 +15,8 @@ import reflect.stage0.lib.Nullable;
  */
 public final class ModuleReader {
     private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.EXPORT, TableId.TYPE_DEF,
-        TableId.TYPE_REF, TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.INTERFACE_IMPL, TableId.OVERRIDE,
-        TableId.MEMBER_REF};
+        TableId.TYPE_REF, TableId.TYPE_SPEC, TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.INTERFACE_IMPL,
+        TableId.OVERRIDE, TableId.MEMBER_REF};
     private static final int[] TYPE_TOKENS = {TableId.TYPE_DEF, TableId.TYPE_REF, TableId.TYPE_SPEC};
     private static final int[] SCOPE_TOKENS = {TableId.MODULE_REF, TableId.TYPE_REF};
     private static final int[] PARENT_TOKENS = {TableId.TYPE_REF, TableId.TYPE_SPEC};
@@ -30,6 +30,7 @@ public final class ModuleReader {
     private final List<ModuleRef> moduleRefs = new ArrayList<>();
     private final List<TypeDef> typeDefs = new ArrayList<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
+    private final List<TypeSpec> typeSpecs = new ArrayList<>();
     private String moduleName = "";
 
     private ModuleReader(ModuleFile file) throws ModuleFormatException {
@@ -69,6 +70,7 @@ public final class ModuleReader {
         // Signatures name these types, so they exist before the tables that hold signatures.
         buildTypeRefs(typeRefRows);
         buildTypeDefs(typeDefRows);
+        readTypeSpecs();
         List<FieldDef> fields = readFields();
         int[] paramRuns = runs(TableId.METHOD, 4, TableId.PARAM, "Param");
         runs(TableId.METHOD, 5, TableId.GENERIC_PARAM, "GenericParam");
@@ -113,6 +115,9 @@ public final class ModuleReader {
         }
         for (TypeRef ref : typeRefs) {
             module.typeRefs().add(ref);
+        }
+        for (TypeSpec spec : typeSpecs) {
+            module.typeSpecs().add(spec);
         }
         idents.checkAllReferenced();
         literals.checkAllReferenced();
@@ -260,6 +265,29 @@ public final class ModuleReader {
             rows.add(current);
         }
         return rows;
+    }
+
+    // Each row holds a bare type whose tokens name TypeDef and TypeRef rows (BC-03), so it is read once
+    // those exist; the rows are sorted by their blobs (BC-11, Q99).
+    private void readTypeSpecs() throws ModuleFormatException {
+        byte @Nullable [] previous = null;
+        for (int row = 1; row <= tables.rows(TableId.TYPE_SPEC); row++) {
+            ByteSource source = blobSource(TableId.TYPE_SPEC, row, 0);
+            int at = source.position();
+            byte[] bytes = source.slice(at, at + source.remaining()).bytes(source.remaining());
+            TypeSig type = Signatures.spec(source, this::handleOf);
+            check(at, Signatures.specProblem(type, moduleName));
+            if (previous != null) {
+                int order = Blob.compare(previous, bytes);
+                if (order >= 0) {
+                    throw new ModuleFormatException(tables.offset(TableId.TYPE_SPEC, row, 0), order == 0
+                            ? "two TypeSpec rows have equal keys (BC-24)"
+                            : "the TypeSpec rows are not sorted by signature (BC-24)");
+                }
+            }
+            typeSpecs.add(new TypeSpec(type));
+            previous = bytes;
+        }
     }
 
     private List<FieldDef> readFields() throws ModuleFormatException {
@@ -589,7 +617,9 @@ public final class ModuleReader {
 
     private TypeHandle typeHandle(int token) {
         int row = token & 0xFFFFFF;
-        return token >>> 24 == TableId.TYPE_DEF ? typeDefs.get(row - 1) : typeRefs.get(row - 1);
+        int table = token >>> 24;
+        return table == TableId.TYPE_DEF ? typeDefs.get(row - 1)
+                : table == TableId.TYPE_REF ? typeRefs.get(row - 1) : typeSpecs.get(row - 1);
     }
 
     private int value(int table, int row, int column) throws ModuleFormatException {
@@ -625,11 +655,14 @@ public final class ModuleReader {
         return null;
     }
 
-    // The row of a token in an instruction, or null when it names no TypeDef, TypeRef, Field, Method or
+    // The row of a token in a body, or null when it names no TypeDef, TypeRef, TypeSpec, Field, Method or
     // MemberRef row.
     private @Nullable Handle rowOf(int token, List<FieldDef> fields, List<MethodDef> methods, List<MemberRef> refs) {
         int row = token & 0xFFFFFF;
         int table = token >>> 24;
+        if (table == TableId.TYPE_SPEC) {
+            return row >= 1 && row <= typeSpecs.size() ? typeSpecs.get(row - 1) : null;
+        }
         if (table == TableId.FIELD) {
             return row >= 1 && row <= fields.size() ? fields.get(row - 1) : null;
         }

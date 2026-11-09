@@ -40,6 +40,9 @@ public final class ModuleWriter {
     private final Map<TypeDef, Integer> typeDefRows = new HashMap<>();
     private final List<TypeRef> typeRefs = new ArrayList<>();
     private final Map<TypeRef, Integer> typeRefRows = new HashMap<>();
+    private final List<TypeSpec> typeSpecs = new ArrayList<>();
+    private final Map<TypeSpec, Integer> typeSpecRows = new HashMap<>();
+    private final Map<TypeSpec, byte[]> typeSpecBlobs = new HashMap<>();
     private final List<InterfaceImplRow> interfaceImpls = new ArrayList<>();
     private final List<FieldDef> fields = new ArrayList<>();
     private final Map<FieldDef, Integer> fieldRows = new HashMap<>();
@@ -67,6 +70,7 @@ public final class ModuleWriter {
         writer.sortExports();
         writer.numberTypeDefs();
         writer.numberTypeRefs();
+        writer.numberTypeSpecs();
         writer.sortInterfaceImpls();
         writer.numberMembers();
         writer.numberMemberRefs();
@@ -300,6 +304,33 @@ public final class ModuleWriter {
         return compareTypeRefs((TypeRef) left, (TypeRef) right);
     }
 
+    // The key of BC-11 is the blob, a bare type whose tokens name TypeDef and TypeRef rows (BC-03), so the
+    // rows are sorted once those are numbered.
+    private void numberTypeSpecs() throws ModuleFormatException {
+        for (TypeSpec spec : module.typeSpecs()) {
+            String owner = "TypeSpec " + spec.qualifiedName();
+            if (typeSpecRows.containsKey(spec)) {
+                throw new ModuleFormatException("the module lists the " + owner + " twice");
+            }
+            check(Signatures.specProblem(spec.type(), module.name()), owner);
+            typeSpecBlobs.put(spec, Signatures.spec(spec.type(), this::signatureToken));
+            typeSpecRows.put(spec, 0);
+            typeSpecs.add(spec);
+        }
+        typeSpecs.sort(this::compareTypeSpecs);
+        for (int i = 0; i < typeSpecs.size(); i++) {
+            if (i > 0 && compareTypeSpecs(typeSpecs.get(i - 1), typeSpecs.get(i)) == 0) {
+                throw new ModuleFormatException("two TypeSpec rows have the key of " + typeSpecs.get(i).qualifiedName()
+                        + " (BC-24)");
+            }
+            typeSpecRows.put(typeSpecs.get(i), i + 1);
+        }
+    }
+
+    private int compareTypeSpecs(TypeSpec left, TypeSpec right) {
+        return Blob.compare(typeSpecBlobs.getOrDefault(left, new byte[0]), typeSpecBlobs.getOrDefault(right, new byte[0]));
+    }
+
     // The key of BC-11 is the TypeDef row, then the token of the interface. The interface of a TypeDef
     // is an interface or an annotation type; the kind of a TypeRef is not known to this module.
     private void sortInterfaceImpls() throws ModuleFormatException {
@@ -382,11 +413,11 @@ public final class ModuleWriter {
             if (memberRefRows.containsKey(ref)) {
                 throw new ModuleFormatException("the module lists the " + owner + " twice");
             }
-            if (!(ref.parent() instanceof TypeRef parent)) {
+            if (ref.parent() instanceof TypeDef) {
                 throw new ModuleFormatException(owner + " has a TypeDef as parent; a MemberRef names a member of a"
                         + " TypeRef or TypeSpec (BC-11)");
             }
-            if (!typeRefRows.containsKey(parent)) {
+            if ((parentToken(ref) & 0xFFFFFF) == 0) {
                 throw new ModuleFormatException(owner + " has a parent that the module does not list");
             }
             check(nameProblem("MemberRef name", ref.name(), false, false));
@@ -413,13 +444,18 @@ public final class ModuleWriter {
 
     // The key of BC-11: parent token, name, then the bytes of the signature.
     private int compareMemberRefs(MemberRef left, MemberRef right) {
-        int order = compareRows(typeRefRows.getOrDefault((TypeRef) left.parent(), 0),
-                typeRefRows.getOrDefault((TypeRef) right.parent(), 0));
+        int order = compareRows(parentToken(left), parentToken(right));
         if (order == 0) {
             order = Utf8.compare(left.name(), right.name());
         }
         return order != 0 ? order : Blob.compare(memberRefSignatures.getOrDefault(left, new byte[0]),
                 memberRefSignatures.getOrDefault(right, new byte[0]));
+    }
+
+    // The token of the parent of a MemberRef, a TypeRef or a TypeSpec, with row 0 when the module does not list it.
+    private int parentToken(MemberRef ref) {
+        return ref.parent() instanceof TypeRef parent ? (TableId.TYPE_REF << 24) | typeRefRows.getOrDefault(parent, 0)
+                : (TableId.TYPE_SPEC << 24) | typeSpecRows.getOrDefault((TypeSpec) ref.parent(), 0);
     }
 
     // The key of BC-11 is the TypeDef row, then the token of the overridden method. A method gives one
@@ -673,6 +709,11 @@ public final class ModuleWriter {
                 tables.u32(idents.ident(ref.name()));
             }
         }
+        if (tables.begin(TableId.TYPE_SPEC, typeSpecs.size())) {
+            for (TypeSpec spec : typeSpecs) {
+                tables.u32(blobs.blob(typeSpecBlobs.getOrDefault(spec, new byte[0])));
+            }
+        }
         if (tables.begin(TableId.FIELD, fields.size())) {
             for (FieldDef field : fields) {
                 tables.u32(field.flags());
@@ -774,7 +815,7 @@ public final class ModuleWriter {
         return row;
     }
 
-    /** The token of a TypeDef or TypeRef row, or 0 for none. */
+    /** The token of a TypeDef, TypeRef or TypeSpec row, or 0 for none. */
     private int typeToken(@Nullable TypeHandle handle, String what) throws ModuleFormatException {
         if (handle == null) {
             return 0;
@@ -784,9 +825,12 @@ public final class ModuleWriter {
         if (handle instanceof TypeDef type) {
             row = typeDefRows.getOrDefault(type, 0);
             table = TableId.TYPE_DEF;
-        } else {
-            row = typeRefRows.getOrDefault((TypeRef) handle, 0);
+        } else if (handle instanceof TypeRef ref) {
+            row = typeRefRows.getOrDefault(ref, 0);
             table = TableId.TYPE_REF;
+        } else {
+            row = typeSpecRows.getOrDefault((TypeSpec) handle, 0);
+            table = TableId.TYPE_SPEC;
         }
         if (row == 0) {
             throw new ModuleFormatException(what + " is " + handle.qualifiedName() + ", which the module does not list");
