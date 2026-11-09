@@ -64,8 +64,9 @@ public final class Disassembler {
         return disassembler.text.toString();
     }
 
-    // The TypeRef and MemberRef rows that a column, a signature or an instruction names; .typeref and
-    // .memberref declare the others (Q80). A GENERIC MemberRef has no text before MethodSpec (v0.0.9).
+    // The TypeRef and MemberRef rows that a column, a signature, an instruction or an Override row names;
+    // .typeref and .memberref declare the others (Q80). A GENERIC MemberRef has no text before MethodSpec
+    // (v0.0.9).
     private void collect() throws ModuleFormatException {
         for (TypeDef type : module.types()) {
             if (type.enclosing() == null) {
@@ -82,6 +83,9 @@ public final class Disassembler {
             for (MethodDef method : type.methods()) {
                 methodOwners.put(method, type);
                 name(method.signature());
+                for (MethodHandle overridden : method.overrides()) {
+                    name(overridden);
+                }
                 MethodBody body = method.body();
                 if (body != null) {
                     name(body);
@@ -259,7 +263,8 @@ public final class Disassembler {
     }
 
     // A .method with its flags, return type, name and parameters; ... after the type of the last
-    // parameter of a variadic method (MEM-10).
+    // parameter of a variadic method (MEM-10). Its .override lines come first in its braces, in row
+    // order (Q97).
     private void method(MethodDef method, int depth) {
         MethodSig signature = method.signature();
         var head = new StringBuilder(".method ").append(words(method.flags(), METHOD_WORDS))
@@ -271,6 +276,9 @@ public final class Disassembler {
                     .append(variadic(signature, i) ? "..." : "").append(param.name().isEmpty() ? "" : " " + param.name());
         }
         line(depth, head.append(") {").toString());
+        for (MethodHandle overridden : method.overrides()) {
+            line(depth + 1, ".override " + methodRef(overridden));
+        }
         MethodBody body = method.body();
         if (body != null) {
             body(body, depth + 1);

@@ -431,6 +431,54 @@ public final class DisassemblerTest {
                 + ".source \"src/A.rfl\" hex \"" + "11".repeat(32) + "\"\n", roundTrip(text));
     }
 
+    @Test
+    public static void overridesComeFirstInTheBracesOfTheirMethodInRowOrder() throws Exception {
+        byte[] file = ModuleWriter.write(OverrideTableTest.animals());
+        String canonical = Disassembler.text(ModuleReader.read(file));
+        // Dog::speak overrides Animal::speak, Method row 2, before Pet::speak, row 6. The Override row of
+        // Animal::toString names Object::toString, so no .memberref declares it (Q80, Q97).
+        assertEquals(".module a 0.0.0\n"
+                + ".requires reflect.core\n"
+                + "\n"
+                + ".class public abstract a.Animal {\n"
+                + "    .method public virtual abstract reflect.core.String toString() {\n"
+                + "        .override reflect.core.String reflect.core.Object::toString()\n"
+                + "    }\n"
+                + "    .method public virtual void speak() {\n"
+                + "        .maxstack 0\n"
+                + "        ret\n"
+                + "    }\n"
+                + "}\n"
+                + "\n"
+                + ".class public a.Dog extends a.Animal implements a.Pet {\n"
+                + "    .method public virtual void play() {\n"
+                + "        .override void a.Pet::play()\n"
+                + "        .maxstack 0\n"
+                + "        ret\n"
+                + "    }\n"
+                + "    .method public virtual void speak() {\n"
+                + "        .override void a.Animal::speak()\n"
+                + "        .override void a.Pet::speak()\n"
+                + "        .maxstack 0\n"
+                + "        ret\n"
+                + "    }\n"
+                + "}\n"
+                + "\n"
+                + ".class public interface a.Loud {\n"
+                + "    .method public abstract void speak() {\n"
+                + "    }\n"
+                + "}\n"
+                + "\n"
+                + ".class public interface a.Pet implements a.Loud {\n"
+                + "    .method public abstract void speak() {\n"
+                + "        .override void a.Loud::speak()\n"
+                + "    }\n"
+                + "    .method public abstract void play() {\n"
+                + "    }\n"
+                + "}\n", canonical);
+        assertEquals(Leb128Test.hex(file), Leb128Test.hex(assemble(canonical)));
+    }
+
     // The canonical text of the module that the text gives, which assembles to the same bytes (BC-08).
     static String roundTrip(String text) throws Exception {
         byte[] module = assemble(text);

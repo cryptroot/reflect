@@ -104,8 +104,6 @@ public final class AssembleMethodsTest {
                 "3:14: RFA0301: method a.A::m: the last parameter of a VARIADIC signature is an array (BC-03)");
         String body = "; a method has one exactly when it is not ABSTRACT, NATIVE or EXTERN (BC-11)";
         unassemblable(C + "abstract void m() {\n.locals ()\n}\n}", "4:1: RFA0301: method a.A::m has a body" + body);
-        unassemblable(C + "native void m() {\n.override a.A::n()\n}\n}",
-                "4:1: RFA0303: the Override table arrives in v0.0.6");
         unassemblable(C + "void m() {\n.field int x\n}\n}",
                 "4:1: RFA0101: expected an instruction, a label, a directive of a body or }, found .field");
         unassemblable(C + "void m() {\n.locals ()\n.locals (int)\n}\n}", "5:1: RFA0104: the body has one .locals");
@@ -113,6 +111,63 @@ public final class AssembleMethodsTest {
         unassemblable(C + "void m() {\n.locals (int x.y)\n}\n}", "4:14: RFA0101: expected the name of a local, found x.y");
         unassemblable(C + "void m() {\n.locals (!!1)\n}\n}",
                 "4:10: RFA0301: MVAR 1 names no type parameter of the method (BC-03)");
+    }
+
+    @Test
+    public static void overridesGiveTheRowsThatTheyState() throws Exception {
+        // The module of OverrideTableTest.animals, whose .override lines stand in any order and at any place in
+        // the braces of a method, with a body or without one, in the short form for a method of the module (Q69).
+        String text = ".module a 0.0.0\n"
+                + ".requires reflect.core\n"
+                + ".class public interface a.Pet implements a.Loud {\n"
+                + "    .method public abstract void speak() {\n"
+                + "        .override a.Loud::speak()\n"
+                + "    }\n"
+                + "    .method public abstract void play() {\n"
+                + "    }\n"
+                + "}\n"
+                + ".class public a.Dog extends a.Animal implements a.Pet {\n"
+                + "    .method public virtual void play() {\n"
+                + "        .override void a.Pet::play()\n"
+                + "        ret\n"
+                + "    }\n"
+                + "    .method public virtual void speak() {\n"
+                + "        ret\n"
+                + "        .override a.Pet::speak()\n"
+                + "        .override a.Animal::speak()\n"
+                + "    }\n"
+                + "}\n"
+                + ".class public interface a.Loud {\n"
+                + "    .method public abstract void speak() {\n"
+                + "    }\n"
+                + "}\n"
+                + ".class public abstract a.Animal {\n"
+                + "    .method public virtual abstract reflect.core.String toString() {\n"
+                + "        .override reflect.core.String reflect.core.Object::toString()\n"
+                + "    }\n"
+                + "    .method public virtual void speak() {\n"
+                + "        ret\n"
+                + "    }\n"
+                + "}\n";
+        assertEquals(Leb128Test.hex(ModuleWriter.write(OverrideTableTest.animals())), Leb128Test.hex(assemble(text)));
+    }
+
+    @Test
+    public static void eachOverrideHasItsDiagnostics() {
+        // a.B extends a.A, whose method n has a slot; the methods of a.B start at line 9.
+        String b = ".module m 0.0.0\n.requires reflect.core\n.class a.A {\n.method public virtual void n() {\nret\n}\n}\n"
+                + ".class a.B extends a.A {\n.method ";
+        unassemblable(b + "void m() {\n.override a.A::n()\nret\n}\n}", "10:1: RFA0301: method a.B::m overrides a method,"
+                + " but is not a VIRTUAL or ABSTRACT instance method (BC-11)");
+        unassemblable(b + "virtual void m() {\n.override a.B::m()\nret\n}\n}",
+                "10:1: RFA0301: method a.B::m overrides method a.B::m of its own type (BC-11)");
+        unassemblable(b + "virtual void m() {\n.override a.A::n()\nret\n}\n.method virtual void n() {\n.override a.A::n()\nret\n}\n}",
+                "14:1: RFA0301: type a.B overrides method a.A::n twice (BC-24)");
+        String finalize = ".override void reflect.core.Object::finalize()\n";
+        unassemblable(b + "virtual void m() {\n" + finalize + "ret\n" + finalize + "}\n}",
+                "12:1: RFA0301: type a.B overrides MemberRef reflect.core.Object::finalize twice (BC-24)");
+        unassemblable(b + "virtual void m() {\n.override a.A::x()\nret\n}\n}",
+                "10:16: RFA0205: the module defines no method a.A::x with these parameter types");
     }
 
     @Test

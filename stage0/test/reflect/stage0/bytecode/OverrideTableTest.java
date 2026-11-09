@@ -118,7 +118,7 @@ public final class OverrideTableTest {
     // a.Pet extends the interface a.Loud, and a.Dog extends the abstract class a.Animal and implements a.Pet;
     // all are added out of order. Each method names the method that source overrides (Q97):
     // Animal::toString makes Object::toString abstract again, and Dog::speak names Pet::speak first.
-    private static ModuleDef animals() {
+    static ModuleDef animals() {
         var module = new ModuleDef("a", 0, 0, 0);
         var core = new ModuleRef("reflect.core", 0);
         module.requires().add(core);

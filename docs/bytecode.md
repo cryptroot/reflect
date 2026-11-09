@@ -1125,7 +1125,7 @@ module are `RFA0301`, and the message names the rule.
 
 ### 8.3 Canonical text
 
-- **BC-25 [Decided, Q86]** `rfld` prints the canonical text of a module: the text that `rfla`
+- **BC-25 [Decided, Q86, Q97]** `rfld` prints the canonical text of a module: the text that `rfla`
   assembles back to the same bytes (BC-08), and that `rfld` then prints again unchanged. Lines end
   in LF, each level of nesting indents by four spaces, and `rfld` prints no comments.
   1. The text follows the order of the binary. `.module` comes first, then `.unsafe`, `.main`,
@@ -1133,8 +1133,9 @@ module are `RFA0301`, and the message names the rule.
      type follows in `TypeDef` row order after one blank line, with its `.field` and `.method` rows in
      row order, then its nested types in row order. After one more blank line come `.typeref` per
      `TypeRef` row that no column, signature, instruction or other `TypeRef` row names, `.memberref`
-     per `MemberRef` row that no instruction names (Q80), `.source` per source file in the order of
-     DEBUG, which is the order of first use, and `.section` per section kept as bytes, by ID.
+     per `MemberRef` row that no instruction or `Override` row names (Q80), `.source` per source file
+     in the order of DEBUG, which is the order of first use, and `.section` per section kept as bytes,
+     by ID.
   2. A token names a type by its qualified name (GEN-12), with its module in brackets where the name
      alone means another row or the primitive: where the prefix rule of BC-08 gives another module
      or none, where the module defines a top-level type of that name, and before the struct of a
@@ -1151,12 +1152,13 @@ module are `RFA0301`, and the message names the rule.
      parameters by number.
   6. A reference to a field or a method takes its full form (Q69): the field's type, or `static` and
      the return type, before the type that holds it.
-  7. A body starts with `.maxstack`, then `.locals` with the names that DEBUG holds, when the body has
-     locals. The labels `L0`, `L1` and so on mark the branch targets, the switch targets and the
-     bounds of regions, numbered in code order; the label of the end of the code follows the last
-     instruction. Before an instruction come its label, its `.line` and its `.stackmap`, in this
-     order. A `.line` names its file when the file is not the file of the method's previous `.line`.
-     The `.try` lines follow the code, in the order of BC-18.
+  7. The braces of a method start with one `.override` per `Override` row of the method, in row
+     order (Q97). A body follows them with `.maxstack`, then `.locals` with the names that DEBUG
+     holds, when the body has locals. The labels `L0`, `L1` and so on mark the branch targets, the
+     switch targets and the bounds of regions, numbered in code order; the label of the end of the
+     code follows the last instruction. Before an instruction come its label, its `.line` and its
+     `.stackmap`, in this order. A `.line` names its file when the file is not the file of the
+     method's previous `.line`. The `.try` lines follow the code, in the order of BC-18.
   8. An operand takes the form that the binary holds. Arguments and locals go by number. `Int`
      operands of `<i4>` and `<i8>` are signed decimal numbers, and the other numbers are unsigned. A
      float is the shortest decimal that reads back to the same value, `inf`, `-inf`, or `bits` and

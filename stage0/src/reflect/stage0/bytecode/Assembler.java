@@ -49,6 +49,8 @@ public final class Assembler {
     private final Map<String, TypeRef> typeRefs = new HashMap<>();
     private final Map<MemberKey, MemberRef> memberRefs = new HashMap<>();
     private final Map<String, SourceFile> sources = new HashMap<>();
+    // Each method of the module as the messages of the writer name it.
+    private final Map<MethodDef, String> owners = new HashMap<>();
     private final List<Declared> classes = new ArrayList<>();
     private final List<Body> bodies = new ArrayList<>();
     private final List<Kept> sections = new ArrayList<>();
@@ -401,20 +403,21 @@ public final class Assembler {
         check(name, ModuleWriter.methodProblem(method, owner, module.name()));
         check(name, ModuleWriter.methodRepeats(type, type.methods().size(), method));
         type.methods().add(method);
-        bodies.add(new Body(method, owner, parser.position()));
+        owners.put(method, owner);
+        bodies.add(new Body(type, method, owner, parser.position()));
     }
 
     // The third reading: the bodies, once every member is declared, so code may name any of them.
     private void bodies() throws AssemblyException {
         for (Body pending : bodies) {
             parser.seek(pending.position());
-            body(pending.method(), pending.owner());
+            body(pending.type(), pending.method(), pending.owner());
         }
     }
 
-    // The items of a body up to its }; a method without a body has none. Labels and the names of
-    // arguments and locals resolve once the body is read, since a label or .locals may follow a use.
-    private void body(MethodDef method, String owner) throws AssemblyException {
+    // The items of a body up to its }; a method without a body has none but .override. Labels and the
+    // names of arguments and locals resolve once the body is read, since a label or .locals may follow a use.
+    private void body(TypeDef type, MethodDef method, String owner) throws AssemblyException {
         var text = new Text(new HashMap<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(), new ArrayList<>(),
                 new ArrayList<>(), new ArrayList<>());
         boolean locals = false;
@@ -423,7 +426,7 @@ public final class Assembler {
             Token at = parser.peek();
             MethodBody body = method.body();
             if (parser.atDirective(".override")) {
-                throw Parser.error(Diagnostic.LATER, at, "the Override table arrives in v0.0.6");
+                override(type, method);
             } else if (body == null) {
                 // The writer's message, at the first item of a body that the method cannot have.
                 method.setBody(new MethodBody(0));
@@ -474,6 +477,25 @@ public final class Assembler {
                         places));
             }
         }
+    }
+
+    // Override of §8.1: the method fills the slot of the method that it names (BC-12), and its type
+    // overrides that method once, by one of its methods (BC-24).
+    private void override(TypeDef type, MethodDef method) throws AssemblyException {
+        Token directive = parser.next();
+        MethodHandle overridden = methodRef();
+        check(directive, ModuleWriter.overrideProblem(type, method, overridden));
+        for (MethodDef other : type.methods()) {
+            for (MethodHandle earlier : other.overrides()) {
+                if (earlier == overridden) {
+                    String name = overridden instanceof MemberRef ref ? "MemberRef " + ref.parent().qualifiedName()
+                            + "::" + ref.name() : owners.getOrDefault((MethodDef) overridden, "");
+                    throw Parser.error(Diagnostic.FORMAT, directive, "type " + type.qualifiedName() + " overrides " + name
+                            + " twice (BC-24)");
+                }
+            }
+        }
+        method.overrides().add(overridden);
     }
 
     // Region of §8.1: a try and a handler by their labels, which the body marks before or after it.
@@ -1245,8 +1267,9 @@ public final class Assembler {
     private record Kept(Token token, Section section) {
     }
 
-    // A body that the third reading reads: its method, the owner that messages name, and where it starts.
-    private record Body(MethodDef method, String owner, int position) {
+    // A body that the third reading reads: its type and method, the owner that messages name, and where
+    // it starts.
+    private record Body(TypeDef type, MethodDef method, String owner, int position) {
     }
 
     // A body as the text gives it: its labels by name, each use of a label, per instruction its mnemonic
