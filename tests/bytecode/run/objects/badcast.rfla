@@ -1,0 +1,49 @@
+// expect-output: before
+// expect-throws: reflect.core.ClassCastException
+.module badcast 0.0.0
+.main badcast.App
+.requires reflect.core
+.requires reflect.io
+
+// castclass of an object whose run-time type is not the type, nor a subtype of it, throws
+// ClassCastException (BC-14), its nullable form included. Until v0.0.8 the exception is a fault, which ends
+// the run with exit code 1 (Q89).
+.class public badcast.Animal {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+}
+
+.class public badcast.Cat extends badcast.Animal {
+    .method public void new() {
+        ldarg    0
+        call     void badcast.Animal::new()
+        ret
+    }
+}
+
+.class public badcast.Dog extends badcast.Animal {
+    .method public void new() {
+        ldarg    0
+        call     void badcast.Animal::new()
+        ret
+    }
+}
+
+.class public final badcast.App {
+    .method public static void main(reflect.core.String[] args) {
+        newobj   void badcast.Cat::new()
+        castclass badcast.Animal
+        pop
+        ldstr    "before"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void badcast.Cat::new()
+        castclass badcast.Dog?
+        pop
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

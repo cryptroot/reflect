@@ -7,6 +7,9 @@ import reflect.stage0.bytecode.Instruction;
 import reflect.stage0.bytecode.Label;
 import reflect.stage0.bytecode.MethodHandle;
 import reflect.stage0.bytecode.Opcode;
+import reflect.stage0.bytecode.TypeHandle;
+import reflect.stage0.bytecode.TypeSig;
+import reflect.stage0.bytecode.TypeSpec;
 import reflect.stage0.lib.List;
 import reflect.stage0.lib.Nullable;
 
@@ -452,6 +455,25 @@ final class Interpreter {
                         field.owner().initialize(vm);
                         field.owner().statics()[field.slot()] = field.stored(stack[--sp]);
                     }
+                    // instanceof is false for null, even against a nullable type (NUL-05).
+                    case Opcode.INSTANCEOF -> {
+                        Tested tested = tested(vm, method, pc, instruction);
+                        Object value = reference(stack[sp - 1], method, pc);
+                        stack[sp - 1] = value != null && instance(vm, value, tested.type(), method, pc) ? 1 : 0;
+                    }
+                    // castclass passes null to a nullable type, and an instance of the type, and throws otherwise
+                    // (NUL-05, BC-14).
+                    case Opcode.CASTCLASS -> {
+                        Tested tested = tested(vm, method, pc, instruction);
+                        Object value = reference(stack[sp - 1], method, pc);
+                        if (value == null && !tested.nullable()) {
+                            throw new Fault(Fault.NULL_POINTER_EXCEPTION, "null cannot be cast to " + tested.name());
+                        }
+                        if (value != null && !instance(vm, value, tested.type(), method, pc)) {
+                            throw new Fault(Fault.CLASS_CAST_EXCEPTION, vm.typeOf(value).name() + " cannot be cast to "
+                                    + tested.name());
+                        }
+                    }
                     case Opcode.RET -> {
                         return method.returnsValue() ? stack[--sp] : null;
                     }
@@ -508,6 +530,38 @@ final class Interpreter {
             throw new Stop(where(method, pc) + ": the code is invalid: a number stands where a reference does");
         }
         return value;
+    }
+
+    // The type that instanceof or castclass names, linked at its first execution (VM-16): a class or an
+    // interface, or its nullable form, which a TypeSpec holds (NUL-01, Q99). Value types, whose boxes arrive in
+    // v0.0.7, and the other types of TypeSpec rows wait for their stages.
+    private static Tested tested(Vm vm, RuntimeMethod method, int pc, Instruction instruction) {
+        Object[] links = method.links();
+        if (links[pc] == null) {
+            TypeHandle handle = ((Instruction.Type) instruction).type();
+            boolean nullable = false;
+            if (handle instanceof TypeSpec spec && spec.type() instanceof TypeSig.NullableRef wrapped
+                    && wrapped.type() instanceof TypeSig.Named named) {
+                handle = named.type();
+                nullable = true;
+            }
+            RuntimeType type = vm.type(method.type().module(), handle);
+            if (type.isValueType()) {
+                throw new Stop(where(method, pc) + ": VM0 does not run value types yet, such as " + type.name());
+            }
+            links[pc] = new Tested(type, nullable);
+        }
+        return (Tested) links[pc];
+    }
+
+    // Whether a value that is not null is an instance of the type: its run-time type is the type or a subtype
+    // of it (TYP-02). Until arrays arrive (v0.0.7), the arguments of main are the only other value.
+    private static boolean instance(Vm vm, Object value, RuntimeType type, RuntimeMethod method, int pc) {
+        RuntimeType actual = vm.typeOf(value);
+        if (actual == null) {
+            throw new Stop(where(method, pc) + ": VM0 does not run arrays yet");
+        }
+        return actual.isSubtypeOf(type);
     }
 
     // The receiver of an instruction that names a member of the owner. null is a NullPointerException
@@ -619,5 +673,13 @@ final class Interpreter {
     private static String unsupported(int opcode) {
         return Opcode.isR0(opcode) ? "VM0 does not run " + Opcode.mnemonic(opcode) + " yet"
                 : "VM0 runs the instructions of R0 only, and " + Opcode.mnemonic(opcode) + " is not one";
+    }
+
+    // The type that a type test names, and whether the test names its nullable form (NUL-01).
+    private record Tested(RuntimeType type, boolean nullable) {
+        // The type as GEN-12 spells it.
+        String name() {
+            return type.name() + (nullable ? "?" : "");
+        }
     }
 }

@@ -8,6 +8,7 @@ package reflect.stage0.vm;
 final class Fault extends RuntimeException {
     static final String ABSTRACT_MEMBER_ERROR = "reflect.core.AbstractMemberError";
     static final String ARITHMETIC_EXCEPTION = "reflect.core.ArithmeticException";
+    static final String CLASS_CAST_EXCEPTION = "reflect.core.ClassCastException";
     static final String EXCEPTION_IN_INITIALIZER_ERROR = "reflect.core.ExceptionInInitializerError";
     static final String NULL_POINTER_EXCEPTION = "reflect.core.NullPointerException";
     static final String STACK_OVERFLOW_ERROR = "reflect.core.StackOverflowError";

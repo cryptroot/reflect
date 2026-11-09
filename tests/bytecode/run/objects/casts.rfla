@@ -1,0 +1,130 @@
+// expect-output: casts.Dog: 1 1 0 1 1 1 1 0
+// expect-output: casts.Puppy: 1 1 0 1 1 1 1 0
+// expect-output: casts.Cat: 1 0 1 0 0 1 1 0
+// expect-output: text: 0 0 0 0 0 0 1 1
+// expect-output: null: 0 0 0 0 0 0 0 0
+// expect-output: casts.Puppy
+// expect-output: casts.Dog
+// expect-output: casts.Puppy
+// expect-output: null
+// expect-output: text
+.module casts 0.0.0
+.main casts.App
+.requires reflect.core
+.requires reflect.io
+
+// instanceof and castclass test a class, an interface or its nullable form against the run-time type of a
+// reference: its classes and the interfaces that they implement or extend (TYP-02). instanceof is false for
+// null, even against a nullable type, and castclass passes null to a nullable type (NUL-05).
+.class public interface casts.Named {
+}
+
+.class public interface casts.Pet implements casts.Named {
+}
+
+.class public casts.Animal {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+}
+
+.class public casts.Dog extends casts.Animal implements casts.Pet {
+    .method public void new() {
+        ldarg    0
+        call     void casts.Animal::new()
+        ret
+    }
+}
+
+.class public casts.Puppy extends casts.Dog {
+    .method public void new() {
+        ldarg    0
+        call     void casts.Dog::new()
+        ret
+    }
+}
+
+.class public casts.Cat extends casts.Animal {
+    .method public void new() {
+        ldarg    0
+        call     void casts.Animal::new()
+        ret
+    }
+}
+
+.class public final casts.App {
+    .method public static void main(reflect.core.String[] args) {
+        newobj   void casts.Dog::new()
+        call     static void casts.App::test(reflect.core.Object?)
+        newobj   void casts.Puppy::new()
+        call     static void casts.App::test(reflect.core.Object?)
+        newobj   void casts.Cat::new()
+        call     static void casts.App::test(reflect.core.Object?)
+        ldstr    "text"
+        call     static void casts.App::test(reflect.core.Object?)
+        ldnull
+        call     static void casts.App::test(reflect.core.Object?)
+        // castclass passes the reference on, so the run-time type stays the same.
+        newobj   void casts.Puppy::new()
+        castclass casts.Dog
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void casts.Dog::new()
+        castclass casts.Named
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void casts.Puppy::new()
+        castclass casts.Pet?
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldnull
+        castclass casts.Animal?
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "text"
+        castclass reflect.core.Object
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+
+    // Prints the value, then 1 or 0 for instanceof of Animal, Dog, Cat, Named, Pet, Animal?, Object and String.
+    .method static void test(reflect.core.Object? value) {
+        ldarg    value
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldstr    ":"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        instanceof casts.Animal
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof casts.Dog
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof casts.Cat
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof casts.Named
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof casts.Pet
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof casts.Animal?
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof reflect.core.Object
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof reflect.core.String
+        call     static void casts.App::bit(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void bit(int value) {
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+}

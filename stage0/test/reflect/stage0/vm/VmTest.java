@@ -22,6 +22,7 @@ public final class VmTest {
     private static final String PRINTLN = "        call static void reflect.io.Console::println(reflect.core.Object?)\n";
     private static final String ABSTRACT_MEMBER_ERROR = "reflect.core.AbstractMemberError";
     private static final String ARITHMETIC_EXCEPTION = "reflect.core.ArithmeticException";
+    private static final String CLASS_CAST_EXCEPTION = "reflect.core.ClassCastException";
     private static final String NULL_POINTER_EXCEPTION = "reflect.core.NullPointerException";
     private static final String TYPE_LOAD_ERROR = "reflect.core.TypeLoadError";
 
@@ -358,6 +359,53 @@ public final class VmTest {
                 + "        ceq.ref\n        pop\n        ret\n", "")));
         assertEquals(new Run(2, null, "", invalid.formatted(2)), run(program("        ldc.r4 0\n        ldnull\n"
                 + "        ceq.ref\n        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(1)), run(program("        ldc.i4 0\n        instanceof m.App\n"
+                + "        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(1)), run(program("        ldc.i4 0\n        castclass m.App\n"
+                + "        pop\n        ret\n", "")));
+    }
+
+    @Test
+    public static void aFailedCastNamesBothTypes() throws Exception {
+        // castclass throws NullPointerException for null and a non-null type, and ClassCastException for a
+        // reference of another type (NUL-05, BC-14); until v0.0.8 each is a fault.
+        String classes = type("m.A", "") + type("m.B", "");
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": null cannot be cast to m.A\n"),
+                run(program("        ldnull\n        castclass m.A\n        pop\n        ret\n", "") + classes));
+        assertEquals(new Run(1, CLASS_CAST_EXCEPTION, "", CLASS_CAST_EXCEPTION + ": m.B cannot be cast to m.A?\n"),
+                run(program("        newobj void m.B::new()\n        castclass m.A?\n        pop\n        ret\n", "")
+                + classes));
+        assertEquals(new Run(1, CLASS_CAST_EXCEPTION, "", CLASS_CAST_EXCEPTION + ": reflect.core.String cannot be cast to"
+                + " m.A\n"), run(program("        ldstr \"x\"\n        castclass m.A\n        pop\n        ret\n", "")
+                + classes));
+    }
+
+    @Test
+    public static void aTypeTestLinksItsTypeButInitializesNoClass() throws Exception {
+        // A type test is no active use (VM-07), so the initializer of m.B does not run; the type that it names links
+        // at its first execution (VM-16).
+        String b = ".class public m.B {\n    .method static void static() {\n        ldstr \"init\"\n" + PRINTLN
+                + "        ret\n    }\n}\n";
+        assertEquals(new Run(0, null, "0\n", ""), run(program("        ldnull\n        castclass m.B?\n"
+                + "        instanceof m.B\n        call static reflect.core.String reflect.core.String::valueOf(int)\n"
+                + PRINTLN + "        ret\n", "") + b));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": the module reflect.core defines no type"
+                + " reflect.core.Missing\n"), run(program("        ldnull\n        instanceof reflect.core.Missing\n"
+                + "        pop\n        ret\n", "")));
+    }
+
+    @Test
+    public static void typeTestsOfOtherTypesWaitForTheirStages() throws Exception {
+        // VM0 tests classes and interfaces and their nullable forms; the other types arrive in later stages (Q99).
+        assertEquals(new Run(2, null, "", "vm0: VM0 does not run the type reflect.core.Int32[] yet\n"),
+                run(program("        ldnull\n        castclass int[]\n        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", "vm0: VM0 does not run the type reflect.core.String[]? yet\n"),
+                run(program("        ldnull\n        instanceof reflect.core.String[]?\n        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run value types yet, such as"
+                + " m.P\n"), run(program("        ldnull\n        instanceof m.P\n        pop\n        ret\n", "")
+                + ".class public struct m.P {\n}\n"));
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run arrays yet\n"),
+                run(program("        ldarg 0\n        instanceof reflect.core.Object\n        pop\n        ret\n", "")));
     }
 
     @Test

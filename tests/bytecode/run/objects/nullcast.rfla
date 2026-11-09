@@ -1,0 +1,24 @@
+// expect-output: before
+// expect-throws: reflect.core.NullPointerException
+.module nullcast 0.0.0
+.main nullcast.App
+.requires reflect.core
+.requires reflect.io
+
+// castclass of null to a non-null type throws NullPointerException, while castclass to the nullable form
+// passes null on (NUL-05). Until v0.0.8 the exception is a fault, which ends the run with exit code 1 (Q89).
+.class public final nullcast.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldnull
+        castclass reflect.core.Object?
+        pop
+        ldstr    "before"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldnull
+        castclass reflect.core.Object
+        pop
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

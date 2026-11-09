@@ -24,6 +24,7 @@ import reflect.stage0.bytecode.TypeDef;
 import reflect.stage0.bytecode.TypeHandle;
 import reflect.stage0.bytecode.TypeRef;
 import reflect.stage0.bytecode.TypeSig;
+import reflect.stage0.bytecode.TypeSpec;
 import reflect.stage0.lib.Nullable;
 
 /**
@@ -245,10 +246,16 @@ public final class Vm {
                 + Spelling.field(parent.name(), ref.name(), type, from.name(), false));
     }
 
-    /** The run-time type that a type token or a signature of the module names. */
+    /**
+     * The run-time type that a type token or a signature of the module names. Until their stages, VM0 runs a
+     * TypeSpec only as the nullable form that a type test names (Q99).
+     */
     RuntimeType type(RuntimeModule from, TypeHandle handle) {
         if (handle instanceof TypeDef definition) {
             return type(from, definition);
+        }
+        if (handle instanceof TypeSpec spec) {
+            throw new Stop("VM0 does not run the type " + spec.qualifiedName() + " yet");
         }
         TypeRef ref = (TypeRef) handle;
         TypeRef top = ref;
