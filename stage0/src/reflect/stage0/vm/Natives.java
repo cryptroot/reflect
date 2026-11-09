@@ -25,8 +25,11 @@ final class Natives {
     private record Entry(String module, Native code) {
     }
 
-    // The text of a number is Java's (NUM-05, Q87).
+    // The text of a number is Java's (NUM-05, Q87), and the default text of an object the qualified name of its
+    // run-time type (MEM-07, Q103).
     private static final Map<String, Entry> TABLE = Map.of(
+            "reflect.core.String reflect.core.Object::toString()",
+            new Entry("reflect.core", (vm, arguments) -> vm.typeOf(arguments[0]).name()),
             "static reflect.core.String reflect.core.String::valueOf(reflect.core.Object?)",
             new Entry("reflect.core", Natives::valueOf),
             "static reflect.core.String reflect.core.String::valueOf(int)",
@@ -65,16 +68,10 @@ final class Natives {
         return entry == null || !entry.module().equals(module) ? null : entry.code();
     }
 
-    // String.valueOf(Object?): "null", or the string itself. Other objects arrive in v0.0.6.
-    private static Object valueOf(Vm vm, Object[] arguments) {
+    // String.valueOf(Object?): "null", or the toString() of the object (Q103).
+    private static @Nullable Object valueOf(Vm vm, Object[] arguments) {
         Object value = arguments[0];
-        if (value == null) {
-            return "null";
-        }
-        if (value instanceof String text) {
-            return text;
-        }
-        throw new Stop("VM0 turns no object but a string into text yet");
+        return value == null ? "null" : vm.text(value);
     }
 
     // Console.write(int, String) writes the UTF-8 bytes of the text to standard output (1) or standard

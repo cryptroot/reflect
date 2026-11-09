@@ -154,9 +154,14 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   of an appended column means what modules meant before it existed (a variance column's 0 is
   invariant).
 
-- **BC-12 [Proposed]** Overrides are explicit rows: the compiler records which slot each
-  `override` fills, so the VM builds vtables and static dispatch tables without matching names at
-  link time. A row whose overridden method no longer exists is a link error (`TypeLoadError`).
+- **BC-12 [Proposed; slots Decided, Q97]** Overrides are explicit rows: the compiler records which slot
+  each `override` fills, so the VM builds vtables and static dispatch tables without matching names at
+  link time. Each `VIRTUAL` or `ABSTRACT` instance method starts a slot, unless an `Override` row of
+  its class names a method of a base class; then it fills that method's slot, and a class method
+  fills at most one such slot. A row names the method that source overrides, an override included,
+  as BC-09 assumes, and `callvirt` of a class method takes the slot from the vtable of the
+  receiver's class (Q97). A row whose overridden method no longer exists is a link error
+  (`TypeLoadError`).
   Return types are covariant (MEM-02). An override that returns a reference subtype of the base's
   return type fills the base slot itself, so explicit rows need no bridge for it. When the return
   type needs boxing or nullable wrapping, the row names the synthesized bridge that converts the

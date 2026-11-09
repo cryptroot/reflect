@@ -46,6 +46,7 @@ public final class Vm {
     private static final long STACK_SIZE = 256L << 20;
 
     private static final String CORE = "reflect.core";
+    private static final String TO_STRING = "reflect.core.String reflect.core.Object::toString()";
 
     private final PrintStream out;
     private final PrintStream err;
@@ -54,6 +55,7 @@ public final class Vm {
     // One slot for each one-byte opcode, then one for each two-byte opcode.
     private final long[] counts = new long[0x200];
     private @Nullable Modules modules;
+    private @Nullable RuntimeMethod toString;
 
     Vm(PrintStream out, PrintStream err) {
         this.out = out;
@@ -156,13 +158,17 @@ public final class Vm {
         return type(module, type).method(found);
     }
 
-    /** The run-time type of a type of the module, which loads at its first use, after its base class (VM-13). */
+    /**
+     * The run-time type of a type of the module, which loads at its first use, after its base class, and
+     * then builds its vtable (VM-13).
+     */
     RuntimeType type(RuntimeModule module, TypeDef definition) {
         RuntimeType type = types.get(definition);
         if (type == null) {
             load(module, definition);
             type = new RuntimeType(module, definition, base(module, definition));
             types.put(definition, type);
+            type.link(this);
         }
         return type;
     }
@@ -191,9 +197,33 @@ public final class Vm {
         return type(core, definition);
     }
 
-    /** The run-time type of a value on the stack: the type of an Instance, or null for any other value. */
+    /**
+     * The run-time type of a value on the stack: the type of an Instance, reflect.core.String for a string,
+     * or null for any other value.
+     */
     @Nullable RuntimeType typeOf(@Nullable Object value) {
+        if (value instanceof String) {
+            return core("String", "a string");
+        }
         return value instanceof Instance object ? object.type() : null;
+    }
+
+    /** The text of an object: what the toString() in the slot of its run-time type gives (Q103). */
+    @Nullable Object text(Object value) {
+        RuntimeMethod method = toString;
+        if (method == null) {
+            RuntimeType object = core("Object", "String.valueOf");
+            for (MethodDef definition : object.definition().methods()) {
+                if (object.method(definition).signature().equals(TO_STRING)) {
+                    method = object.method(definition);
+                }
+            }
+            if (method == null) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, "the module " + CORE + " defines no method " + TO_STRING);
+            }
+            toString = method;
+        }
+        return Interpreter.invoke(this, Interpreter.dispatch(this, method, value), new Object[] {value});
     }
 
     /** The run-time field that a field token of the module names: a Field row, or a MemberRef (Q69). */

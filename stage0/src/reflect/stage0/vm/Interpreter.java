@@ -32,9 +32,30 @@ final class Interpreter {
         }
         Instruction[] instructions = method.code();
         if (instructions == null) {
+            if (method.isAbstract()) {
+                // Until v0.0.8, a fault (Q101).
+                throw new Fault(Fault.ABSTRACT_MEMBER_ERROR, "a call reaches the abstract method " + method.signature());
+            }
             throw new Stop("VM0 does not run " + method.name() + ", which has no body and no native");
         }
         return execute(vm, method, instructions, arguments);
+    }
+
+    /**
+     * The method that a call of the target runs on the receiver (VM-04, BC-06): the method in the target's
+     * slot of the receiver's run-time type, or the target when it has no slot. An abstract method in that
+     * slot is an AbstractMemberError (Q101).
+     */
+    static RuntimeMethod dispatch(Vm vm, RuntimeMethod target, Object receiver) {
+        if (target.slot() < 0) {
+            return target;
+        }
+        RuntimeType type = vm.typeOf(receiver);
+        RuntimeMethod found = type.implementation(target);
+        if (found.isAbstract()) {
+            throw new Fault(Fault.ABSTRACT_MEMBER_ERROR, type.name() + " does not implement " + found.signature());
+        }
+        return found;
     }
 
     private static @Nullable Object execute(Vm vm, RuntimeMethod method, Instruction[] code, Object[] arguments) {
@@ -362,6 +383,21 @@ final class Interpreter {
                             stack[sp++] = result;
                         }
                     }
+                    // callvirt checks its receiver, then calls the method in the slot of the receiver's run-time
+                    // type, or the method that it names when that has no slot (BC-06, VM-04).
+                    case Opcode.CALLVIRT -> {
+                        if (links[pc] == null) {
+                            links[pc] = virtual(vm, method, pc, ((Instruction.Method) instruction).method());
+                        }
+                        RuntimeMethod target = (RuntimeMethod) links[pc];
+                        sp -= target.arguments();
+                        Object[] values = Arrays.copyOfRange(stack, sp, sp + target.arguments());
+                        receiver(vm, values[0], target.type(), "callvirt " + target.signature(), method, pc);
+                        Object result = invoke(vm, dispatch(vm, target, values[0]), values);
+                        if (target.returnsValue()) {
+                            stack[sp++] = result;
+                        }
+                    }
                     // newobj initializes the constructor's class (VM-07), makes an object of it with every field at
                     // zero, and runs the constructor on it, after the parameters (BC-04).
                     case Opcode.NEWOBJ -> {
@@ -479,6 +515,20 @@ final class Interpreter {
             links[pc] = field;
         }
         return (RuntimeField) links[pc];
+    }
+
+    // The method that a callvirt names, linked at its first execution (VM-16): an instance method, or else a
+    // link error (Q101). Interface methods come with interface tables (README §7.7).
+    private static RuntimeMethod virtual(Vm vm, RuntimeMethod method, int pc, MethodHandle handle) {
+        RuntimeMethod target = vm.method(method.type().module(), handle);
+        if (target.isStatic()) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, "callvirt names " + target.signature() + ", which is static");
+        }
+        if (target.type().isInterface()) {
+            throw new Stop(where(method, pc) + ": VM0 does not run calls of interface methods yet, such as "
+                    + target.signature());
+        }
+        return target;
     }
 
     // The constructor that a newobj names, linked at its first execution (VM-16): a constructor of a class

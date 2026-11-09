@@ -1,0 +1,68 @@
+// expect-output: 4
+// expect-output: square
+// expect-throws: reflect.core.AbstractMemberError
+.module unimplemented 0.0.0
+.main unimplemented.App
+.requires reflect.core
+.requires reflect.io
+
+// A slot that stays abstract holds a stub that throws AbstractMemberError (VM-04, Q101): Blob is no
+// abstract class, but implements neither abstract method of Shape, so "after" does not print. Until
+// v0.0.8 the error is a fault, which ends the run with exit code 1 (Q89).
+.class public abstract unimplemented.Shape {
+    .method protected void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    // ABSTRACT without VIRTUAL starts a slot too (Q97).
+    .method public abstract int area() {
+    }
+    // Makes Object::toString abstract again, and fills its slot.
+    .method public virtual abstract reflect.core.String toString() {
+        .override reflect.core.String reflect.core.Object::toString()
+    }
+}
+
+.class public unimplemented.Square extends unimplemented.Shape {
+    .method public void new() {
+        ldarg    0
+        call     void unimplemented.Shape::new()
+        ret
+    }
+    .method public virtual int area() {
+        .override int unimplemented.Shape::area()
+        ldc.i4   4
+        ret
+    }
+    .method public virtual reflect.core.String toString() {
+        .override reflect.core.String unimplemented.Shape::toString()
+        ldstr    "square"
+        ret
+    }
+}
+
+.class public unimplemented.Blob extends unimplemented.Shape {
+    .method public void new() {
+        ldarg    0
+        call     void unimplemented.Shape::new()
+        ret
+    }
+}
+
+.class public final unimplemented.App {
+    .method public static void main(reflect.core.String[] args) {
+        newobj   void unimplemented.Square::new()
+        callvirt int unimplemented.Shape::area()
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void unimplemented.Square::new()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void unimplemented.Blob::new()
+        callvirt int unimplemented.Shape::area()
+        pop
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

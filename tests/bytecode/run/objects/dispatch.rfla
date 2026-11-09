@@ -1,0 +1,152 @@
+// expect-output: ...
+// expect-output: Woof
+// expect-output: Yip
+// expect-output: ...
+// expect-output: animal
+// expect-output: ...
+// expect-output: Meow
+// expect-output: Yip
+// expect-output: dispatch.Animal
+// expect-output: a dog
+// expect-output: text
+// expect-output: dispatch.Cat
+// expect-output: a dog
+// expect-output: null
+.module dispatch 0.0.0
+.main dispatch.App
+.requires reflect.core
+.requires reflect.io
+
+// callvirt calls the method in the slot of the receiver's run-time type (VM-04). Each VIRTUAL or
+// ABSTRACT instance method starts a slot, unless an Override row of its class names a method of a base
+// class; then it fills that method's slot. A row names the method that source overrides, an override
+// included, so Puppy::speak fills the slot of Animal::speak through Dog::speak (Q97).
+.class public dispatch.Animal {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public virtual reflect.core.String speak() {
+        ldstr    "..."
+        ret
+    }
+    .method public virtual dispatch.Animal? newborn() {
+        newobj   void dispatch.Animal::new()
+        ret
+    }
+    // Not virtual, so callvirt calls it directly (BC-06).
+    .method public reflect.core.String kind() {
+        ldstr    "animal"
+        ret
+    }
+}
+
+// Dog::newborn returns dispatch.Dog, a subtype of the return type of Animal::newborn, and fills its slot
+// itself (MEM-02, BC-12).
+.class public dispatch.Dog extends dispatch.Animal {
+    .method public void new() {
+        ldarg    0
+        call     void dispatch.Animal::new()
+        ret
+    }
+    .method public virtual reflect.core.String speak() {
+        .override reflect.core.String dispatch.Animal::speak()
+        ldstr    "Woof"
+        ret
+    }
+    .method public virtual dispatch.Dog newborn() {
+        .override dispatch.Animal? dispatch.Animal::newborn()
+        newobj   void dispatch.Puppy::new()
+        ret
+    }
+    .method public virtual reflect.core.String toString() {
+        .override reflect.core.String reflect.core.Object::toString()
+        ldstr    "a dog"
+        ret
+    }
+}
+
+.class public dispatch.Puppy extends dispatch.Dog {
+    .method public void new() {
+        ldarg    0
+        call     void dispatch.Dog::new()
+        ret
+    }
+    .method public virtual reflect.core.String speak() {
+        .override reflect.core.String dispatch.Dog::speak()
+        ldstr    "Yip"
+        ret
+    }
+    // Hides Animal::kind, which callvirt of Animal::kind still calls.
+    .method public reflect.core.String kind() {
+        ldstr    "puppy"
+        ret
+    }
+}
+
+// Cat::speak has no Override row, so it starts a slot of its own instead of filling the slot of
+// Animal::speak: VM0 matches no names (BC-12).
+.class public dispatch.Cat extends dispatch.Animal {
+    .method public void new() {
+        ldarg    0
+        call     void dispatch.Animal::new()
+        ret
+    }
+    .method public virtual reflect.core.String speak() {
+        ldstr    "Meow"
+        ret
+    }
+}
+
+.class public final dispatch.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (dispatch.Animal nothing)
+        newobj   void dispatch.Animal::new()
+        callvirt reflect.core.String dispatch.Animal::speak()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void dispatch.Dog::new()
+        callvirt reflect.core.String dispatch.Animal::speak()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void dispatch.Puppy::new()
+        callvirt reflect.core.String dispatch.Animal::speak()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // call runs the method that it names, whatever the slot holds.
+        newobj   void dispatch.Puppy::new()
+        call     reflect.core.String dispatch.Animal::speak()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void dispatch.Puppy::new()
+        callvirt reflect.core.String dispatch.Animal::kind()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void dispatch.Cat::new()
+        callvirt reflect.core.String dispatch.Animal::speak()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void dispatch.Cat::new()
+        callvirt reflect.core.String dispatch.Cat::speak()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // The newborn of a dog is a puppy.
+        newobj   void dispatch.Dog::new()
+        callvirt dispatch.Animal? dispatch.Animal::newborn()
+        callvirt reflect.core.String dispatch.Animal::speak()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // Object::toString gives the qualified name of the run-time type, an override its own text, and a
+        // string the string (Q103).
+        newobj   void dispatch.Animal::new()
+        callvirt reflect.core.String reflect.core.Object::toString()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void dispatch.Puppy::new()
+        callvirt reflect.core.String reflect.core.Object::toString()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "text"
+        callvirt reflect.core.String reflect.core.Object::toString()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // println prints String.valueOf of its argument: the toString() of an object, or "null" (Q103).
+        newobj   void dispatch.Cat::new()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void dispatch.Dog::new()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldloc    nothing
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

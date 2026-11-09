@@ -20,6 +20,7 @@ import static reflect.stage0.test.Assertions.assertTrue;
 
 public final class VmTest {
     private static final String PRINTLN = "        call static void reflect.io.Console::println(reflect.core.Object?)\n";
+    private static final String ABSTRACT_MEMBER_ERROR = "reflect.core.AbstractMemberError";
     private static final String ARITHMETIC_EXCEPTION = "reflect.core.ArithmeticException";
     private static final String NULL_POINTER_EXCEPTION = "reflect.core.NullPointerException";
     private static final String TYPE_LOAD_ERROR = "reflect.core.TypeLoadError";
@@ -121,6 +122,13 @@ public final class VmTest {
                 + "        call static void x.T::f()\n        ret\n    }\n}\n";
         assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": the module x of x.T is absent, which m requires"
                 + " static\n"), run(absent));
+        // String.valueOf(Object?) calls Object::toString through the slot of the value's run-time type (Q103).
+        String plain = Files.readString(Path.of("tests/bytecode/lib/reflect.core.rfla"))
+                .replace("    .method public virtual native reflect.core.String toString() {\n    }\n", "")
+                .replace("        .override reflect.core.String reflect.core.Object::toString()\n", "");
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": the module reflect.core defines no method"
+                + " reflect.core.String reflect.core.Object::toString()\n"), run(program("        ldstr \"x\"\n" + PRINTLN
+                + "        ret\n", ""), null, Map.of("reflect.core", plain)));
     }
 
     @Test
@@ -307,6 +315,9 @@ public final class VmTest {
                 + "        ret\n    }\n}\n")));
         assertEquals(new Run(5, null, "before\n", ""), run(program(use, "") + initializer("        ldc.i4 5\n"
                 + "        call static void reflect.core.Runtime::exit(int)\n")));
+        assertEquals(new Run(1, ABSTRACT_MEMBER_ERROR, "before\n", ABSTRACT_MEMBER_ERROR + ": a call reaches the abstract"
+                + " method static void m.B::f()\n"), run(program(use, "") + initializer("        call static void m.B::f()\n")
+                .replace("}\n}\n", "}\n    .method static abstract void f() {\n    }\n}\n")));
         // The error of a failed initializer passes through the initializer that started it, unchanged.
         String chain = initializer("        ldsfld int m.C::z\n        pop\n") + ".class public m.C {\n"
                 + "    .field static int z\n    .method static void static() {\n        ldc.i4 1\n        ldc.i4 0\n"
@@ -333,6 +344,47 @@ public final class VmTest {
         assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: the code is invalid: the receiver of call void"
                 + " m.A::f() is not a m.A\n"), run(program("        ldstr \"x\"\n        call void m.A::f()\n        ret\n", "")
                 + classes));
+    }
+
+    @Test
+    public static void callvirtNamesAnInstanceMethodOfAClass() throws Exception {
+        // What callvirt names is checked when it links (VM-16, Q101), and its receiver when it runs (BC-14).
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": callvirt names static void m.App::f(), which is"
+                + " static\n"), run(program("        callvirt static void m.App::f()\n        ret\n",
+                "    .method static void f() {\n        ret\n    }\n")));
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": callvirt reflect.core.String"
+                + " reflect.core.Object::toString(): the receiver is null\n"), run(program("        .locals (m.App app)\n"
+                + "        ldloc app\n        callvirt reflect.core.String reflect.core.Object::toString()\n        pop\n"
+                + "        ret\n", "")));
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: the code is invalid: the receiver of callvirt"
+                + " void m.App::g() is not a m.App\n"), run(program("        ldstr \"x\"\n        callvirt void m.App::g()\n"
+                + "        ret\n", "    .method public virtual void g() {\n        ret\n    }\n")));
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run calls of interface methods"
+                + " yet, such as void m.I::f()\n"), run(program("        ldstr \"x\"\n        callvirt void m.I::f()\n"
+                + "        ret\n", "") + ".class public interface m.I {\n    .method public abstract void f() {\n    }\n}\n"));
+    }
+
+    @Test
+    public static void aCallThatReachesAnAbstractMethodIsAnAbstractMemberError() throws Exception {
+        // A slot that stays abstract holds a stub that throws (VM-04), and call of an abstract method throws too
+        // (Q101). Until v0.0.8 each is a fault.
+        String shapes = ".class public abstract m.Shape {\n    .method public void new() {\n        ldarg 0\n"
+                + "        call void reflect.core.Object::new()\n        ret\n    }\n"
+                + "    .method public virtual abstract int area() {\n    }\n"
+                + "    .method public virtual abstract reflect.core.String toString() {\n"
+                + "        .override reflect.core.String reflect.core.Object::toString()\n    }\n}\n"
+                + ".class public m.Blob extends m.Shape {\n    .method public void new() {\n        ldarg 0\n"
+                + "        call void m.Shape::new()\n        ret\n    }\n}\n";
+        assertEquals(new Run(1, ABSTRACT_MEMBER_ERROR, "", ABSTRACT_MEMBER_ERROR + ": m.Blob does not implement int"
+                + " m.Shape::area()\n"), run(program("        newobj void m.Blob::new()\n        callvirt int m.Shape::area()\n"
+                + "        pop\n        ret\n", "") + shapes));
+        // String.valueOf, which println calls, takes toString() from the slot of the object's run-time type (Q103).
+        assertEquals(new Run(1, ABSTRACT_MEMBER_ERROR, "", ABSTRACT_MEMBER_ERROR + ": m.Blob does not implement"
+                + " reflect.core.String m.Shape::toString()\n"), run(program("        newobj void m.Blob::new()\n" + PRINTLN
+                + "        ret\n", "") + shapes));
+        assertEquals(new Run(1, ABSTRACT_MEMBER_ERROR, "", ABSTRACT_MEMBER_ERROR + ": a call reaches the abstract method"
+                + " int m.Shape::area()\n"), run(program("        newobj void m.Blob::new()\n        call int m.Shape::area()\n"
+                + "        pop\n        ret\n", "") + shapes));
     }
 
     @Test

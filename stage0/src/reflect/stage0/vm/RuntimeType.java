@@ -1,19 +1,23 @@
 package reflect.stage0.vm;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 
 import reflect.stage0.bytecode.FieldDef;
 import reflect.stage0.bytecode.Flags;
 import reflect.stage0.bytecode.MethodDef;
+import reflect.stage0.bytecode.MethodHandle;
 import reflect.stage0.bytecode.TypeDef;
 import reflect.stage0.lib.Nullable;
 
 /**
  * A run-time type (VM-03): a type of a module that VM0 has loaded at its first use (VM-13), with its
- * base class (Q96), the slots of its instance fields, those of the base class first (VM-02), the
- * storage of its static fields, whether its initialization has started (VM-07), and the methods and
- * fields that VM0 has linked.
+ * base class (Q96), the slots of its instance fields, those of the base class first (VM-02), its
+ * vtable (VM-04), the storage of its static fields, whether its initialization has started (VM-07),
+ * and the methods and fields that VM0 has linked.
  */
 final class RuntimeType {
     private final RuntimeModule module;
@@ -24,6 +28,7 @@ final class RuntimeType {
     private final @Nullable Object[] zeros;
     private final @Nullable Object[] statics;
     private final @Nullable MethodDef initializer;
+    private RuntimeMethod[] vtable = new RuntimeMethod[0];
     private boolean started;
 
     RuntimeType(RuntimeModule module, TypeDef definition, @Nullable RuntimeType base) {
@@ -150,6 +155,43 @@ final class RuntimeType {
     /** The run-time method of a method that the type lists. */
     RuntimeMethod method(MethodDef method) {
         return methods.computeIfAbsent(method, definition -> new RuntimeMethod(this, definition));
+    }
+
+    /**
+     * Builds the vtable of a class (VM-04, BC-12, Q97), after its base class has built its own: the
+     * slots of the base class, then for each VIRTUAL or ABSTRACT instance method, in row order, the
+     * slot of each method of a base class that an Override row of the method names, or else a new
+     * slot. A row may name an override, whose slot is the one that it fills. Interface tables, value
+     * types (v0.0.7) and the load checks of the rows come later (README §7.7).
+     */
+    void link(Vm vm) {
+        if (isInterface() || isValueType()) {
+            return;
+        }
+        List<RuntimeMethod> slots = new ArrayList<>(base == null ? List.of() : Arrays.asList(base.vtable));
+        for (MethodDef definition : definition.methods()) {
+            RuntimeMethod method = method(definition);
+            if (!method.hasSlot()) {
+                continue;
+            }
+            for (MethodHandle overridden : definition.overrides()) {
+                RuntimeMethod replaced = vm.method(module, overridden);
+                if (replaced.slot() >= 0 && isSubtypeOf(replaced.type())) {
+                    slots.set(replaced.slot(), method);
+                    method.setSlot(replaced.slot());
+                }
+            }
+            if (method.slot() < 0) {
+                method.setSlot(slots.size());
+                slots.add(method);
+            }
+        }
+        vtable = slots.toArray(new RuntimeMethod[0]);
+    }
+
+    /** The method in the slot of a method of the type or of a base class, which the slot of this type holds. */
+    RuntimeMethod implementation(RuntimeMethod method) {
+        return vtable[method.slot()];
     }
 
     /** The run-time field of a field that the type lists, with its slot among the instance or the static fields. */

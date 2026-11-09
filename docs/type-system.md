@@ -351,10 +351,13 @@ Shape[] shapes = new Square[] { new Square(1) };     // error: arrays are invari
   error, such as `StackOverflowError`, reaches the first use unchanged (JLS §12.4.2, Q102). A static
   initialization cycle behaves as in Java (the nested request sees default values, possibly
   `null` in a non-null static); the compiler warns about cycles it can see.
-- **MEM-07 [Decided, details Proposed]** `Object` declares virtual `equals(Object?)`,
-  `hashCode()` and `toString()`, the final `getClass()` typed `Class<? extends T>` for a receiver
-  of static type `T`, and `static boolean referenceEquals(Object?, Object?)` (identity; boxes have
-  none, DAT-09). No `wait`, `notify`, `clone` or `finalize`; finalizers are `~C()` (memory.md §6).
+- **MEM-07 [Decided, details Proposed; default text Decided, Q103]** `Object` declares virtual
+  `equals(Object?)`, `hashCode()` and `toString()`, the final `getClass()` typed `Class<? extends T>`
+  for a receiver of static type `T`, and `static boolean referenceEquals(Object?, Object?)` (identity;
+  boxes have none, DAT-09). No `wait`, `notify`, `clone` or `finalize`; finalizers are `~C()`
+  (memory.md §6). The default `toString()` gives the qualified name of the object's run-time type
+  (GEN-12), such as `demo.zoo.Dog`, as .NET's `Object.ToString()` gives the full name of the type, so
+  the text depends only on the type (BOOT-05, Q103).
 - **MEM-08 [Decided, Q11]** Construction order and its warnings: NUL-04.
 - **MEM-09 [Decided, Q21]** Extension methods are static methods whose first parameter says
   `this` (ex §2.10 `asSpan<T>(this T[] array, ...)`). They are in scope where their declaring
@@ -692,7 +695,8 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
 - **EXC-04 [Decided]** try-with-resources uses Java's translation (ex §7.4): resources close in
   reverse order, a failing `close()` becomes a suppressed exception, existing variables may be
   resources.
-- **EXC-05 [Decided, kinds Proposed]** Exceptions raised by the language and the VM (ex §7.8):
+- **EXC-05 [Decided, kinds Proposed; `AbstractMemberError` Decided, Q101]** Exceptions raised by the
+  language and the VM (ex §7.8):
 
   | Exception | Kind | Raised by |
   |---|---|---|
@@ -705,7 +709,7 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
   | `PhaseException` | unchecked | run-time-only reflection inside the compiler |
   | `DeterminismViolation` | error | a nondeterministic call in compile-time code under `--deterministic` |
   | `InstantiationError` | error | a virtual constructor reached on an abstract class |
-  | `AbstractMemberError` | error | an unimplemented static abstract reached through `R` |
+  | `AbstractMemberError` | error | a call that reaches an unimplemented abstract member: an instance member, or a static abstract through `R` (Q101) |
   | `ExceptionInInitializerError` | error | a failing static initializer (MEM-06) |
   | `TypeLoadError` | error | missing types, constraint violations, invalid instantiations, link errors (BC-12, BC-23) |
   | `StackOverflowError`, `OutOfMemoryError` | error | exhausted resources |

@@ -6,9 +6,17 @@
     .method public void new() {
         ret
     }
+    // The qualified name of the run-time type (MEM-07, Q103).
+    .method public virtual native reflect.core.String toString() {
+    }
 }
 
 .class public final reflect.core.String extends reflect.core.Object {
+    .method public virtual reflect.core.String toString() {
+        .override reflect.core.String reflect.core.Object::toString()
+        ldarg    0
+        ret
+    }
     .method public static native reflect.core.String valueOf(reflect.core.Object? value) {
     }
     .method public static native reflect.core.String valueOf(int value) {

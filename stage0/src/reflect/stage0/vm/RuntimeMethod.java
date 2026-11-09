@@ -10,8 +10,8 @@ import reflect.stage0.lib.Nullable;
 
 /**
  * A method that VM0 has linked: its arguments, this first unless it is static (BC-04), whether it
- * returns a value, and its code or its native. Each instruction has a slot for what it resolves on
- * its first execution, such as the method that a call names (VM-16).
+ * returns a value, its code or its native, and its vtable slot. Each instruction has a slot for what it
+ * resolves on its first execution, such as the method that a call names (VM-16).
  */
 final class RuntimeMethod {
     private final RuntimeType type;
@@ -23,6 +23,7 @@ final class RuntimeMethod {
     private final Instruction @Nullable [] code;
     private final @Nullable Object[] links;
     private final @Nullable Object[] zeros;
+    private int slot = -1;
 
     RuntimeMethod(RuntimeType type, MethodDef definition) {
         this.type = type;
@@ -71,6 +72,24 @@ final class RuntimeMethod {
 
     boolean isStatic() {
         return (definition.flags() & Flags.METHOD_STATIC) != 0;
+    }
+
+    boolean isAbstract() {
+        return (definition.flags() & Flags.METHOD_ABSTRACT) != 0;
+    }
+
+    /** Whether the method starts or fills a vtable slot: a VIRTUAL or ABSTRACT instance method (Q97). */
+    boolean hasSlot() {
+        return !isStatic() && (definition.flags() & (Flags.METHOD_VIRTUAL | Flags.METHOD_ABSTRACT)) != 0;
+    }
+
+    /** The vtable slot that the method starts or fills, which its type sets when it links, or -1. */
+    int slot() {
+        return slot;
+    }
+
+    void setSlot(int slot) {
+        this.slot = slot;
     }
 
     int arguments() {
