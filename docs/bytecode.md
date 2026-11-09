@@ -90,10 +90,11 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 - **BC-24 [Proposed]** Canonical form. Each valid module has exactly one encoding, so the round
   trip of BC-08 is exact by construction. A module that breaks one of these rules is invalid, and
   a reader rejects it:
-  1. LEB128 values are minimal and fit their field: no value has a redundant last byte, `<i8>`
-     fits 64 bits, and every other LEB128 value fits 32 bits. Since a branch offset spans other
-     branches, a body can have more than one layout of minimal values; it takes the smallest, in
-     which each branch is as short as in any other.
+  1. LEB128 values are minimal and fit their field: no value has a redundant last byte, `<i8>` and
+     the `Constant` value of a `long` or a `ulong` fit 64 bits, the `Constant` value of a smaller
+     integer or a `char` fits its type, and every other LEB128 value fits 32 bits. Since a branch
+     offset spans other branches, a body can have more than one layout of minimal values; it takes
+     the smallest, in which each branch is as short as in any other.
   2. Padding, `reserved` and every flag that the format does not define are zero.
   3. A section is present only when it has content, and the directory lists the sections by ID
      with no ID twice (BC-02). IDENTS, LITERALS, BLOBS and TABLES are always present, CODE when a
@@ -117,9 +118,9 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
 
 ## 3. Metadata tables
 
-- **BC-11 [Proposed; names, member signatures and `TypeSpec` rows Decided, Q83, Q85, Q99]**
-  Tables, their IDs and their main columns, sorted by the key in parentheses; a table without a key
-  keeps its rows in runs by owner (§3.1):
+- **BC-11 [Proposed; names, member signatures, `TypeSpec` and `Constant` rows Decided, Q83, Q85, Q98,
+  Q99]** Tables, their IDs and their main columns, sorted by the key in parentheses; a table without a
+  key keeps its rows in runs by owner (§3.1):
 
   | ID | Table | Columns |
   |---|---|---|
@@ -143,7 +144,7 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   | `12` | `Event` (owner, name) | owner, name, type, flags |
   | `13` | `Accessor` (owner) | property, event or indexer; kind `get`/`set`/`add`/`remove`; method |
   | `14` | `Annotation` (target) | target token, annotation type, value blob, retention |
-  | `15` | `Constant` (field) | field, value blob (primitives, strings, class references, read-only arrays) |
+  | `15` | `Constant` (field) | `const` field, value blob (primitives, strings, enums, class references, read-only arrays) (Q98) |
   | `16` | `Provenance` (member) | generated member, generator type (`generatedBy`, ex §6.7) |
   | `17` | `TupleNames` (owner) | signature owner, element names blob |
 
@@ -238,7 +239,7 @@ u32, in the order given:
 | `MemberRef` | `signature` | BLOBS offset of a `FIELD` or `METHOD` signature |
 | `MethodSpec` | `method` | token of a `Method` or `MemberRef` row |
 | `MethodSpec` | `instantiation` | BLOBS offset of an `INSTANTIATION` signature |
-| `Constant` | `field` | `Field` row |
+| `Constant` | `field` | `Field` row of a `const` field (Q98) |
 | `Constant` | `value` | BLOBS offset of the value |
 
 - IDENTS offset 0 holds the empty identifier. A type in the global namespace and a nested type
@@ -272,11 +273,13 @@ u32, in the order given:
   flag, and a static initializer also has `STATIC`. Both words are reserved in source, so no
   method name can clash with them.
 - A method has a body unless it is `ABSTRACT`, `NATIVE` or `EXTERN`.
-- A `Constant` value blob holds the value in the encoding of the field's type: `BOOLEAN` as one
-  byte, 0 or 1; signed integers as SLEB128; unsigned integers and `CHAR` as ULEB128; `F32` and
-  `F64` as their IEEE 754 bit patterns; `reflect.core.String` as a ULEB128 offset into LITERALS;
-  an enum as its backing type. Class references and read-only arrays come with the stage that
-  first needs them.
+- A field has a `Constant` row exactly when it is `CONST` (Q98). The value blob holds the value in the
+  encoding of the field's type: `BOOLEAN` as one byte, 0 or 1; signed integers as SLEB128; unsigned
+  integers and `CHAR` as ULEB128; `F32` and `F64` as their IEEE 754 bit patterns;
+  `reflect.core.String` as a ULEB128 offset into LITERALS; an enum as its backing type. An integer
+  or a `char` lies in the range of its type. Until v0.0.7 a `Constant` holds a primitive or a
+  `reflect.core.String`, since a reader does not know the backing type of an enum of another module;
+  class references and read-only arrays come with the stage that first needs them.
 
 Flags and kinds of the columns follow. A flag that the table does not list is zero (BC-20).
 `TypeDef`, `Field` and `Method` flags hold at most one visibility flag; with none, the member is
@@ -301,7 +304,7 @@ package-private (MOD-08).
 | `TypeDef` flags | `40` | `UNSEALED` | `unsealed` |
 | `Field` flags | `08` | `STATIC` | `static` |
 | `Field` flags | `10` | `FINAL` | `final` (BC-23) |
-| `Field` flags | `20` | `CONST` | `const`, which is also `STATIC` |
+| `Field` flags | `20` | `CONST` | `const`, which is also `STATIC` and has a `Constant` row (Q98) |
 | `Field` flags | `40` | `BACKING` | backing field of a property (MEM-13) |
 | `Method` flags | `0008` | `STATIC` | `static` |
 | `Method` flags | `0010` | `VIRTUAL` | `virtual` |

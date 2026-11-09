@@ -16,7 +16,7 @@ import reflect.stage0.lib.Nullable;
 public final class ModuleReader {
     private static final int[] SUPPORTED = {TableId.MODULE, TableId.MODULE_REF, TableId.EXPORT, TableId.TYPE_DEF,
         TableId.TYPE_REF, TableId.TYPE_SPEC, TableId.FIELD, TableId.METHOD, TableId.PARAM, TableId.INTERFACE_IMPL,
-        TableId.OVERRIDE, TableId.MEMBER_REF};
+        TableId.OVERRIDE, TableId.MEMBER_REF, TableId.CONSTANT};
     private static final int[] TYPE_TOKENS = {TableId.TYPE_DEF, TableId.TYPE_REF, TableId.TYPE_SPEC};
     private static final int[] SCOPE_TOKENS = {TableId.MODULE_REF, TableId.TYPE_REF};
     private static final int[] PARENT_TOKENS = {TableId.TYPE_REF, TableId.TYPE_SPEC};
@@ -82,6 +82,7 @@ public final class ModuleReader {
         }
         // Override rows hold no heap reference, so they are read after the MemberRef rows that they name.
         readOverrides(methodRuns, methods, module.memberRefs());
+        readConstants(fields, fieldRuns);
         Map<Integer, Code.Decoded> bodies = readBodies(methods, token -> rowOf(token, fields, methods,
                 module.memberRefs()));
         for (int row = 1; row <= typeDefRows.size(); row++) {
@@ -473,13 +474,47 @@ public final class ModuleReader {
         }
     }
 
+    // Gives each field the value of its Constant row; the rows are sorted by field, and a field has one exactly
+    // when it is const (Q98). A string's value holds a LITERALS offset, and the rows come before the bodies, so
+    // their literals do too (BC-24).
+    private void readConstants(List<FieldDef> fields, int[] fieldRuns) throws ModuleFormatException {
+        int previous = 0;
+        for (int row = 1; row <= tables.rows(TableId.CONSTANT); row++) {
+            int field = row(TableId.CONSTANT, row, 0, TableId.FIELD, false);
+            if (field <= previous) {
+                throw new ModuleFormatException(tables.offset(TableId.CONSTANT, row, 0), field == previous
+                        ? "two Constant rows have equal keys (BC-24)" : "the Constant rows are not sorted by field (BC-24)");
+            }
+            FieldDef definition = fields.get(field - 1);
+            ByteSource source = blobSource(TableId.CONSTANT, row, 1);
+            int at = source.position();
+            definition.setConstant(Constants.decode(source, definition.type(), literals, moduleName));
+            boolean isConst = (definition.flags() & Flags.FIELD_CONST) != 0;
+            check(isConst ? at : tables.offset(TableId.CONSTANT, row, 0), Constants.problem(definition,
+                    "field " + ownerOf(fieldRuns, field) + "::" + definition.name(), moduleName));
+            previous = field;
+        }
+        for (int row = 1; row <= fields.size(); row++) {
+            FieldDef definition = fields.get(row - 1);
+            if (definition.constant() == null) {
+                check(tables.offset(TableId.FIELD, row, 0), Constants.problem(definition, "field "
+                        + ownerOf(fieldRuns, row) + "::" + definition.name(), moduleName));
+            }
+        }
+    }
+
     // The qualified name of a Method row: the type whose run of Method rows holds it, then :: and the name.
     private String methodName(int[] methodRuns, List<MethodDef> methods, int row) {
+        return ownerOf(methodRuns, row) + "::" + methods.get(row - 1).name();
+    }
+
+    // The qualified name of the type whose run of rows holds the row.
+    private String ownerOf(int[] runs, int row) {
         int type = 1;
-        while (methodRuns[type + 1] <= row) {
+        while (runs[type + 1] <= row) {
             type++;
         }
-        return typeDefs.get(type - 1).qualifiedName() + "::" + methods.get(row - 1).name();
+        return typeDefs.get(type - 1).qualifiedName();
     }
 
     // The bodies follow one another from CODE offset 0 in the order of their Method rows (BC-17).

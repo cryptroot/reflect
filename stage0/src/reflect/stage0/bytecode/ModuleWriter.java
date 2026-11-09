@@ -373,6 +373,7 @@ public final class ModuleWriter {
                     throw new ModuleFormatException(owner + " belongs to two types or appears twice");
                 }
                 check(fieldProblem(field, owner, module.name()));
+                check(Constants.problem(field, owner, module.name()));
                 check(fieldRepeats(type, i, field));
                 fields.add(field);
                 fieldRows.put(field, fields.size());
@@ -760,6 +761,22 @@ public final class ModuleWriter {
                 tables.u32(typeToken(ref.parent(), "the parent of a MemberRef"));
                 tables.u32(idents.ident(ref.name()));
                 tables.u32(blobs.blob(memberRefSignatures.getOrDefault(ref, new byte[0])));
+            }
+        }
+        // The key of BC-11 is the field, so the rows follow the Field rows of the const fields (Q98). A string's
+        // value holds its LITERALS offset, so its literal comes before those of the bodies (BC-24).
+        int constants = 0;
+        for (FieldDef field : fields) {
+            constants += field.constant() == null ? 0 : 1;
+        }
+        if (tables.begin(TableId.CONSTANT, constants)) {
+            for (int i = 0; i < fields.size(); i++) {
+                FieldDef field = fields.get(i);
+                Constant value = field.constant();
+                if (value != null) {
+                    tables.u32(i + 1);
+                    tables.u32(blobs.blob(Constants.encode(field.type(), value, literals)));
+                }
             }
         }
         // The bodies follow one another in the order of their Method rows (BC-17).
