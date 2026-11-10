@@ -1,0 +1,103 @@
+// expect-output: 3 4
+// expect-output: 0 7
+// expect-output: 5 6 1
+// expect-output: limit = 100
+.module finals 0.0.0
+.main finals.App
+.requires reflect.core
+.requires reflect.io
+
+// Only a constructor of the declaring type stores to a final instance field, on its own this, and only
+// the static initializer of the declaring type to a static final field. A class constructor runs on a
+// new object through newobj, or on its own this from a constructor of the class or of a subclass (BC-23).
+.class public finals.Point {
+    .field public final int x
+    .field public final int y
+    .field public static final int limit
+    .method static void static() {
+        ldc.i4   100
+        stsfld   int finals.Point::limit
+        ret
+    }
+    .method public void new(int x, int y) {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ldarg    0
+        ldarg    x
+        stfld    int finals.Point::x
+        ldarg    0
+        ldarg    y
+        stfld    int finals.Point::y
+        ret
+    }
+    // Another constructor of the class runs on the same this.
+    .method public void new(int y) {
+        ldarg    0
+        ldc.i4   0
+        ldarg    y
+        call     void finals.Point::new(int, int)
+        ret
+    }
+    .method public void show() {
+        ldarg    0
+        ldfld    int finals.Point::x
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        ldstr    " "
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        ldarg    0
+        ldfld    int finals.Point::y
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+}
+
+// A subclass constructor runs the base constructor on its own this, and stores to its own final.
+.class public final finals.Point3 extends finals.Point {
+    .field public final int z
+    .method public void new(int x, int y, int z) {
+        ldarg    0
+        ldarg    x
+        ldarg    y
+        call     void finals.Point::new(int, int)
+        ldarg    0
+        ldarg    z
+        stfld    int finals.Point3::z
+        ret
+    }
+}
+
+.class public final finals.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (finals.Point3 p)
+        ldc.i4   3
+        ldc.i4   4
+        newobj   void finals.Point::new(int, int)
+        callvirt void finals.Point::show()
+        call     static void reflect.io.Console::println()
+        ldc.i4   7
+        newobj   void finals.Point::new(int)
+        callvirt void finals.Point::show()
+        call     static void reflect.io.Console::println()
+        ldc.i4   5
+        ldc.i4   6
+        ldc.i4   1
+        newobj   void finals.Point3::new(int, int, int)
+        stloc    p
+        ldloc    p
+        callvirt void finals.Point::show()
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldloc    p
+        ldfld    int finals.Point3::z
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "limit = "
+        ldsfld   int finals.Point::limit
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static reflect.core.String reflect.core.String::concat(reflect.core.String, reflect.core.String)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

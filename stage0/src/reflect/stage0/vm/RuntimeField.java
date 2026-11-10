@@ -32,6 +32,10 @@ final class RuntimeField {
         return (definition.flags() & Flags.FIELD_STATIC) != 0;
     }
 
+    boolean isFinal() {
+        return (definition.flags() & Flags.FIELD_FINAL) != 0;
+    }
+
     /** The slot of the field: in the fields of an Instance, or for a static field in the statics of its owner. */
     int slot() {
         return slot;

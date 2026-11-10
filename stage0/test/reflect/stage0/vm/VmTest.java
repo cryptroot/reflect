@@ -632,6 +632,59 @@ public final class VmTest {
     }
 
     @Test
+    public static void finalFieldsTakeStoresOnlyFromTheirInitializers() throws Exception {
+        // Only a constructor of the declaring type stores to a final instance field, on its own this, and only
+        // its static initializer to a static final; a class constructor runs on a new object, or on its own this
+        // from a constructor of the class or of a subclass. VM0 checks the method when the instruction links and
+        // the object when it runs; a violation is a TypeLoadError (BC-23).
+        String a = type("m.A", "    .field public final int x\n    .field public static final int s\n"
+                + "    .method public void set() {\n        ldarg 0\n        ldc.i4 1\n        stfld int m.A::x\n"
+                + "        ret\n    }\n    .method public void new(m.A other) {\n        ldarg 0\n"
+                + "        call void reflect.core.Object::new()\n        ldarg other\n        ldc.i4 1\n"
+                + "        stfld int m.A::x\n        ret\n    }\n    .method public void again(m.A other) {\n"
+                + "        ldarg other\n        call void m.A::new()\n        ret\n    }\n"
+                + "    .method public void new(int n) {\n        ldarg 0\n        newobj void m.A::new()\n"
+                + "        call void m.A::new()\n        ret\n    }\n"
+                + "    .method public void new(long n) {\n        ldarg 0\n        call void reflect.core.Object::new()\n"
+                + "        ldc.i4 1\n        stsfld int m.A::s\n        ret\n    }\n");
+        String b = type("m.B extends m.A", "    .method public void new(int n) {\n        ldarg 0\n"
+                + "        call void m.A::new()\n        ldarg 0\n        ldc.i4 1\n        stfld int m.A::x\n        ret\n"
+                + "    }\n");
+        String outside = TYPE_LOAD_ERROR + ": %s stores to a final field outside the %s of m.A (BC-23)\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", outside.formatted("stfld int m.A::x", "constructors")),
+                run(program("        newobj void m.A::new()\n        callvirt void m.A::set()\n        ret\n", "") + a));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", outside.formatted("stfld int m.A::x", "constructors")),
+                run(program("        ldc.i4 0\n        newobj void m.B::new(int)\n        pop\n        ret\n", "") + a + b));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", outside.formatted("stsfld int m.A::s", "static initializer")),
+                run(program("        ldc.i4 1\n        stsfld int m.A::s\n        ret\n", "") + a));
+        // A constructor is no static initializer.
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", outside.formatted("stsfld int m.A::s", "static initializer")),
+                run(program("        ldc.i8 0\n        newobj void m.A::new(long)\n        pop\n        ret\n", "") + a));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": stfld int m.A::x stores to a final field of an"
+                + " object other than the constructor's this (BC-23)\n"), run(program("        newobj void m.A::new()\n"
+                + "        newobj void m.A::new(m.A)\n        pop\n        ret\n", "") + a));
+        // A constructor never runs again on a finished object.
+        String runs = TYPE_LOAD_ERROR + ": %s void m.A::new() runs a constructor ";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", runs.formatted("call") + "outside the constructors of m.A and its"
+                + " subclasses (BC-23)\n"), run(program("        newobj void m.A::new()\n        call void m.A::new()\n"
+                + "        ret\n", "") + a));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", runs.formatted("callvirt") + "outside the constructors of m.A and its"
+                + " subclasses (BC-23)\n"), run(program("        newobj void m.A::new()\n        callvirt void m.A::new()\n"
+                + "        ret\n", "") + a));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", runs.formatted("call") + "outside the constructors of m.A and its"
+                + " subclasses (BC-23)\n"), run(program("        newobj void m.A::new()\n        dup\n"
+                + "        callvirt void m.A::again(m.A)\n        ret\n", "") + a));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", runs.formatted("call") + "on an object other than the constructor's"
+                + " this (BC-23)\n"), run(program("        ldc.i4 0\n        newobj void m.A::new(int)\n        pop\n"
+                + "        ret\n", "") + a));
+        // A constructor of an unrelated class is no constructor of the class or of a base.
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": call void m.A::new() runs a constructor outside"
+                + " the constructors of m.A and its subclasses (BC-23)\n"), run(program("        newobj void m.C::new()\n"
+                + "        pop\n        ret\n", "") + a + ".class public m.C {\n    .method public void new() {\n"
+                + "        ldarg 0\n        call void m.A::new()\n        ret\n    }\n}\n"));
+    }
+
+    @Test
     public static void aClassWithoutABaseNeedsReflectCoreObject() throws Exception {
         // A class with base 0 extends reflect.core.Object (Q96), which loads before it; here no module holds it.
         String main = ".module m 0.0.0\n.main m.App\n.requires static reflect.core\n\n.class public final m.App {\n"

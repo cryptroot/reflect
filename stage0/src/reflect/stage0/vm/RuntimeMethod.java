@@ -79,6 +79,11 @@ final class RuntimeMethod {
         return (definition.flags() & Flags.METHOD_ABSTRACT) != 0;
     }
 
+    /** Whether the method is a constructor or, when static, a static initializer (§3.1). */
+    boolean isConstructor() {
+        return (definition.flags() & Flags.METHOD_CONSTRUCTOR) != 0;
+    }
+
     /** Whether the method starts or fills a vtable slot: a VIRTUAL or ABSTRACT instance method (Q97). */
     boolean hasSlot() {
         return !isStatic() && (definition.flags() & (Flags.METHOD_VIRTUAL | Flags.METHOD_ABSTRACT)) != 0;

@@ -69,6 +69,8 @@ final class Interpreter {
         Object[] links = method.links();
         Object[] locals = method.zeros().clone();
         Object[] stack = new Object[method.maxStack()];
+        // The object that a constructor runs on, which starg cannot change (BC-23).
+        @Nullable Object self = arguments.length > 0 ? arguments[0] : null;
         int sp = 0;
         int pc = 0;
         try {
@@ -392,7 +394,8 @@ final class Interpreter {
                     }
                     case Opcode.CALL -> {
                         if (links[pc] == null) {
-                            links[pc] = vm.method(method.type().module(), ((Instruction.Method) instruction).method());
+                            links[pc] = chained(method, vm.method(method.type().module(),
+                                    ((Instruction.Method) instruction).method()), instruction);
                         }
                         RuntimeMethod callee = (RuntimeMethod) links[pc];
                         sp -= callee.arguments();
@@ -403,6 +406,7 @@ final class Interpreter {
                         } else {
                             // A call of an instance method checks its receiver, as the JVM's invokespecial does (Q100).
                             receiver(vm, values[0], callee.type(), "call " + callee.signature(), method, pc);
+                            onSelf(callee, values[0], self, instruction);
                         }
                         Object result = invoke(vm, callee, values);
                         if (callee.returnsValue()) {
@@ -413,12 +417,14 @@ final class Interpreter {
                     // receiver's run-time type, or the method that it names when that has no slot (BC-06, VM-04).
                     case Opcode.CALLVIRT -> {
                         if (links[pc] == null) {
-                            links[pc] = virtual(vm, method, ((Instruction.Method) instruction).method());
+                            links[pc] = chained(method, virtual(vm, method, ((Instruction.Method) instruction).method()),
+                                    instruction);
                         }
                         RuntimeMethod target = (RuntimeMethod) links[pc];
                         sp -= target.arguments();
                         Object[] values = Arrays.copyOfRange(stack, sp, sp + target.arguments());
                         receiver(vm, values[0], target.type(), "callvirt " + target.signature(), method, pc);
+                        onSelf(target, values[0], self, instruction);
                         Object result = invoke(vm, dispatch(vm, target, values[0]), values);
                         if (target.returnsValue()) {
                             stack[sp++] = result;
@@ -451,6 +457,11 @@ final class Interpreter {
                         Object value = stack[--sp];
                         Instance object = (Instance) receiver(vm, stack[--sp], field.owner(), "stfld " + field.name(),
                                 method, pc);
+                        // A final field takes a store only on the constructor's this (BC-23).
+                        if (field.isFinal() && object != self) {
+                            throw new Fault(Fault.TYPE_LOAD_ERROR, "stfld " + field.name() + " stores to a final field"
+                                    + " of an object other than the constructor's this (BC-23)");
+                        }
                         object.fields()[field.slot()] = field.stored(value);
                     }
                     // An access to a static field is an active use of its class (VM-07).
@@ -603,6 +614,15 @@ final class Interpreter {
                 throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " names the const field "
                         + field.name());
             }
+            // Only a constructor of the declaring type stores to a final instance field, and only its static
+            // initializer to a static final one (BC-23).
+            boolean store = instruction.opcode() == Opcode.STFLD || instruction.opcode() == Opcode.STSFLD;
+            if (store && field.isFinal() && (method.type() != field.owner() || !method.isConstructor()
+                    || method.isStatic() != statics)) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " " + field.name()
+                        + " stores to a final field outside the " + (statics ? "static initializer" : "constructors")
+                        + " of " + field.owner().name() + " (BC-23)");
+            }
             links[pc] = field;
         }
         return (RuntimeField) links[pc];
@@ -627,6 +647,26 @@ final class Interpreter {
             case SigCode.F64 -> Double.longBitsToDouble(bits);
             default -> (int) bits;
         };
+    }
+
+    // A call of a class constructor, linked at its first execution (VM-16), stands only in a constructor of the
+    // class or of a subclass, which runs it on its own this; newobj runs one on a new object (BC-23).
+    private static RuntimeMethod chained(RuntimeMethod method, RuntimeMethod callee, Instruction instruction) {
+        if (callee.isConstructor() && !callee.isStatic() && (!method.isConstructor() || method.isStatic()
+                || !method.type().isSubtypeOf(callee.type()))) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " " + callee.signature()
+                    + " runs a constructor outside the constructors of " + callee.type().name() + " and its subclasses"
+                    + " (BC-23)");
+        }
+        return callee;
+    }
+
+    // The receiver of a constructor that a call runs is the caller's own this (BC-23).
+    private static void onSelf(RuntimeMethod callee, Object receiver, @Nullable Object self, Instruction instruction) {
+        if (callee.isConstructor() && receiver != self) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " " + callee.signature()
+                    + " runs a constructor on an object other than the constructor's this (BC-23)");
+        }
     }
 
     // The method that a callvirt names, linked at its first execution (VM-16): an instance method, or else a
