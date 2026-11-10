@@ -320,7 +320,7 @@ run by `all`.
 | v0.0.4 | disassembler and round trip | the round trip holds for every test file |
 | v0.0.5 | VM0 loader and core interpreter | `run/core/` passes; the roadmap's exit test passes |
 | v0.0.6 | VM0 objects and dispatch | `run/objects/` passes |
-| v0.0.7 | VM0 arrays, strings and boxing | `run/arrays/` and `run/strings/` pass |
+| v0.0.7 | VM0 arrays, strings and boxing | `run/arrays/`, `run/boxes/`, `run/enums/` and `run/strings/` pass |
 | v0.0.8 | VM0 exceptions | `run/exceptions/` passes |
 | v0.0.9 | VM0 reified types and generics | `run/generics/` and the integration test pass; §8 |
 
@@ -738,34 +738,79 @@ boxing.
 
 **Design.**
 
-- An array is a Java array together with its run-time array type, which holds the element type
-  and its nullability (VM-02, NUL-01). Array types are `TypeSpec` rows with `ARRAY` signatures
-  (BC-03).
+- An array is a Java array of the storage kind of its elements (BC-04): `byte[]` for `boolean`,
+  `byte` and `ubyte`, `short[]` for `short`, `ushort` and `char`, `int[]`, `long[]`, `float[]`
+  and `double[]` for the other primitives, and `Object[]` for references; an enum takes the kind
+  of its backing type. With it goes its run-time array type, which holds the element type and its
+  nullability (VM-02, NUL-01). Array types are `TypeSpec` rows with `ARRAY` signatures (BC-03).
+  VM0 makes one run-time type per array type, by its element type and that type's nullability, so
+  `m.Dog[]` that two modules name is one type, and each extends `reflect.core.Array` (NUL-07),
+  which the stub declares and VM0 needs as it needs `reflect.core.Object` (Q96, Q106).
+- `newarr` names the element type, as CIL's `newarr` and the JVM's `anewarray` do, and gives each
+  element its zero value. A negative length throws `NegativeArraySizeException`, which EXC-05
+  gains, as the JVM throws it; until v0.0.8 it is a fault (Q106). An `ldelem.k` or `stelem.k` of
+  another storage kind is code that a verifier would reject, which stops VM0 (Q101), and a load
+  widens its element by its suffix. Arrays of structs, of nullable value types, of instantiations
+  and of type parameters wait for their stages.
 - Arrays are invariant (NUL-07): a reference `stelem` checks only the index
   (`IndexOutOfBoundsException`), and `castclass` and `instanceof` of an array type compare the
   exact array type, nullability included.
-- `box` and `unbox` work for primitives and enums; an enum value is its backing integer on the
-  stack (DAT-05). Boxes have no identity (DAT-09): `ceq.ref` on two boxes compares their classes
-  and bit patterns, and `unbox` copies the value out.
-- A `Constant` of an enum gets an encoding that the reader can decode without the enum's module
-  ([sketchpad.md](sketchpad.md) A.2 item 23, Q98).
-- String operations are natives of the stub `reflect.core`. The set grows with the tests that
-  need it; v0.1 fixes it with the stdlib sources.
-- `main` receives its arguments as a `String[]`.
+- An enum value is its backing integer on the stack (DAT-05), and in fields, locals and array
+  elements, which keep the low 8 or 16 bits of a small backing type, as fields do (Q104, Q107).
+- `box` and `unbox` name a primitive, its struct or an enum; another type is a `TypeLoadError`
+  when they link, and other structs wait for v0.4 (Q107). A box holds the run-time type of its
+  value type and the value. A primitive's type is its struct (TYP-03), which the stub declares
+  from `Boolean` to `Float64` and VM0 needs as it needs `reflect.core.Object`, so `box int` and
+  `box [reflect.core]reflect.core.Int32` give one type. A box of a small type keeps the low 8 or
+  16 bits of the `i32`, and `unbox` widens them by its type (Q104). Boxes have no identity
+  (DAT-09): `ceq.ref` on two boxes compares their classes and bit patterns, and `unbox` copies the
+  value out. `unbox` throws `NullPointerException` for null and `ClassCastException` for any
+  reference but a box of exactly its type, so an enum and its backing type are two types (TYP-03).
+- A box is an instance of `reflect.core.Object`, of the interfaces that its value type implements
+  (DAT-01), and of its value type: `instanceof int` is true for a box of `int`. `castclass` of a
+  value type is a `TypeLoadError` when it links, since `unbox` is the cast to a value type
+  (TYP-03). A call on a box runs the method of `reflect.core.Object`, since a value type has none
+  of its own before v0.4, so `toString()` gives the qualified name of the value type, such as
+  `reflect.core.Int32` (Q103); an interface call on a box stops VM0 until v0.4 (Q108).
+- The `Constant` of an enum starts with the signature code of its backing type, `I8` to `U64`,
+  then holds the value in that type's encoding, as CIL's `Constant` table states the underlying
+  type of an enum constant ([sketchpad.md](sketchpad.md) A.2 item 23, Q98, Q109). A reader decodes
+  it alone and checks that the value fits the code, and for an enum of the module that the code is
+  its backing type. VM0 checks the code against an enum of another module when `ldconst` links
+  (`TypeLoadError`), and `ldconst` pushes the backing integer. The text states the backing type
+  before the value, `= int 1`, for every enum, the module's own too, and `rfld` spells it by its
+  struct, `= reflect.core.Int32 1` (Q52).
+- String operations are natives of the stub `reflect.core` (Q110): `int get_length()` for the
+  property `length` (NUM-05, MEM-13); `char charAt(int)`, which throws `IndexOutOfBoundsException`
+  outside the string; `equals(Object?)`, which compares code units and overrides a new
+  `Object.equals(Object?)` written as `ceq.ref` (OPR-04, DAT-09); `int compareTo(String)` with
+  Java's result, the difference of the first two code units that differ, or else of the lengths;
+  and `valueOf(char)` and `valueOf(boolean)`, which gives `true` or `false`. `==` on strings
+  waits for the lowering of operators in v0.1. The set grows with the tests that need it; v0.1
+  fixes it with the stdlib sources.
+- `main` receives its arguments as a `reflect.core.String[]`. A file of `run/` gives them in one
+  `// args:` line, whose words, separated by spaces, are the arguments (TST-01, Q111).
 
 **Commits.**
 
-1. `newarr`, `ldlen`, and `ldelem` and `stelem` for primitive kinds.
+1. `newarr`, `ldlen`, and `ldelem` and `stelem` for primitive kinds, with run-time array types
+   that extend `reflect.core.Array` (Q106).
 2. Reference arrays, and exact casts and type tests of array types (NUL-07).
-3. Index checks.
-4. `box` and `unbox`, and `ceq.ref` on boxes, with tests for two boxes of one value, an enum
+3. Index checks, and `NegativeArraySizeException` for a negative length (Q106).
+4. Enum values in fields, locals and array elements (DAT-05, Q107).
+5. The `Constant` of an enum in the writer and the reader (Q109).
+6. The `Constant` of an enum in `rfla` and `rfld` (Q109).
+7. `ldconst` of an enum on VM0 (Q109).
+8. `box` and `unbox`, and `ceq.ref` on boxes, with tests for two boxes of one value, an enum
    and an `int` with the same backing value, `0.0` and `-0.0`, and NaN: two NaN results of
-   arithmetic give equal boxes, and a NaN with a payload gives another (DAT-09, MA-01).
-5. String natives: length, characters, comparison, and conversion of `char` and `boolean` to
-   strings. `concat` and the conversion of numbers arrive in v0.0.5 (Q87).
-6. `main` arguments and the `args` directive.
+   arithmetic give equal boxes, and a NaN with a payload gives another (DAT-09, MA-01, Q107).
+9. Type tests and calls on boxes (Q108).
+10. String natives: length, characters, comparison, and conversion of `char` and `boolean` to
+    strings (Q110). `concat` and the conversion of numbers arrive in v0.0.5 (Q87).
+11. `main` arguments and the `args` directive (Q111).
 
-**Exit check.** The programs in `run/arrays/` and `run/strings/` pass. Tag `v0.0.7`.
+**Exit check.** The programs in `run/arrays/`, `run/boxes/`, `run/enums/` and `run/strings/`
+pass. Tag `v0.0.7`.
 
 ### 7.9 v0.0.8: VM0 exceptions
 

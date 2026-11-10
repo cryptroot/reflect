@@ -13,7 +13,7 @@ log is [../sketchpad.md](../sketchpad.md).
 
 | Stage | Content | Status |
 |---|---|---|
-| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23; Q87 to Q92 asked and answered 2026-10-23; Q93 and Q94 asked and answered 2026-10-23; Q95 to Q105 asked and answered 2026-10-27 |
+| plan | README and this sketchpad | written 2026-10-19; Q45 to Q56 answered 2026-10-19; Q57 to Q62 asked 2026-10-19 and answered 2026-10-20; Q63 to Q71 asked and answered 2026-10-20; Q72 to Q74 asked and answered 2026-10-21; Q75 to Q79 asked and answered 2026-10-22; Q80 to Q86 asked and answered 2026-10-23; Q87 to Q92 asked and answered 2026-10-23; Q93 and Q94 asked and answered 2026-10-23; Q95 to Q105 asked and answered 2026-10-27; Q106 to Q111 asked and answered 2026-11-10 |
 | v0.0.0 | Docker environment, skeleton, Lean in Docker | done; Linux, PowerShell 7 and native Windows checks pass (D.3); tag `v0.0.0` on `7039022`, 2026-10-20 |
 | v0.0.1 | encoding tables, constants, document test | done; `all` passes on Windows and Linux (D.4); tag `v0.0.1`, 2026-10-20 |
 | v0.0.2 | model, writer, reader | done; `all` passes with 132 tests, 0 failures; tag `v0.0.2`, 2026-10-22 |
@@ -63,6 +63,10 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [bytecode.md](../bytecode.md) BC-08, §8.1, BC-25 | `.typespec`, and the text of `.override`, of constants and of `TypeSpec` tokens (Q97 to Q99) | done in v0.0.6 |
 | [type-system.md](../type-system.md) DAT-06, EXC-05, MEM-06, MEM-07 | `permits` at load (Q95), `AbstractMemberError` for instance members (Q101), errors in static initializers (Q102), and the default text of an object (Q103) | done in v0.0.6 |
 | [vm.md](../vm.md) VM-04, VM-07, VM-13 | interface calls and defaults (Q97), errors in static initializers (Q102), and the load checks (Q95, Q96) | done in v0.0.6 |
+| [bytecode.md](../bytecode.md) BC-04, BC-14 | `newarr`, the storage of elements, index checks and negative lengths (Q106), enum values and boxes (Q107), and type tests of value types (Q108) | in v0.0.7 |
+| [bytecode.md](../bytecode.md) §3.1, BC-08, §8.1, BC-25 | the `Constant` of an enum and its text (Q109) | in v0.0.7 |
+| [type-system.md](../type-system.md) EXC-05, TYP-03, MEM-07, NUM-05 | `NegativeArraySizeException` (Q106), unboxing to the exact type (Q107), `Object.equals` and the comparison of strings (Q110) | in v0.0.7 |
+| [testing.md](../testing.md) TST-01 | the `args` directive (Q111) | in v0.0.7 |
 
 ### A.2 Inconsistencies found while planning
 
@@ -134,7 +138,8 @@ These follow from the plan. Each is made in the stage named, or when its questio
 23. A `Constant` of an enum holds its value "as its backing type" (§3.1), but the reader does not
     know the backing type of an enum of another module, so it can neither decode such a value nor
     check that it is minimal. Settle in v0.0.7, with enums. Found 2026-10-27 while v0.0.6 was
-    planned (Q98).
+    planned (Q98). Settled 2026-11-10 with Q109: the blob starts with the code of the backing
+    type, which the text states before the value.
 24. EXC-05 raises `AbstractMemberError` only for an unimplemented static abstract, but VM-04 puts
     the stub that throws it in abstract instance slots too. Found 2026-10-27 while v0.0.6 was
     planned. Settled 2026-10-27 with Q101.
@@ -150,6 +155,13 @@ These follow from the plan. Each is made in the stage named, or when its questio
     reports `reflect.core.StackOverflowError`. The JVM throws `ClassCircularityError`. Settle before
     v0.1, where `rflc0` writes modules: a rule of BC-11 for bases of the module, and a
     `TypeLoadError` for a cycle through another module. Found 2026-11-10 in v0.0.6.
+28. EXC-05 lists no exception for a negative array length, which `newarr` must throw (README
+    §7.8). Found 2026-11-10 while v0.0.7 was planned. Settled 2026-11-10 with Q106:
+    `NegativeArraySizeException`.
+29. `callvirt` of a method of `reflect.core.Object` can reach a box, but a value type is no subtype
+    of `Object` (TYP-02) and has no vtable, and no rule says which method such a call runs. Found
+    2026-11-10 while v0.0.7 was planned. Settled 2026-11-10 with Q108 until v0.4: the method of
+    `Object` runs, and structs settle how a value type overrides it.
 
 ## B. Questions and answers
 
@@ -826,6 +838,98 @@ test could check it. *Recommendation:* v0.0.9 commit 5 adds `R` to the frames wi
 the type context of static code; v0.0.6 drops the item, and VM-20 does not change. Alternative:
 v0.0.6 records `R`, and a unit test reads it through a method that exists only for tests.
 **Answer:** 2026-10-27: Accepted as recommended.
+
+### B.12 Batch 16: the v0.0.7 arrays, strings and boxes (asked and answered 2026-11-10)
+
+Found while v0.0.7 was planned. Q106 settles A.2 item 28, Q108 item 29 and Q109 item 23.
+
+**Q106 (NUL-07, VM-02, VM-03, BC-04, EXC-05; A.2 item 28). Run-time array types.** README §7.8 makes
+an array a Java array with its run-time array type, but no rule said what `newarr` names, what an
+array type extends on VM0, how VM0 keeps the elements, or what a negative length throws: EXC-05 has no
+exception for it. *Recommendation:* `newarr` names the element type, as CIL's `newarr` and the JVM's
+`anewarray` do, and as the tests of v0.0.3 write it (`newarr int`), and gives each element its zero
+value. VM0 makes one run-time type per array type, by its element type and that type's nullability
+(NUL-01), so `m.Dog[]` that two modules name is one type; each extends `reflect.core.Array` (NUL-07,
+TYP-02), which the stub declares as an abstract class and VM0 needs as it needs `reflect.core.Object`
+(Q96), and its `toString()` gives the spelling of GEN-12, such as `reflect.core.Int32[]` (Q103). The
+elements sit in a Java array of their storage kind (BC-04): `byte[]` for `boolean`, `byte` and
+`ubyte`, `short[]` for `short`, `ushort` and `char`, then `int[]`, `long[]`, `float[]`, `double[]`,
+and `Object[]` for references; an enum takes the kind of its backing type. An `ldelem.k` or
+`stelem.k` of another kind is code that a verifier would reject, which stops VM0 (Q101), and a load
+widens by its suffix. A negative length throws `NegativeArraySizeException`, a new unchecked
+exception of EXC-05, as the JVM's `newarray` throws it; until v0.0.8 a fault. Arrays of structs, of
+nullable value types, of instantiations and of type parameters wait for their stages. Alternatives:
+`IndexOutOfBoundsException` for a negative length, which EXC-05 already lists; or
+`IllegalArgumentException`, as Java's `ArrayList(int)` throws. **Answer:** 2026-11-10: Accepted as
+recommended.
+
+**Q107 (DAT-09, TYP-03, NUM-01, Q104). Boxes.** README §7.8 runs `box` and `unbox` for primitives and
+enums, but no rule said which run-time type the box of a primitive has on VM0, what a box of a small
+type holds, or what `unbox` accepts. *Recommendation:* a box holds the run-time type of its value type
+and the value. The type of a primitive is its struct of `reflect.core` (NUM-01), as
+`((Object) 42).getClass() == int.class` asks (TYP-03): the stub declares the twelve structs from
+`Boolean` to `Float64`, and VM0 needs the one of each box, as it needs `reflect.core.Object` (Q96);
+`box int` and `box [reflect.core]reflect.core.Int32` give one type. `box` and `unbox` name a value
+type: a primitive, its struct, or an enum; another type is a `TypeLoadError` when they link (VM-16),
+and other structs wait for v0.4. A box of a `boolean`, `byte`, `ubyte`, `short`, `ushort` or `char`,
+or of an enum with such a backing type, keeps the low 8 or 16 bits of the `i32`, as a field does
+(Q104), and `unbox` widens them by the type; fields, locals and array elements of an enum hold its
+backing integer, with the same bits. `unbox` throws `NullPointerException` for null and
+`ClassCastException` for a reference that is not a box of exactly its type, so an enum and its
+backing type are two types (TYP-03), as `ceq.ref` keeps them apart (DAT-09). `ceq.ref` gives 1 for
+two boxes of one run-time type whose values have the same bits. Alternatives: `unbox` of an enum
+also accepts a box of its backing type and the reverse, as the CLR does; or a box keeps the whole
+`i32`, so the `byte` boxes of 300 and 44 differ. **Answer:** 2026-11-10: Accepted as recommended.
+
+**Q108 (TYP-02, TYP-03, Q103, VM-04; A.2 item 29). Type tests and calls on boxes.** A box is a
+reference, but a value type is no subtype of `reflect.core.Object` (TYP-02), and VM0 runs no method of
+a value type before structs arrive (v0.4). *Recommendation:* a box is an instance of
+`reflect.core.Object`, of the interfaces that its value type implements (DAT-01), and of its value
+type: `instanceof int` is true for a box of `int`. `castclass` of a value type is a `TypeLoadError`
+when it links, since `unbox` is the cast to a value type (TYP-03). A call on a box runs the method of
+`reflect.core.Object`, since the value type has none of its own before v0.4, so `toString()` gives the
+qualified name of the value type, such as `reflect.core.Int32` (Q103); an interface call on a box
+stops VM0 until v0.4. Alternatives: every call on a box stops VM0 until v0.4; or `toString()` of the
+box of a primitive gives the text of its value, `42`, as Java's and .NET's do, by a native of VM0
+until the stdlib gives the structs their `toString()` (v0.1). **Answer:** 2026-11-10: Accepted as
+recommended.
+
+**Q109 (BC-11, BC-24, BC-25, DAT-05, Q98; A.2 item 23). The Constant of an enum.** §3.1 keeps the
+value of an enum's `Constant` "as its backing type", but a reader does not know the backing type of
+an enum of another module, so it can neither decode the value nor check that it is minimal.
+*Recommendation:* the blob starts with the signature code of the backing type, `I8` to `U64`, and
+then holds the value in that type's encoding, as CIL's `Constant` table states the underlying type of
+an enum constant. A reader decodes it alone and checks that the value fits the code, and for an enum
+of the module that the code is its backing type; VM0 checks the code against the backing type of an
+enum of another module when `ldconst` links (`TypeLoadError`), and `ldconst` pushes the backing
+integer. The text states the backing type before the value, `= int 1`, for every enum, the module's
+own too, as a signature states `valuetype` (Q86); `rfld` spells it by its struct,
+`= reflect.core.Int32 1` (Q52), as it spells the backing type of an enum. Alternatives: SLEB128 of the
+value's 64 bits without a code, which `rfld` writes in signed decimal where it does not know the
+backing type, with the range checked by VM0 when `ldconst` links; or no `Constant` of an enum of
+another module, so such a field is `static final`. **Answer:** 2026-11-10: Accepted as recommended.
+
+**Q110 (NUM-05, MEM-07, MEM-13, OPR-04; README §7.8). The string natives of v0.0.7.** README §7.8
+adds natives for the length, the characters and the comparison of strings, and for the text of
+`char` and `boolean`, but no rule named the members. *Recommendation:* in the stub `reflect.core`,
+`int get_length()` for the property `length` (NUM-05, MEM-13); `char charAt(int)`, which throws
+`IndexOutOfBoundsException` outside the string, a fault until v0.0.8; `Object` gains
+`public virtual boolean equals(Object? other)`, written as `ceq.ref` (OPR-04, DAT-09), which `String`
+overrides with a native that compares the code units of two strings; `int compareTo(String)` with
+Java's result, the difference of the first two code units that differ, or else of the lengths; and
+`static String valueOf(char)`, the string of the code unit, and `valueOf(boolean)`, `true` or
+`false`. `==` on strings waits for the lowering of operators (v0.1), and other members join with the
+tests that need them. Alternatives: `compareTo` gives -1, 0 or 1; or a non-virtual `equals(String)`
+without `Object.equals` until v0.1 brings the stdlib. **Answer:** 2026-11-10: Accepted as
+recommended.
+
+**Q111 (TST-01; README §6.3, §7.8). The `args` directive.** TST-01 lists `// args: a b c`, but no
+rule said how its value splits or where it stands. *Recommendation:* only a file in `run/` holds
+`// args:`, at most once; the words of its value, separated by spaces, are the arguments of `main`,
+so an argument is not empty and holds no space, and without the directive `main` gets none. `test`
+and `vm0 run` pass them as a `reflect.core.String[]`. Alternative: several `// args:` lines, one
+argument each, so an argument may hold spaces or be empty. **Answer:** 2026-11-10: Accepted as
+recommended.
 
 <!-- questions:end -->
 
