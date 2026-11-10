@@ -134,6 +134,12 @@ public final class TypeTableTest {
                 "type A has the undefined flags 0x80 (BC-20)");
         unwritable(withTypes(new TypeDef("a", "A", Flags.KIND_CLASS, Flags.PUBLIC | Flags.PRIVATE, 0, null)),
                 "type A has more than one visibility flag (BC-11)");
+        String sealing = "type A has more than one of FINAL, SEALED and UNSEALED (Q95)";
+        unwritable(withTypes(new TypeDef("a", "A", Flags.KIND_CLASS, Flags.TYPE_FINAL | Flags.TYPE_SEALED, 0, null)), sealing);
+        unwritable(withTypes(new TypeDef("a", "A", Flags.KIND_CLASS, Flags.TYPE_SEALED | Flags.TYPE_UNSEALED, 0, null)),
+                sealing);
+        unwritable(withTypes(new TypeDef("a", "A", Flags.KIND_CLASS, Flags.TYPE_FINAL | Flags.TYPE_UNSEALED, 0, null)),
+                sealing);
         unwritable(withTypes(new TypeDef("a", "E", Flags.KIND_ENUM, 0, SigCode.CHAR, null)),
                 "enum E has the backing type code 7; the backing type is one of I8, U8, I16, U16, I32, U32, I64 and U64 (DAT-05)");
         unwritable(withTypes(new TypeDef("a", "E", Flags.KIND_ENUM, 0, 0, null)),
@@ -175,6 +181,10 @@ public final class TypeTableTest {
         reject(file, def, 1, 2, 8, "TypeDef kind 0x8 is not defined (BC-20)");
         reject(file, def, 1, 3, 0x80, "TypeDef flags 0x80 are not defined (BC-20)");
         reject(file, def, 1, 3, 0x03, "the flags hold more than one visibility flag (BC-11)");
+        String sealing = "the flags hold more than one of FINAL, SEALED and UNSEALED (Q95)";
+        reject(file, def, 1, 3, Flags.TYPE_FINAL | Flags.TYPE_SEALED, sealing);
+        reject(file, def, 1, 3, Flags.TYPE_SEALED | Flags.TYPE_UNSEALED, sealing);
+        reject(file, def, 1, 3, Flags.TYPE_FINAL | Flags.TYPE_UNSEALED, sealing);
         reject(file, def, 3, 5, SigCode.CHAR, "the backing type of an enum is one of I8, U8, I16, U16, I32, U32, I64"
                 + " and U64, not 0x7 (DAT-05)");
         reject(file, def, 1, 5, SigCode.I32, "TypeDef backing is 0x8, but only an enum has a backing type (BC-11)");

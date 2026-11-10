@@ -212,6 +212,11 @@ public final class ModuleReader {
             }
             int flags = flags(TableId.TYPE_DEF, row, 3, ModuleWriter.TYPE_FLAGS, "TypeDef");
             visibility(TableId.TYPE_DEF, row, 3, flags);
+            int sealing = flags & ModuleWriter.SEALING;
+            if ((sealing & (sealing - 1)) != 0) {
+                throw new ModuleFormatException(tables.offset(TableId.TYPE_DEF, row, 3), "the flags hold more than one of"
+                        + " FINAL, SEALED and UNSEALED (Q95)");
+            }
             int base = token(TableId.TYPE_DEF, row, 4, TYPE_TOKENS, true, "a TypeDef, TypeRef or TypeSpec row");
             int backing = value(TableId.TYPE_DEF, row, 5);
             if (kind == Flags.KIND_ENUM ? !ModuleWriter.integral(backing) : backing != 0) {

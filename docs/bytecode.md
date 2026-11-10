@@ -283,7 +283,8 @@ u32, in the order given:
 
 Flags and kinds of the columns follow. A flag that the table does not list is zero (BC-20).
 `TypeDef`, `Field` and `Method` flags hold at most one visibility flag; with none, the member is
-package-private (MOD-08).
+package-private (MOD-08). `TypeDef` flags hold at most one of `FINAL`, `SEALED` and `UNSEALED`
+(Q95).
 
 | Column | Value | Name | Meaning |
 |---|---|---|---|

@@ -383,6 +383,8 @@ public final class AssembleTypesTest {
     public static void eachClassAndFieldHasItsDiagnostics() {
         unassemblable(M + ".class public public a.A {\n}", "2:15: RFA0104: public appears twice");
         unassemblable(M + ".class public private a.A {\n}", "2:23: RFA0301: type A has more than one visibility flag (BC-11)");
+        unassemblable(M + ".class final sealed a.A {\n}",
+                "2:21: RFA0301: type A has more than one of FINAL, SEALED and UNSEALED (Q95)");
         unassemblable(M + ".class a.A {\n.class b.C {\n}\n}", "3:8: RFA0101: a nested type names only itself (BC-08)");
         unassemblable(M + ".class a.A/B {\n}",
                 "2:8: RFA0101: a nested type is declared inside the type that encloses it (BC-08)");

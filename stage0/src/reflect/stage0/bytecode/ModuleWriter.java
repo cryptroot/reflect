@@ -17,6 +17,8 @@ public final class ModuleWriter {
     static final int VISIBILITY = Flags.PUBLIC | Flags.PROTECTED | Flags.PRIVATE;
     static final int TYPE_FLAGS = VISIBILITY | Flags.TYPE_ABSTRACT | Flags.TYPE_FINAL | Flags.TYPE_SEALED
             | Flags.TYPE_UNSEALED;
+    // A TypeDef row holds at most one of these (Q95).
+    static final int SEALING = Flags.TYPE_FINAL | Flags.TYPE_SEALED | Flags.TYPE_UNSEALED;
     static final int FIELD_FLAGS = VISIBILITY | Flags.FIELD_STATIC | Flags.FIELD_FINAL | Flags.FIELD_CONST
             | Flags.FIELD_BACKING;
     static final int METHOD_FLAGS = VISIBILITY | Flags.METHOD_STATIC | Flags.METHOD_VIRTUAL | Flags.METHOD_ABSTRACT
@@ -172,8 +174,9 @@ public final class ModuleWriter {
 
     /**
      * The first rule that the type breaks on its own, or null: its name and namespace (Q83), a defined
-     * kind, defined flags with at most one visibility, a backing type exactly for an enum, and namespace
-     * 0 when nested (BC-11). That the module lists it, and its enclosing type, the writer checks.
+     * kind, defined flags with at most one visibility and at most one of FINAL, SEALED and UNSEALED (Q95),
+     * a backing type exactly for an enum, and namespace 0 when nested (BC-11). That the module lists it,
+     * and its enclosing type, the writer checks.
      */
     static @Nullable String typeProblem(TypeDef type) {
         String owner = "type " + type.name();
@@ -189,6 +192,10 @@ public final class ModuleWriter {
         }
         if (problem == null) {
             problem = visibilityProblem(type.flags(), owner);
+        }
+        int sealing = type.flags() & SEALING;
+        if (problem == null && (sealing & (sealing - 1)) != 0) {
+            problem = owner + " has more than one of FINAL, SEALED and UNSEALED (Q95)";
         }
         if (problem == null && type.kind() == Flags.KIND_ENUM && !integral(type.backing())) {
             problem = "enum " + type.name() + " has the backing type code " + type.backing()
