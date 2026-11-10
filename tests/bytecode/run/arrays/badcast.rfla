@@ -1,0 +1,26 @@
+// expect-output: before
+// expect-throws: reflect.core.ClassCastException
+.module badcast 0.0.0
+.main badcast.App
+.requires reflect.core
+.requires reflect.io
+
+// Arrays are invariant (NUL-07), so a String[] is no Object[], and castclass throws ClassCastException. Until
+// v0.0.8 the exception is a fault, which ends the run with exit code 1 (Q89).
+.class public final badcast.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   1
+        newarr   reflect.core.Object
+        castclass reflect.core.Object[]
+        pop
+        ldstr    "before"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   1
+        newarr   reflect.core.String
+        castclass reflect.core.Object[]
+        pop
+        ldstr    "after"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

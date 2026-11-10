@@ -411,11 +411,12 @@ public final class VmTest {
 
     @Test
     public static void typeTestsOfOtherTypesWaitForTheirStages() throws Exception {
-        // VM0 tests classes and interfaces and their nullable forms; the other types arrive in later stages (Q99).
-        assertEquals(new Run(2, null, "", "vm0: VM0 does not run the type reflect.core.Int32[] yet\n"),
-                run(program("        ldnull\n        castclass int[]\n        pop\n        ret\n", "")));
-        assertEquals(new Run(2, null, "", "vm0: VM0 does not run the type reflect.core.String[]? yet\n"),
-                run(program("        ldnull\n        instanceof reflect.core.String[]?\n        pop\n        ret\n", "")));
+        // VM0 tests classes, interfaces and array types, and their nullable forms; the other types arrive in later
+        // stages (Q99, Q106).
+        assertEquals(new Run(2, null, "", "vm0: VM0 does not run the type reflect.core.Object<reflect.core.Int32> yet\n"),
+                run(program("        ldnull\n        castclass reflect.core.Object<int>\n        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", "vm0: VM0 does not run the type reflect.core.Object<reflect.core.Int32>? yet\n"),
+                run(program("        ldnull\n        instanceof reflect.core.Object<int>?\n        pop\n        ret\n", "")));
         assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run value types yet, such as"
                 + " m.P\n"), run(program("        ldnull\n        instanceof m.P\n        pop\n        ret\n", "")
                 + ".class public struct m.P {\n}\n"));
@@ -452,12 +453,54 @@ public final class VmTest {
                 run(program("        ldstr \"x\"\n        ldlen\n        pop\n        ret\n", "")));
         assertEquals(new Run(2, null, "", invalid.formatted(1, "ldlen takes an array, not a number")),
                 run(program("        ldc.i4 1\n        ldlen\n        pop\n        ret\n", "")));
-        // Until main receives a reflect.core.String[] (Q111), VM0 does not run its arguments, and until reference
-        // arrays, no other element type.
+        assertEquals(new Run(2, null, "", invalid.formatted(3, "ldelem.ref does not take a reflect.core.Int32[]")),
+                run(program("        ldc.i4 1\n        newarr int\n        ldc.i4 0\n        ldelem.ref\n        pop\n"
+                + "        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(4, "stelem.i32 does not take a reflect.core.String?[]")),
+                run(program("        ldc.i4 1\n        newarr reflect.core.String?\n        ldc.i4 0\n        ldc.i4 1\n"
+                + "        stelem.i32\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(4, "a number stands where a reference does")),
+                run(program("        ldc.i4 1\n        newarr reflect.core.Object?\n        ldc.i4 0\n        ldc.i4 7\n"
+                + "        stelem.ref\n        ret\n", "")));
+        // Until main receives a reflect.core.String[] (Q111), VM0 does not run its arguments, and until their stages,
+        // arrays of structs and of instantiations.
         assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run the arguments of main yet\n"),
                 run(program("        ldarg 0\n        ldlen\n        pop\n        ret\n", "")));
-        assertEquals(new Run(2, null, "", "vm0: VM0 does not run arrays of reflect.core.String yet\n"),
-                run(program("        ldc.i4 1\n        newarr reflect.core.String\n        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", "vm0: VM0 does not run arrays of value types yet, such as m.P\n"),
+                run(program("        ldc.i4 1\n        newarr m.P\n        pop\n        ret\n", "")
+                + ".class public struct m.P {\n}\n"));
+        assertEquals(new Run(2, null, "", "vm0: VM0 does not run arrays of reflect.core.Object<reflect.core.Int32>?"
+                + " yet\n"), run(program("        ldc.i4 1\n        newarr reflect.core.Object<int>?[]\n        pop\n"
+                + "        ret\n", "")));
+    }
+
+    @Test
+    public static void anArrayTypeIsOneRunTimeTypeInEveryModule() throws Exception {
+        // VM0 makes one run-time type per array type (Q106), so the array that reflect.io makes is the
+        // reflect.core.String[] of m, and arrays are invariant, so it is no reflect.core.Object[] (NUL-07).
+        String io = Files.readString(Path.of("tests/bytecode/lib/reflect.io.rfla")).replace(
+                "extends reflect.core.Object {\n", "extends reflect.core.Object {\n"
+                + "    .method public static reflect.core.String[] make() {\n        ldc.i4 1\n"
+                + "        newarr reflect.core.String\n        ret\n    }\n");
+        String text = "        call static reflect.core.String reflect.core.String::valueOf(int)\n" + PRINTLN;
+        assertEquals(new Run(0, null, "1\n0\n", ""), run(program("        call static reflect.core.String[]"
+                + " reflect.io.Console::make()\n        dup\n        instanceof reflect.core.String[]\n" + text
+                + "        instanceof reflect.core.Object[]\n" + text + "        ret\n", ""), null, Map.of("reflect.io", io)));
+    }
+
+    @Test
+    public static void aFailedCastOfAnArrayNamesBothTypes() throws Exception {
+        // A cast of an array type passes only that exact type, nullability included (NUL-07), and null only to its
+        // nullable form (NUL-05); until v0.0.8 each failure is a fault.
+        assertEquals(new Run(1, CLASS_CAST_EXCEPTION, "", CLASS_CAST_EXCEPTION + ": reflect.core.String[] cannot be cast"
+                + " to reflect.core.String?[]\n"), run(program("        ldc.i4 0\n        newarr reflect.core.String\n"
+                + "        castclass reflect.core.String?[]\n        pop\n        ret\n", "")));
+        assertEquals(new Run(1, CLASS_CAST_EXCEPTION, "", CLASS_CAST_EXCEPTION + ": reflect.core.Int32[][] cannot be cast"
+                + " to reflect.core.Int32[]?[]?\n"), run(program("        ldc.i4 0\n        newarr int[]\n"
+                + "        castclass int[]?[]?\n        pop\n        ret\n", "")));
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": null cannot be cast to"
+                + " reflect.core.Int32[]\n"), run(program("        ldnull\n        castclass int[]\n        pop\n        ret\n",
+                "")));
     }
 
     @Test

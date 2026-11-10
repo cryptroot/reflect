@@ -531,6 +531,10 @@ final class Interpreter {
                         int index = i32(stack[--sp]);
                         stack[sp - 1] = elements(vm, stack[sp - 1], double[].class, instruction, method, pc)[index];
                     }
+                    case Opcode.LDELEM_REF -> {
+                        int index = i32(stack[--sp]);
+                        stack[sp - 1] = elements(vm, stack[sp - 1], Object[].class, instruction, method, pc)[index];
+                    }
                     // A store keeps the low 8 or 16 bits of an i32 in a small element, as a field does (Q104).
                     case Opcode.STELEM_I8 -> {
                         int value = i32(stack[--sp]);
@@ -561,6 +565,12 @@ final class Interpreter {
                         double value = f64(stack[--sp]);
                         int index = i32(stack[--sp]);
                         elements(vm, stack[--sp], double[].class, instruction, method, pc)[index] = value;
+                    }
+                    // A reference store checks no element type, since arrays are invariant (BC-14, NUL-07).
+                    case Opcode.STELEM_REF -> {
+                        Object value = reference(stack[--sp], method, pc);
+                        int index = i32(stack[--sp]);
+                        elements(vm, stack[--sp], Object[].class, instruction, method, pc)[index] = value;
                     }
                     case Opcode.RET -> {
                         return method.returnsValue() ? stack[--sp] : null;
@@ -620,20 +630,21 @@ final class Interpreter {
         return value;
     }
 
-    // The type that instanceof or castclass names, linked at its first execution (VM-16): a class or an
-    // interface, or its nullable form, which a TypeSpec holds (NUL-01, Q99). Value types, whose boxes arrive in
+    // The type that instanceof or castclass names, linked at its first execution (VM-16): a class, an interface or an
+    // array type, or its nullable form, which a TypeSpec holds (NUL-01, Q99, Q106). Value types, whose boxes arrive in
     // v0.0.7, and the other types of TypeSpec rows wait for their stages.
     private static Tested tested(Vm vm, RuntimeMethod method, int pc, Instruction instruction) {
         Object[] links = method.links();
         if (links[pc] == null) {
+            RuntimeModule module = method.type().module();
             TypeHandle handle = ((Instruction.Type) instruction).type();
-            boolean nullable = false;
-            if (handle instanceof TypeSpec spec && spec.type() instanceof TypeSig.NullableRef wrapped
-                    && wrapped.type() instanceof TypeSig.Named named) {
-                handle = named.type();
-                nullable = true;
+            TypeSig spec = handle instanceof TypeSpec row ? row.type() : null;
+            boolean nullable = spec instanceof TypeSig.NullableRef;
+            if (spec instanceof TypeSig.NullableRef wrapped) {
+                spec = wrapped.type();
             }
-            RuntimeType type = vm.type(method.type().module(), handle);
+            RuntimeType type = spec instanceof TypeSig.ArrayOf array ? vm.array(vm.element(module, array.element()))
+                    : spec instanceof TypeSig.Named named ? vm.type(module, named.type()) : vm.type(module, handle);
             if (type.isValueType()) {
                 throw new Stop(where(method, pc) + ": VM0 does not run value types yet, such as " + type.name());
             }

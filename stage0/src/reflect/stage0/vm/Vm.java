@@ -237,14 +237,33 @@ public final class Vm {
     }
 
     /**
-     * The element type that the token of a newarr of the module names (Q106): until reference arrays arrive, a
-     * primitive.
+     * The element type that the token of a newarr of the module names (Q106): a primitive, a class or an interface,
+     * an array type, or the nullable form of a class, an interface or an array type (NUL-01).
      */
     RuntimeType.Element element(RuntimeModule from, TypeHandle handle) {
-        if (handle instanceof TypeSpec spec && spec.type() instanceof TypeSig.Primitive primitive) {
-            return new RuntimeType.Element(primitive.code(), null, false);
+        return handle instanceof TypeSpec spec ? element(from, spec.type())
+                : new RuntimeType.Element(0, reference(from, handle), false);
+    }
+
+    /** The element type of arrays of a type that a signature of the module holds (Q106). */
+    RuntimeType.Element element(RuntimeModule from, TypeSig type) {
+        boolean nullable = type instanceof TypeSig.NullableRef;
+        TypeSig inner = type instanceof TypeSig.NullableRef wrapped ? wrapped.type() : type;
+        return switch (inner) {
+            case TypeSig.Primitive primitive -> new RuntimeType.Element(primitive.code(), null, false);
+            case TypeSig.Named named -> new RuntimeType.Element(0, reference(from, named.type()), nullable);
+            case TypeSig.ArrayOf array -> new RuntimeType.Element(0, array(element(from, array.element())), nullable);
+            default -> throw new Stop("VM0 does not run arrays of " + Spelling.name(type) + " yet");
+        };
+    }
+
+    // A class or an interface that an element type names; value types wait for their stages.
+    private RuntimeType reference(RuntimeModule from, TypeHandle handle) {
+        RuntimeType type = type(from, handle);
+        if (type.isValueType()) {
+            throw new Stop("VM0 does not run arrays of value types yet, such as " + type.name());
         }
-        throw new Stop("VM0 does not run arrays of " + handle.qualifiedName() + " yet");
+        return type;
     }
 
     /** The text of an object: what the toString() in the slot of its run-time type gives (Q103). */

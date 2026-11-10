@@ -85,7 +85,12 @@ final class Spelling {
 
     /** The struct of a primitive as GEN-12 spells it, such as reflect.core.Int32 for int (NUM-01). */
     static String struct(int code) {
-        return new TypeSpec(new TypeSig.Primitive(code)).qualifiedName();
+        return name(new TypeSig.Primitive(code));
+    }
+
+    /** A type as GEN-12 spells it, as messages name a TypeSpec, with primitives by struct name. */
+    static String name(TypeSig type) {
+        return new TypeSpec(type).qualifiedName();
     }
 
     private static List<String> types(reflect.stage0.lib.List<TypeSig> types, String module, boolean scoped) {

@@ -1,0 +1,203 @@
+// expect-output: reflect.core.String[]: 2 a null
+// expect-output: reflect.core.Object?[]: x reflect.core.Object reflect.core.Int32[]
+// expect-output: references.Pet[]: Woof Meow
+// expect-output: reflect.core.Int32[][]: 3 null
+// expect-output: reflect.core.Int32[]?[]: 0
+.module references 0.0.0
+.main references.App
+.requires reflect.core
+.requires reflect.io
+
+// ldelem.ref and stelem.ref read and write the elements of an array of references (BC-04, Q106). The elements
+// start at null, and a store checks no element type, since arrays are invariant (BC-14, NUL-07). An element type
+// is a class, an interface or an array type, or its nullable form, which the name of the array type shows.
+.class public interface references.Pet {
+    .method public abstract reflect.core.String speak() {
+    }
+}
+
+.class public final references.Dog implements references.Pet {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public virtual reflect.core.String speak() {
+        .override reflect.core.String references.Pet::speak()
+        ldstr    "Woof"
+        ret
+    }
+}
+
+.class public final references.Cat implements references.Pet {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public virtual reflect.core.String speak() {
+        .override reflect.core.String references.Pet::speak()
+        ldstr    "Meow"
+        ret
+    }
+}
+
+.class public final references.App {
+    .method public static void main(reflect.core.String[] args) {
+        call     static void references.App::strings()
+        call     static void references.App::objects()
+        call     static void references.App::pets()
+        call     static void references.App::jagged()
+        ret
+    }
+
+    .method static void strings() {
+        .locals (reflect.core.String[] a)
+        ldc.i4   2
+        newarr   reflect.core.String
+        stloc    a
+        ldloc    a
+        call     static void references.App::label(reflect.core.Object)
+        ldloc    a
+        ldc.i4   0
+        ldstr    "a"
+        stelem.ref
+        ldloc    a
+        ldlen
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void references.App::show(reflect.core.Object?)
+        ldloc    a
+        ldc.i4   0
+        ldelem.ref
+        call     static void references.App::show(reflect.core.Object?)
+        ldloc    a
+        ldc.i4   1
+        ldelem.ref
+        call     static void references.App::show(reflect.core.Object?)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // An Object?[] holds a string, an object and an array.
+    .method static void objects() {
+        .locals (reflect.core.Object?[] a, int i)
+        ldc.i4   3
+        newarr   reflect.core.Object?
+        stloc    a
+        ldloc    a
+        call     static void references.App::label(reflect.core.Object)
+        ldloc    a
+        ldc.i4   0
+        ldstr    "x"
+        stelem.ref
+        ldloc    a
+        ldc.i4   1
+        newobj   void reflect.core.Object::new()
+        stelem.ref
+        ldloc    a
+        ldc.i4   2
+        ldc.i4   0
+        newarr   int
+        stelem.ref
+    NEXT:
+        ldloc    i
+        ldloc    a
+        ldlen
+        bge.i32  END
+        ldloc    a
+        ldloc    i
+        ldelem.ref
+        call     static void references.App::show(reflect.core.Object?)
+        ldloc    i
+        ldc.i4   1
+        add.i32
+        stloc    i
+        br       NEXT
+    END:
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // callvirt dispatches on each element of a Pet[] by its run-time type.
+    .method static void pets() {
+        .locals (references.Pet[] a)
+        ldc.i4   2
+        newarr   references.Pet
+        stloc    a
+        ldloc    a
+        call     static void references.App::label(reflect.core.Object)
+        ldloc    a
+        ldc.i4   0
+        newobj   void references.Dog::new()
+        stelem.ref
+        ldloc    a
+        ldc.i4   1
+        newobj   void references.Cat::new()
+        stelem.ref
+        ldloc    a
+        ldc.i4   0
+        ldelem.ref
+        callvirt reflect.core.String references.Pet::speak()
+        call     static void references.App::show(reflect.core.Object?)
+        ldloc    a
+        ldc.i4   1
+        ldelem.ref
+        callvirt reflect.core.String references.Pet::speak()
+        call     static void references.App::show(reflect.core.Object?)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // An int[][] holds an int[] and null; an int[]?[] is another array type.
+    .method static void jagged() {
+        .locals (int[][] a)
+        ldc.i4   2
+        newarr   int[]
+        stloc    a
+        ldloc    a
+        call     static void references.App::label(reflect.core.Object)
+        ldloc    a
+        ldc.i4   0
+        ldc.i4   3
+        newarr   int
+        stelem.ref
+        ldloc    a
+        ldc.i4   0
+        ldelem.ref
+        ldlen
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void references.App::show(reflect.core.Object?)
+        ldloc    a
+        ldc.i4   1
+        ldelem.ref
+        call     static void references.App::show(reflect.core.Object?)
+        call     static void reflect.io.Console::println()
+        ldc.i4   0
+        newarr   int[]?
+        dup
+        call     static void references.App::label(reflect.core.Object)
+        ldlen
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void references.App::show(reflect.core.Object?)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // Prints the text of the array, then a colon.
+    .method static void label(reflect.core.Object array) {
+        ldarg    array
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldstr    ":"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+
+    // Prints a space and the text of the value, or null.
+    .method static void show(reflect.core.Object? value) {
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+}

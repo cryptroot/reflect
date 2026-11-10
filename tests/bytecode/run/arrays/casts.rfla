@@ -1,0 +1,91 @@
+// expect-output: reflect.core.String[]: 1 0 0 1 1 1 0
+// expect-output: reflect.core.String?[]: 0 1 0 0 1 1 0
+// expect-output: reflect.core.Object[]: 0 0 1 0 1 1 0
+// expect-output: reflect.core.Int32[]: 0 0 0 0 1 1 1
+// expect-output: text: 0 0 0 0 0 1 0
+// expect-output: null: 0 0 0 0 0 0 0
+// expect-output: reflect.core.String[]
+// expect-output: reflect.core.Int32[]
+// expect-output: null
+.module casts 0.0.0
+.main casts.App
+.requires reflect.core
+.requires reflect.io
+
+// Arrays are invariant, nullability included (NUL-07): instanceof and castclass of an array type pass only that
+// exact type, while every array is a reflect.core.Array and an Object (Q106). instanceof is false for null, even
+// against a nullable type, and castclass passes null to a nullable type (NUL-05).
+.class public final casts.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldc.i4   1
+        newarr   reflect.core.String
+        call     static void casts.App::test(reflect.core.Object?)
+        ldc.i4   1
+        newarr   reflect.core.String?
+        call     static void casts.App::test(reflect.core.Object?)
+        ldc.i4   1
+        newarr   reflect.core.Object
+        call     static void casts.App::test(reflect.core.Object?)
+        ldc.i4   1
+        newarr   int
+        call     static void casts.App::test(reflect.core.Object?)
+        ldstr    "text"
+        call     static void casts.App::test(reflect.core.Object?)
+        ldnull
+        call     static void casts.App::test(reflect.core.Object?)
+        // castclass passes the reference on.
+        ldc.i4   0
+        newarr   reflect.core.String
+        castclass reflect.core.String[]?
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   0
+        newarr   int
+        castclass reflect.core.Array
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldnull
+        castclass reflect.core.String?[]?
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+
+    // Prints the value, then 1 or 0 for instanceof of String[], String?[], Object[], String[]?, Array, Object and
+    // int[].
+    .method static void test(reflect.core.Object? value) {
+        ldarg    value
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldstr    ":"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        instanceof reflect.core.String[]
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof reflect.core.String?[]
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof reflect.core.Object[]
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof reflect.core.String[]?
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof reflect.core.Array
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof reflect.core.Object
+        call     static void casts.App::bit(int)
+        ldarg    value
+        instanceof int[]
+        call     static void casts.App::bit(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void bit(int value) {
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+}
