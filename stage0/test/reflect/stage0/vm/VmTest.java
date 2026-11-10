@@ -514,6 +514,28 @@ public final class VmTest {
     }
 
     @Test
+    public static void loadingChecksTheSubtypesOfASealedType() throws Exception {
+        // A direct supertype that is sealed belongs to the module of the type, which is final, sealed or unsealed;
+        // unsealed stands only on a type with a sealed direct supertype (DAT-06, Q95). A violation is a
+        // TypeLoadError when the type loads, here when the instanceof that names it links (VM-13).
+        String load = "        ldnull\n        instanceof m.B\n        pop\n        ret\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.B has the sealed supertype m.A, so it is final,"
+                + " sealed or unsealed (DAT-06)\n"), run(program(load, "") + ".class public sealed m.A {\n}\n"
+                + ".class public m.B extends m.A {\n}\n"));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.B has the sealed supertype m.I, so it is final,"
+                + " sealed or unsealed (DAT-06)\n"), run(program(load, "") + ".class public sealed interface m.I {\n}\n"
+                + ".class public interface m.B implements m.I {\n}\n"));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.B is unsealed, but no direct supertype of it is"
+                + " sealed (Q95)\n"), run(program(load, "") + ".class public unsealed m.B {\n}\n"));
+        // The sealed type of reflect.core permits only the types of reflect.core.
+        String core = Files.readString(Path.of("tests/bytecode/lib/reflect.core.rfla"))
+                + "\n.class public sealed reflect.core.Sealed {\n}\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.B has the sealed supertype reflect.core.Sealed"
+                + " of the module reflect.core, which permits only its own types (DAT-06)\n"), run(program(load, "")
+                + ".class public final m.B extends reflect.core.Sealed {\n}\n", null, Map.of("reflect.core", core)));
+    }
+
+    @Test
     public static void aClassWithoutABaseNeedsReflectCoreObject() throws Exception {
         // A class with base 0 extends reflect.core.Object (Q96), which loads before it; here no module holds it.
         String main = ".module m 0.0.0\n.main m.App\n.requires static reflect.core\n\n.class public final m.App {\n"

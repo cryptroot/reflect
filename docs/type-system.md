@@ -640,10 +640,15 @@ static access has a **receiver class** `R`, and virtual statics dispatch on it.
 
   - enum constants are constant expressions, and a `const` method of an enum folds on a constant
     receiver (`Planet.EARTH.surfaceGravity()`, ex §9.3; reflection.md §5).
-- **DAT-06 [Decided, details Proposed]** Sealed hierarchies (ex §9.4): `sealed` classes and
-  interfaces list `permits`; each permitted subtype is `final`, `sealed` or `unsealed` (Java's
-  `non-sealed`) and lives in the same module; switches and patterns check exhaustiveness. `permits`
-  may be omitted when all subtypes share the file.
+- **DAT-06 [Decided, details Proposed; load checks Decided, Q95]** Sealed hierarchies (ex §9.4):
+  `sealed` classes and interfaces list `permits`; each permitted subtype is `final`, `sealed` or
+  `unsealed` (Java's `non-sealed`) and lives in the same module; switches and patterns check
+  exhaustiveness. `permits` may be omitted when all subtypes share the file. A module compiles as
+  one unit (MOD-01), so bytecode lists no permitted subtypes: when a type loads, each direct
+  supertype that is `sealed` belongs to the type's module, and the type is `final`, `sealed` or
+  `unsealed`, where a record and a value type count as `final`, since nothing extends them.
+  `unsealed` stands only on a type with a sealed direct supertype. A violation is a
+  `TypeLoadError` (VM-13, Q95).
 - **DAT-07 [Decided, details Proposed]** Tuples (ex §9.5) are value types
   (`reflect.core.Tuple2<T1, T2>` and so on) whose element names are metadata; they deconstruct,
   convert element-wise and compare element-wise with `==`; beyond 8 elements they nest.

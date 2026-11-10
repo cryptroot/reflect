@@ -1,0 +1,97 @@
+// expect-output: hierarchy.Circle
+// expect-output: hierarchy.Square
+// expect-output: hierarchy.Blob
+// expect-output: hierarchy.Any
+// expect-output: hierarchy.Point
+// expect-output: hierarchy.Size
+.module hierarchy 0.0.0
+.main hierarchy.App
+.requires reflect.core
+.requires reflect.io
+
+// A sealed type permits the subtypes that its own module defines, each final, sealed or unsealed, and a
+// record and a value type count as final; below an unsealed type, any subtype may follow (DAT-06, Q95).
+.class public abstract sealed hierarchy.Shape {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+}
+
+.class public final hierarchy.Circle extends hierarchy.Shape {
+    .method public void new() {
+        ldarg    0
+        call     void hierarchy.Shape::new()
+        ret
+    }
+}
+
+.class public abstract sealed hierarchy.Polygon extends hierarchy.Shape {
+    .method public void new() {
+        ldarg    0
+        call     void hierarchy.Shape::new()
+        ret
+    }
+}
+
+.class public final hierarchy.Square extends hierarchy.Polygon {
+    .method public void new() {
+        ldarg    0
+        call     void hierarchy.Polygon::new()
+        ret
+    }
+}
+
+.class public unsealed hierarchy.Blob extends hierarchy.Shape {
+    .method public void new() {
+        ldarg    0
+        call     void hierarchy.Shape::new()
+        ret
+    }
+}
+
+.class public hierarchy.Any extends hierarchy.Blob {
+    .method public void new() {
+        ldarg    0
+        call     void hierarchy.Blob::new()
+        ret
+    }
+}
+
+.class public sealed interface hierarchy.Named {
+}
+
+.class public record hierarchy.Point implements hierarchy.Named {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+}
+
+.class public struct hierarchy.Size implements hierarchy.Named {
+    .method public static void show() {
+        ldstr    "hierarchy.Size"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+
+.class public final hierarchy.App {
+    .method public static void main(reflect.core.String[] args) {
+        newobj   void hierarchy.Circle::new()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void hierarchy.Square::new()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void hierarchy.Blob::new()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void hierarchy.Any::new()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void hierarchy.Point::new()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // The call loads the struct, whose sealed interface the load checks.
+        call     static void hierarchy.Size::show()
+        ret
+    }
+}

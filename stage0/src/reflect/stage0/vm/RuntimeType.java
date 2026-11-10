@@ -170,16 +170,17 @@ final class RuntimeType {
     }
 
     /**
-     * Links the type after its base class: the interfaces of its InterfaceImpl rows (Q96), then, for a
-     * class, its vtable (VM-04, BC-12, Q97): the slots of the base class, then for each VIRTUAL or
-     * ABSTRACT instance method, in row order, the slot of each method of a base class that an Override
-     * row of the method names, or else a new slot. A row may name an override, whose slot is the one that
-     * it fills. Value types (v0.0.7) and the load checks of the rows come later (README §7.7).
+     * Links the type after its base class: the interfaces of its InterfaceImpl rows (Q96), and the checks of its
+     * sealed supertypes (Q95), then, for a class, its vtable (VM-04, BC-12, Q97): the slots of the base class,
+     * then for each VIRTUAL or ABSTRACT instance method, in row order, the slot of each method of a base class
+     * that an Override row of the method names, or else a new slot. A row may name an override, whose slot is
+     * the one that it fills. Value types (v0.0.7) and the load checks of the rows come later (README §7.7).
      */
     void link(Vm vm) {
         for (TypeHandle implemented : definition.interfaces()) {
             interfaces.add(vm.type(module, implemented));
         }
+        checkSealing();
         if (isInterface() || isValueType()) {
             return;
         }
@@ -202,6 +203,36 @@ final class RuntimeType {
             }
         }
         vtable = slots.toArray(new RuntimeMethod[0]);
+    }
+
+    // A direct supertype that is SEALED, the base type or an interface, belongs to the module of the type, which is
+    // FINAL, SEALED or UNSEALED, or a record or a value type, which nothing extends; and UNSEALED stands only on a
+    // type with a sealed direct supertype (DAT-06, Q95). A violation is a TypeLoadError at the load (VM-13).
+    private void checkSealing() {
+        var direct = new ArrayList<RuntimeType>(interfaces);
+        if (base != null) {
+            direct.add(0, base);
+        }
+        boolean sealed = false;
+        for (RuntimeType supertype : direct) {
+            if ((supertype.definition.flags() & Flags.TYPE_SEALED) == 0) {
+                continue;
+            }
+            sealed = true;
+            if (supertype.module != module) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, name() + " has the sealed supertype " + supertype.name() + " of"
+                        + " the module " + supertype.module.name() + ", which permits only its own types (DAT-06)");
+            }
+            int kind = definition.kind();
+            int sealing = Flags.TYPE_FINAL | Flags.TYPE_SEALED | Flags.TYPE_UNSEALED;
+            if ((definition.flags() & sealing) == 0 && kind != Flags.KIND_RECORD && !isValueType()) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, name() + " has the sealed supertype " + supertype.name()
+                        + ", so it is final, sealed or unsealed (DAT-06)");
+            }
+        }
+        if ((definition.flags() & Flags.TYPE_UNSEALED) != 0 && !sealed) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, name() + " is unsealed, but no direct supertype of it is sealed (Q95)");
+        }
     }
 
     /** The method in the slot of a method of the type or of a base class, which the slot of this type holds. */
