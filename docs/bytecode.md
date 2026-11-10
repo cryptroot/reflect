@@ -247,7 +247,10 @@ u32, in the order given:
 - A class or a class record with base 0 extends `reflect.core.Object`; only `reflect.core.Object`
   of module `reflect.core`, an interface, an annotation type and a value type have no base class.
   `InterfaceImpl` rows list the interfaces that an interface extends, or that a class or a struct
-  implements (Q96).
+  implements (Q96). Only a class or a class record has a base type, and its base is a class that is
+  neither `FINAL` nor a record: a reader checks a base that the module defines, and a VM one of
+  another module when it loads the type, as it checks that an `InterfaceImpl` row of another module
+  names an interface (Q96).
 - Each name has the form that `.rfla` spells (Q83): the name of a type, a field, a method, a
   parameter, a `MemberRef` and a local in DEBUG is an `Ident` of §8.1, and a module name, a
   namespace and the target of an `Export` row are a `QName`. Only a namespace, the name of a

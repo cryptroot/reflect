@@ -178,7 +178,13 @@ final class RuntimeType {
      */
     void link(Vm vm) {
         for (TypeHandle implemented : definition.interfaces()) {
-            interfaces.add(vm.type(module, implemented));
+            RuntimeType type = vm.type(module, implemented);
+            // The reader checks an interface of the module, and this one of another module (Q96).
+            if (!type.isInterface()) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, name() + " implements " + type.name() + ", which is not an"
+                        + " interface (Q96)");
+            }
+            interfaces.add(type);
         }
         checkSealing();
         if (isInterface() || isValueType()) {

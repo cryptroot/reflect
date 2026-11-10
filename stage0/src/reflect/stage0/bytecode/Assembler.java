@@ -321,6 +321,7 @@ public final class Assembler {
             @Nullable TypeSyntax base = declared.base();
             if (base != null) {
                 type.setBase(tokenType(base));
+                check(base.token(), ModuleWriter.baseProblem(type));
             }
             for (TypeSyntax syntax : declared.interfaces()) {
                 TypeHandle implemented = tokenType(syntax);

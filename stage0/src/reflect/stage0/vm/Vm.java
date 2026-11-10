@@ -176,14 +176,24 @@ public final class Vm {
 
     // The base class (Q96): the type that the base names, or reflect.core.Object for a class or a class
     // record with base 0. reflect.core.Object, an interface, an annotation type and a value type have none.
+    // The base is a class that is not final and not a record; the reader checks a base of the module, and
+    // the load one of another module.
     private @Nullable RuntimeType base(RuntimeModule module, TypeDef definition) {
-        TypeHandle base = definition.base();
-        if (base != null) {
-            return type(module, base);
-        }
+        TypeHandle handle = definition.base();
         boolean isClass = definition.kind() == Flags.KIND_CLASS || definition.kind() == Flags.KIND_RECORD;
         boolean isObject = module.name().equals(CORE) && definition.qualifiedName().equals(CORE + ".Object");
-        return isClass && !isObject ? core("Object", definition.qualifiedName()) : null;
+        RuntimeType base = handle != null ? type(module, handle) : isClass && !isObject
+                ? core("Object", definition.qualifiedName()) : null;
+        if (base != null) {
+            int kind = base.definition().kind();
+            String what = kind == Flags.KIND_RECORD ? "a record" : kind != Flags.KIND_CLASS ? "not a class"
+                    : (base.definition().flags() & Flags.TYPE_FINAL) != 0 ? "final" : null;
+            if (what != null) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, definition.qualifiedName() + " extends " + base.name()
+                        + ", which is " + what + " (Q96)");
+            }
+        }
+        return base;
     }
 
     // A type of the module reflect.core, which a base of 0 names without a TypeRef (Q96).

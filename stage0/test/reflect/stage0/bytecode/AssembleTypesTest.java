@@ -404,6 +404,10 @@ public final class AssembleTypesTest {
                 "2:23: RFA0301: type a.A implements a.B, which is not an interface (BC-11)");
         unassemblable(M + ".class a.A implements a.I, a.I {\n}\n.class interface a.I {\n}",
                 "2:28: RFA0301: type a.A implements a.I twice (BC-24)");
+        unassemblable(M + ".class interface a.I extends a.B {\n}\n.class a.B {\n}",
+                "2:30: RFA0301: type a.I has a base type, but only a class or a class record has one (Q96)");
+        unassemblable(M + ".class a.B extends a.A {\n}\n.class final a.A {\n}",
+                "2:20: RFA0301: type a.B extends a.A, which is final (Q96)");
         unassemblable(M + ".class a.A extends x.Y {\n}",
                 "2:20: RFA0202: no required module holds the namespace x of x.Y; name its module in brackets (Q76)");
         unassemblable(M + ".class a.A extends G {\n}",

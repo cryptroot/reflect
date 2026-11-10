@@ -536,6 +536,29 @@ public final class VmTest {
     }
 
     @Test
+    public static void loadingChecksTheSupertypesThatAnotherModuleDefines() throws Exception {
+        // The base of a class is a class that is not final and not a record, and an InterfaceImpl row names an
+        // interface; the reader checks those that the module defines, and the load those of another module (Q96).
+        String load = "        ldnull\n        instanceof m.B\n        pop\n        ret\n";
+        String lib = Files.readString(Path.of("tests/bytecode/lib/reflect.core.rfla"));
+        Map<String, String> core = Map.of("reflect.core", lib + "\n.class public record reflect.core.Pair {\n}\n"
+                + ".class public interface reflect.core.Face {\n}\n");
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.B extends reflect.core.String, which is final"
+                + " (Q96)\n"), run(program(load, "") + ".class public m.B extends reflect.core.String {\n}\n"));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.B extends reflect.core.Pair, which is a record"
+                + " (Q96)\n"), run(program(load, "") + ".class public m.B extends reflect.core.Pair {\n}\n", null, core));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.B extends reflect.core.Face, which is not a"
+                + " class (Q96)\n"), run(program(load, "") + ".class public m.B extends reflect.core.Face {\n}\n", null, core));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.B implements reflect.core.Object, which is not"
+                + " an interface (Q96)\n"), run(program(load, "") + ".class public m.B implements reflect.core.Object {\n}\n"));
+        // A class with base 0 extends reflect.core.Object, which the load checks too, before main runs.
+        String finalObject = lib.replace(".class public reflect.core.Object {", ".class public final reflect.core.Object {")
+                .replace(" extends reflect.core.Object {", " {");
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": m.App extends reflect.core.Object, which is final"
+                + " (Q96)\n"), run(program("        ret\n", ""), null, Map.of("reflect.core", finalObject)));
+    }
+
+    @Test
     public static void aClassWithoutABaseNeedsReflectCoreObject() throws Exception {
         // A class with base 0 extends reflect.core.Object (Q96), which loads before it; here no module holds it.
         String main = ".module m 0.0.0\n.main m.App\n.requires static reflect.core\n\n.class public final m.App {\n"

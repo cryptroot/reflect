@@ -160,6 +160,39 @@ public final class TypeTableTest {
     }
 
     @Test
+    public static void theWriterRejectsInvalidBaseTypes() throws Exception {
+        // Only a class or a class record has a base, which is a class that is not final and not a record (Q96).
+        TypeDef base = type("a", "B");
+        String none = " has a base type, but only a class or a class record has one (Q96)";
+        TypeDef face = new TypeDef("a", "I", Flags.KIND_INTERFACE, 0, 0, null);
+        face.setBase(base);
+        unwritable(withTypes(face, base), "type a.I" + none);
+        TypeDef struct = new TypeDef("a", "S", Flags.KIND_STRUCT, 0, 0, null);
+        struct.setBase(base);
+        unwritable(withTypes(struct, base), "type a.S" + none);
+        unwritable(extending(new TypeDef("a", "B", Flags.KIND_CLASS, Flags.TYPE_FINAL, 0, null)),
+                "type a.A extends a.B, which is final (Q96)");
+        unwritable(extending(new TypeDef("a", "B", Flags.KIND_RECORD, 0, 0, null)), "type a.A extends a.B, which is a record"
+                + " (Q96)");
+        unwritable(extending(new TypeDef("a", "B", Flags.KIND_INTERFACE, 0, 0, null)),
+                "type a.A extends a.B, which is not a class (Q96)");
+        // A class record may extend a class, and a class a sealed or abstract one.
+        TypeDef record = new TypeDef("a", "R", Flags.KIND_RECORD, 0, 0, null);
+        record.setBase(base);
+        TypeDef derived = type("a", "D");
+        TypeDef sealed = new TypeDef("a", "S", Flags.KIND_CLASS, Flags.TYPE_ABSTRACT | Flags.TYPE_SEALED, 0, null);
+        derived.setBase(sealed);
+        ModuleReader.read(roundTrip(withTypes(record, base, derived, sealed)));
+    }
+
+    // Module m with the class a.A, which extends the base.
+    private static ModuleDef extending(TypeDef base) {
+        TypeDef derived = type("a", "A");
+        derived.setBase(base);
+        return withTypes(derived, base);
+    }
+
+    @Test
     public static void theWriterRejectsInvalidTypeRefs() {
         var core = new ModuleRef("reflect.core", 0);
         var unrequired = new ModuleDef("m", 0, 0, 0);
@@ -193,6 +226,13 @@ public final class TypeTableTest {
         reject(file, def, 1, 4, 0x08000001, "token 0x8000001 does not name a TypeDef, TypeRef or TypeSpec row");
         reject(file, def, 1, 4, 0x07000001, "token 0x7000001 names row 1 of table 0x7, which does not exist");
         reject(file, def, 1, 4, 0x05000063, "token 0x5000063 names row 99 of table 0x5, which does not exist");
+        // Row 1 is the interface G, row 3 the enum a.A/Tag, row 5 the final class a.A, and rows 6 and 7 the classes
+        // a.Z and b.B (Q96).
+        reject(file, def, 1, 4, 0x05000006, "type G has a base type, but only a class or a class record has one (Q96)");
+        reject(file, def, 7, 4, 0x05000005, "type b.B extends a.A, which is final (Q96)");
+        reject(file, def, 7, 4, 0x05000003, "type b.B extends a.A/Tag, which is not a class (Q96)");
+        rejected(patch(patch(file, def, 6, 2, Flags.KIND_RECORD), def, 7, 4, 0x05000006), columnOffset(file, def, 7, 4),
+                "type b.B extends a.Z, which is a record (Q96)");
         reject(file, def, 1, 7, 2, "the first run of Field rows starts at row 2, not at row 1 (BC-11)");
         reject(file, def, 2, 9, 2, "the run of GenericParam rows starts at row 2, outside rows 1 to 1 (BC-11)");
         reject(file, TableId.MODULE, 1, 5, 99, "row 99 of table 0x5 does not exist");

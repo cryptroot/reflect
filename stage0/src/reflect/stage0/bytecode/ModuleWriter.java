@@ -166,10 +166,33 @@ public final class ModuleWriter {
 
     private void checkType(TypeDef type) throws ModuleFormatException {
         check(typeProblem(type));
+        check(baseProblem(type));
         TypeDef outer = type.enclosing();
         if (outer != null && !typeDefRows.containsKey(outer)) {
             throw new ModuleFormatException("type " + type.name() + " is nested in a type that the module does not list");
         }
+    }
+
+    /**
+     * Why the type cannot have its base type, or null (Q96): only a class or a class record has one, and a base
+     * that the module defines is a class that is not FINAL and not a record. A VM checks a base of another module
+     * when it loads the type.
+     */
+    static @Nullable String baseProblem(TypeDef type) {
+        TypeHandle base = type.base();
+        if (base == null) {
+            return null;
+        }
+        if (type.kind() != Flags.KIND_CLASS && type.kind() != Flags.KIND_RECORD) {
+            return "type " + type.qualifiedName() + " has a base type, but only a class or a class record has one (Q96)";
+        }
+        if (!(base instanceof TypeDef def)) {
+            return null;
+        }
+        String what = def.kind() == Flags.KIND_RECORD ? "a record" : def.kind() != Flags.KIND_CLASS ? "not a class"
+                : (def.flags() & Flags.TYPE_FINAL) != 0 ? "final" : null;
+        return what == null ? null : "type " + type.qualifiedName() + " extends " + def.qualifiedName() + ", which is "
+                + what + " (Q96)";
     }
 
     /**

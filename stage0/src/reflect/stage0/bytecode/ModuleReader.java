@@ -90,6 +90,7 @@ public final class ModuleReader {
             int base = typeDefRows.get(row - 1).base();
             if (base != 0) {
                 type.setBase(typeHandle(base));
+                check(tables.offset(TableId.TYPE_DEF, row, 4), ModuleWriter.baseProblem(type));
             }
             for (int field = fieldRuns[row]; field < fieldRuns[row + 1]; field++) {
                 check(tables.offset(TableId.FIELD, field, 0), ModuleWriter.fieldRepeats(type, type.fields().size(),
