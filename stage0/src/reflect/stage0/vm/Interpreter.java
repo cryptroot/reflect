@@ -2,11 +2,13 @@ package reflect.stage0.vm;
 
 import java.util.Arrays;
 
+import reflect.stage0.bytecode.Constant;
 import reflect.stage0.bytecode.Flags;
 import reflect.stage0.bytecode.Instruction;
 import reflect.stage0.bytecode.Label;
 import reflect.stage0.bytecode.MethodHandle;
 import reflect.stage0.bytecode.Opcode;
+import reflect.stage0.bytecode.SigCode;
 import reflect.stage0.bytecode.TypeHandle;
 import reflect.stage0.bytecode.TypeSig;
 import reflect.stage0.bytecode.TypeSpec;
@@ -87,6 +89,13 @@ final class Interpreter {
                     case Opcode.LDSTR -> {
                         if (links[pc] == null) {
                             links[pc] = vm.literal(((Instruction.Literal) instruction).text());
+                        }
+                        stack[sp++] = links[pc];
+                    }
+                    // ldconst reads the Constant row of a const field, which is no active use of its class (Q98).
+                    case Opcode.LDCONST -> {
+                        if (links[pc] == null) {
+                            links[pc] = constant(vm, method, instruction);
                         }
                         stack[sp++] = links[pc];
                     }
@@ -579,8 +588,9 @@ final class Interpreter {
         return value;
     }
 
-    // The field that a field instruction names, linked at its first execution (VM-16): a static field for
-    // ldsfld and stsfld, and an instance field for ldfld and stfld; another one there is a link error (Q101).
+    // The field that a field instruction names, linked at its first execution (VM-16): a static field that is not
+    // const for ldsfld and stsfld, and an instance field for ldfld and stfld; another one there is a link error
+    // (Q98, Q101).
     private static RuntimeField field(Vm vm, RuntimeMethod method, int pc, Instruction instruction, boolean statics) {
         Object[] links = method.links();
         if (links[pc] == null) {
@@ -589,9 +599,34 @@ final class Interpreter {
                 throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " names the "
                         + (statics ? "instance" : "static") + " field " + field.name());
             }
+            if (field.definition().constant() != null) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, Opcode.mnemonic(instruction.opcode()) + " names the const field "
+                        + field.name());
+            }
             links[pc] = field;
         }
         return (RuntimeField) links[pc];
+    }
+
+    // The value that an ldconst pushes, linked at its first execution (VM-16): the Constant of a const field as the
+    // stack holds its type (BC-04, Q98), a float with every bit (Q92) and a string as its interned literal. Another
+    // field is a link error (Q101).
+    private static Object constant(Vm vm, RuntimeMethod method, Instruction instruction) {
+        RuntimeField field = vm.field(method.type().module(), ((Instruction.Field) instruction).field());
+        Constant value = field.definition().constant();
+        if (value == null) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, "ldconst names " + field.name() + ", which is not const");
+        }
+        if (value instanceof Constant.Text text) {
+            return vm.literal(text.text());
+        }
+        long bits = ((Constant.Bits) value).bits();
+        return switch (((TypeSig.Primitive) field.definition().type()).code()) {
+            case SigCode.I64, SigCode.U64 -> bits;
+            case SigCode.F32 -> Float.intBitsToFloat((int) bits);
+            case SigCode.F64 -> Double.longBitsToDouble(bits);
+            default -> (int) bits;
+        };
     }
 
     // The method that a callvirt names, linked at its first execution (VM-16): an instance method, or else a

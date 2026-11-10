@@ -420,13 +420,13 @@ package-private (MOD-08).
 ## 5. Instruction set
 
 - **BC-04 [Proposed; encoding Decided, Q67, Q68; shift counts and NaN Decided, Q91, Q92; small
-  fields Decided, Q104]** Opcodes are one byte; `0xFE` prefixes a second byte. Arithmetic is typed
-  like the JVM's, so the interpreter never inspects stack types; `boolean`, `byte`, `short` and
-  `char` values widen to `i32` on the stack and narrow with `conv` on store, and unsigned values
-  share the slots of their signed widths. A field of type `boolean`, `byte`, `ubyte`, `short`,
-  `ushort` or `char` keeps the low 8 or 16 bits of the `i32` that `stfld` or `stsfld` stores, and
-  `ldfld` and `ldsfld` widen them by the field's type: `byte` and `short` sign-extend, the others
-  zero-extend (Q104). An
+  fields Decided, Q104; `ldconst` Decided, Q98]** Opcodes are one byte; `0xFE` prefixes a second
+  byte. Arithmetic is typed like the JVM's, so the interpreter never inspects stack types;
+  `boolean`, `byte`, `short` and `char` values widen to `i32` on the stack and narrow with `conv`
+  on store, and unsigned values share the slots of their signed widths. A field of type `boolean`,
+  `byte`, `ubyte`, `short`, `ushort` or `char` keeps the low 8 or 16 bits of the `i32` that `stfld`
+  or `stsfld` stores, and `ldfld` and `ldsfld` widen them by the field's type: `byte` and `short`
+  sign-extend, the others zero-extend (Q104). An
   instruction exists only where it changes the result: equality and stores ignore signedness
   (`ceq.i32` serves `u32`, `stelem.i8` serves `u8`), and conversions exist only where bits change.
   Other pairs compose: a `double` narrows to `byte` through `conv.f64.i32` then
@@ -449,13 +449,13 @@ package-private (MOD-08).
 
   | Family | Opcodes | Instructions and stack effect |
   |---|---|---|
-  | constants, stack | `00`-`0F` | `nop`; `ldnull` → null; `ldc.i4 <i4>`, `ldc.i8 <i8>`, `ldc.r4 <r4>`, `ldc.r8 <r8>` → value; `ldstr <str>` → `String`; `ldtype <tok>` → `Class<T>`; `ldconst <tok>` → constant of a `const` field; `dup`; `pop` |
+  | constants, stack | `00`-`0F` | `nop`; `ldnull` → null; `ldc.i4 <i4>`, `ldc.i8 <i8>`, `ldc.r4 <r4>`, `ldc.r8 <r8>` → value; `ldstr <str>` → `String`; `ldtype <tok>` → `Class<T>`; `ldconst <tok>` → constant of a `const` field, no active use of its class (Q98); `dup`; `pop` |
   | locals | `10`-`17` | `ldarg <n>`, `starg <n>`, `ldarga <n>`, `ldloc <n>`, `stloc <n>`, `ldloca <n>` |
   | arithmetic | `18`-`47` | `add.t sub.t mul.t` (integers wrap); `div` and `rem` over `t` and `u` (integer division by zero throws); `neg.t`; `and or xor not` over `i32 i64`; `shl`, `shr` (arithmetic), `shr.un` (logical) over `i32 i64`, with an `i32` count masked to 5 or 6 bits, the width of the value (Q91) |
   | comparison | `48`-`67` | `ceq.t`; `clt cle cgt cge` over `t` and `u` → `i32` 0 or 1 (floats per IEEE); `ceq.ref` identity, or class and contents for two boxes without identity (DAT-09) |
   | conversion | `68`-`87` | `conv.<from>.<to>` from `i32 u32 i64 u64 f32 f64` where bits change (wrapping, float to integer saturating) |
   | control | `88`-`B7` | `br <off>`; `brtrue`, `brfalse`, `brnull`, `brnonnull` `<off>`; fused `beq.t bne.t`, and `blt ble bgt bge` over `t` and `u`, `<off>`; `switch <count> <off>...`; `leave <off>`; `endfinally`; `ret` |
-  | objects | `B8`-`C7` | `newobj <tok>` (args → object); `newobj.svirt <tok>` (class, args → object, virtual constructor of the class); `ldfld <tok>`; `stfld <tok>`; `ldflda <tok>`; `ldsfld`, `stsfld`, `ldsflda <tok>`; `getclass` (object → `Class<?>`); `instanceof <tok>` (false for null); `castclass <tok>`; `checkalive` (object → object, DAT-08) |
+  | objects | `B8`-`C7` | `newobj <tok>` (args → object); `newobj.svirt <tok>` (class, args → object, virtual constructor of the class); `ldfld <tok>`; `stfld <tok>`; `ldflda <tok>`; `ldsfld`, `stsfld`, `ldsflda <tok>` (a static field that is not `const`, Q98); `getclass` (object → `Class<?>`); `instanceof <tok>` (false for null); `castclass <tok>`; `checkalive` (object → object, DAT-08) |
   | value types | `C8`-`CF` | `box <tok>`; `unbox <tok>` (pushes a copy, never a reference into the box, DAT-09); `ldobj`, `stobj`, `cpobj`, `initobj <tok>`; `sizeof <tok>` → `i32` |
   | arrays | `D0`-`E7` | `newarr <tok>` (length → array); `ldlen`; `ldelem.k`, or `ldelem <tok>` for structs and type parameters; `stelem.k`, `stelem <tok>`; `ldelema <tok>` |
   | calls | `E8`-`EF` | `call <tok>`; `call.recv <tok>`; `callvirt <tok>`; `call.svirt <tok>`; `call.constrained <tok> <tok>`; `ldrecv` → `Class<?>` |

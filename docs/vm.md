@@ -135,8 +135,9 @@ VM guarantees.
 
 ## 7. Class initialization
 
-- **VM-07 [Proposed; errors Decided, Q102]** Lazy, at first active use (JVMS §5.5): access to a
-  static field through any receiver, a static call, instance creation, or reflective use. Each
+- **VM-07 [Proposed; errors and `ldconst` Decided, Q98, Q102]** Lazy, at first active use (JVMS
+  §5.5): access to a static field through any receiver, a static call, instance creation, or
+  reflective use; `ldconst` reads a `const` field from its `Constant` row and is none (Q98). Each
   instantiation initializes separately; superclasses first; an interface only when its own statics
   are touched. States: not started, running (with the running thread, CON-02), done, failed. An
   initializer that throws an exception fails with an `ExceptionInInitializerError` whose cause is

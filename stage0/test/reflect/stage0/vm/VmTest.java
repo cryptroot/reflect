@@ -294,6 +294,21 @@ public final class VmTest {
     }
 
     @Test
+    public static void ldconstNamesAConstFieldAndLdsfldAndStsfldTheOthers() throws Exception {
+        // ldconst reads the Constant row of a const field, and ldsfld and stsfld the storage of a static field that
+        // is not const; a violation is a link error (Q98, Q101).
+        String fields = "    .field static const int K = 1\n    .field static int count\n    .field int x\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": ldconst names int m.App::count, which is not"
+                + " const\n"), run(program("        ldconst int m.App::count\n        pop\n        ret\n", fields)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": ldconst names int m.App::x, which is not"
+                + " const\n"), run(program("        ldconst int m.App::x\n        pop\n        ret\n", fields)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": ldsfld names the const field int m.App::K\n"),
+                run(program("        ldsfld int m.App::K\n        pop\n        ret\n", fields)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": stsfld names the const field int m.App::K\n"),
+                run(program("        ldc.i4 2\n        stsfld int m.App::K\n        ret\n", fields)));
+    }
+
+    @Test
     public static void aFaultOfAStaticInitializer() throws Exception {
         // Until v0.0.8, a fault that is an exception ends the initializer as ExceptionInInitializerError, with
         // the fault as its message; an error, and Runtime.exit, end it unchanged (Q102).

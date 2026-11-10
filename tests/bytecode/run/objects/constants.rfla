@@ -1,0 +1,100 @@
+// expect-output: 1
+// expect-output: -128
+// expect-output: 255
+// expect-output: -32768
+// expect-output: 65535
+// expect-output: 9786
+// expect-output: -2147483648
+// expect-output: -1
+// expect-output: -9223372036854775808
+// expect-output: -1
+// expect-output: -1.5
+// expect-output: 0.1
+// expect-output: limits
+// expect-output: 1
+// expect-output: Limits init
+// expect-output: 0
+.module constants 0.0.0
+.main constants.App
+.requires reflect.core
+.requires reflect.io
+
+// ldconst pushes the Constant of a const field as the stack holds its type (BC-04, Q98): a boolean, a byte,
+// a ubyte, a short, a ushort, a char and an int as an i32, a uint as the i32 of its bits, a long and a ulong
+// as an i64, a float, a double, and a string as the literal of its text, which VM0 interns as it does those
+// of ldstr.
+.class public final constants.Limits {
+    .field public static const boolean YES = true
+    .field public static const byte LOW = -128
+    .field public static const ubyte HIGH = 255
+    .field public static const short SHORT = -32768
+    .field public static const ushort WIDE = 65535
+    .field public static const char SMILE = 9786
+    .field public static const int MIN = -2147483648
+    .field public static const uint MAX = 4294967295
+    .field public static const long LONG = -9223372036854775808
+    .field public static const ulong ULONG = 18446744073709551615
+    .field public static const float HALF = -1.5
+    .field public static const double TENTH = 0.1
+    .field public static const reflect.core.String NAME = "limits"
+    .field public static int count
+    // ldconst is no active use of the class, so this runs at the ldsfld of count (VM-07).
+    .method static void static() {
+        ldstr    "Limits init"
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+
+.class public final constants.App {
+    .method public static void main(reflect.core.String[] args) {
+        ldconst  boolean constants.Limits::YES
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  byte constants.Limits::LOW
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  ubyte constants.Limits::HIGH
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  short constants.Limits::SHORT
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  ushort constants.Limits::WIDE
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  char constants.Limits::SMILE
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  int constants.Limits::MIN
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        // valueOf(int) gives the bits of 4294967295 as a signed int.
+        ldconst  uint constants.Limits::MAX
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  long constants.Limits::LONG
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  ulong constants.Limits::ULONG
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  float constants.Limits::HALF
+        call     static reflect.core.String reflect.core.String::valueOf(float)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  double constants.Limits::TENTH
+        call     static reflect.core.String reflect.core.String::valueOf(double)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  reflect.core.String constants.Limits::NAME
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldconst  reflect.core.String constants.Limits::NAME
+        ldstr    "limits"
+        ceq.ref
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldsfld   int constants.Limits::count
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}

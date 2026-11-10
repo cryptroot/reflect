@@ -55,6 +55,9 @@ public final class NanTest {
                 + "dup\npop"));
         assertEquals("7ff0000000000001", f64("ldc.r8 bits 0x7FF0000000000001\ncall static double m.N::pass(double)"));
         assertEquals("7f800001", f32("ldc.r4 bits 0x7F800001\nstarg 0\nldarg 0", "float spare"));
+        // ldconst loads the bits of a Constant (Q98).
+        assertEquals("7ff0000000000001", f64("ldconst double m.N::SIGNAL64"));
+        assertEquals("7f800001", f32("ldconst float m.N::SIGNAL32"));
     }
 
     // The bits of the double that a static method with this body returns.
@@ -71,7 +74,9 @@ public final class NanTest {
     }
 
     private static Object run(String type, String body, String params) throws Exception {
-        String text = ".module m 0.0.0\n.requires reflect.core\n.class public m.N {\n    .method public static " + type
+        String text = ".module m 0.0.0\n.requires reflect.core\n.class public m.N {\n"
+                + "    .field static const float SIGNAL32 = bits 0x7F800001\n"
+                + "    .field static const double SIGNAL64 = bits 0x7FF0000000000001\n    .method public static " + type
                 + " f(" + params + ") {\n" + body + "\nret\n    }\n    .method public static double pass(double value) {\n"
                 + "        ldarg 0\n        ret\n    }\n}\n";
         // m.N extends reflect.core.Object (Q96), which the stub module gives.
