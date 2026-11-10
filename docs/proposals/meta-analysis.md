@@ -45,6 +45,7 @@ An entry is closed when its owning rule changes. It keeps its ID and records *We
 | [GPU Access, Reflect-G and a GPU-resident Interpreter](gpu.md) | `GPU` | device, resource and command APIs; a checked device subset; a bytecode interpreter on the GPU | MA-04, MA-06, MA-07, MA-08 | the backend decision of GPU-02; the C-library gate for a user-space driver | contracts 2, hardware 4 |
 | [Platform-agnostic Rendering, GUI and Terminal UI](rendering.md) | `RND` | one RHI with raster and cell profiles; separate GUI and terminal frontends | waits for readiness in the library; for GPU raster, GPU access | the packaging of providers (RND §10); the C-library gate for systems other than Linux | terminal 2, GUI 3, GPU raster 4 |
 | [128-bit Arithmetic and SIMD](wide-arithmetic-and-simd.md) | `WID`, `SIMD` | `Int128`, `UInt128`, `Float128`; `Vector128<T>` and `Mask128<T>` | MA-01, MA-03; a format extension (BC-20) | none | integers and SIMD 1, `Float128` 5 |
+| [Reified Structural Shapes](shapes.md) | `SHP` | structural interface/member aggregates, reified views and helper-only checked receiver recovery | MA-17; shape witnesses and their proof; MA-18 and MA-19 for full integration | none | 2; extensions 5 |
 
 The wave column lists where each main part starts. Most proposals also have extensions in wave 5
 (§7.2).
@@ -52,8 +53,8 @@ The wave column lists where each main part starts. Most proposals also have exte
 Findings:
 
 1. No proposal adds work to R0 or the self-hosting path, and none has a milestone (§3).
-2. Ten decisions before v1.0 keep every proposal possible (MA-01 to MA-10, §4). If they come
-   late, MA-02 and MA-10 cause source breaks, MA-01 changes observable results, and the others
+2. Eleven decisions before v1.0 keep every proposal possible (MA-01 to MA-10 and MA-17, §4). If
+   they come late, MA-02, MA-10 and MA-17 cause source breaks, MA-01 changes observable results, and the others
    cause rework in the compiler, the VM or the library, or a change to a proposal.
 3. The first deadlines are close: MA-01 binds VM0's floating-point arithmetic in v0.0.5, and MA-02
    binds `rflc0` in v0.1.
@@ -67,8 +68,8 @@ Findings:
    software-rendered window on Linux need only system calls (§6.7).
 7. The order has five waves after v1.0 (§7). Wave 1 builds the shared mechanisms together with
    the two most self-contained features: wide integers with SIMD, and contracts.
-8. Six conflicts or gaps in or between the proposals need a decision when a proposal is adopted
-   (MA-11 to MA-16, §8).
+8. Eight conflicts or gaps in or between the proposals need a decision when a proposal is adopted
+   (MA-11 to MA-16, MA-18 and MA-19, §8).
 
 ## 2. Checklist
 
@@ -216,6 +217,32 @@ needs, what this analysis found and the verdict.
   `Float128` is a separate, large task: wave 5. Spell the lane constraint as a bound, not as a
   new word (§5.1).
 
+### 3.7 Reified Structural Shapes (SHP)
+
+- **Adds.** A separate reified `shape` kind, structural aggregation of interface/member
+  requirements, checked dispatch witnesses and explicit helper-only nominal recovery (SHP-01
+  to SHP-09). Ordinary structs box copies; only already box-mutable receivers support mutable
+  bindings (SHP-10, SHP-11). Exact matching avoids inferred member adapters.
+- **Relies on.** Existing visibility and checked exceptions, reified signatures (GEN-02),
+  invariant arrays (NUL-07), box mutability (DAT-09, VM-13), critical format rejection (BC-20),
+  layer lifetime and reload invalidation (VM-15, REFL-07).
+- **Needs.** Contextual-word compatibility (MA-17), shape-valued verification states and
+  witness metadata (SHP-16, SHP-17), interpreter semantics and a proof extension (SHP-20).
+  There is no platform gate, new checked subset or new box-mutability classification.
+- **Interactions.** IC projection requires a separate enforcement rule (MA-18). Shape-bound
+  generic storage and reflection transport must not erase the receiver (MA-19). Writable
+  bindings reuse the managed store path of MA-05, so TXN and THR cannot be bypassed by a witness.
+  ECS and SIMD reference-free data layouts do not admit receiver-bearing shape views.
+  Reflect-G must reject them until a device object profile defines their representation and
+  dispatch; a GPU mirror is not a host witness. RND APIs can consume host shapes without
+  gaining a new driver or platform dependency.
+- **Open in the proposal.** Intersections (SHP-14), kind-polymorphic containers, reflective
+  value transport, member variance and borrowed/scoped views. The initial shape kind does not
+  silently widen `Object?` bounds or change existing nominal intersections.
+- **Verdict.** First subset in wave 2, after the baseline and format-extension path exist, with
+  its own proof and integration gates. Broader composition belongs in wave 5. Shapes change
+  more type/dispatch semantics than a library feature but need none of the hardware proposals.
+
 ## 4. Decisions before v1.0
 
 | ID | Keeps possible | Judgement | Decide by | If late |
@@ -230,6 +257,7 @@ needs, what this analysis found and the verdict.
 | MA-08 | quickening with threads, GPU guest images | want | v0.6 | interpreter rework |
 | MA-09 | ECS updates if FR-ref lags | keep open | v0.9 | ECS-04 changes |
 | MA-10 | `component` and `system` declarations | want | v1.0 | source break |
+| MA-17 | `shape` declarations and kind bounds | want | v1.0 | source break if an existing identifier is reinterpreted |
 
 The judgements follow [headroom.md](../headroom.md) §0: *want* means plan for it, because the step
 is cheap; *keep open* means the step only avoids ruling it out. *Decide by* is the first stage that
@@ -500,6 +528,18 @@ builds on the choice.
   - *Decide by:* v1.0.
   - *Goes to:* LEX-03, LEX-07, MOD-05.
 
+- **MA-17 [Proposed]** Keep `shape` syntax possible without retroactive identifier capture.
+  - *Needed by:* SHP-03's contextual declaration keyword and `T extends shape` kind bound.
+  - *Decision:* before v1.0, define the contextual parse and ambiguity policy, or reserve the
+    relevant use of `shape`. A type named `shape` is currently legal, and `extends shape`
+    already names such a type. Declaration syntax must also distinguish a nested shape from a
+    property whose type is named `shape`.
+  - *If late:* simply preferring the new keyword changes existing source meaning. The proposal
+    does not reserve the word in today's grammar.
+  - *Test:* existing identifiers and qualified types named `shape` retain the specified
+    meaning; shape declarations and kind bounds parse without heuristic reinterpretation.
+  - *Owner:* LEX-03, grammar.md sections 3.3 and 3.4; SHP-03.
+
 ## 5. Where the language changes
 
 *After v1.0* says whether the change can come after v1.0 without breaking a program or a module.
@@ -510,6 +550,7 @@ builds on the choice.
 | Rule | Change | Needed by | After v1.0 |
 |---|---|---|---|
 | LEX-03, grammar.md §3.3 | contextual `component` and `system` | ECS-01 | additive with MA-10, otherwise a source break |
+| LEX-03, grammar.md §3.3 (`TypeDecl`, `Bound`) | contextual `shape` declarations and shape-kind bounds | SHP-02, SHP-03, SHP-13 | see MA-17; not automatically additive |
 | grammar.md §3.4 (`Method`) | `requires` and `ensures` clauses; `old(e)` and `result` inside them | IC-01 to IC-05 | additive: today a method's signature ends with a block or `;` |
 | grammar.md §3.6 (`Statement`) | `transaction` blocks | TXN-01 | additive: `transaction {` is no statement today |
 | LEX-03, grammar.md §5, CON-01 | `volatile` and `synchronized` in use | THR-07, THR-08 | additive: both are reserved for later |
@@ -521,6 +562,7 @@ builds on the choice.
 | Rule | Change | Needed by | After v1.0 |
 |---|---|---|---|
 | NUM-01, NUM-02, TYP-03 | three primitive structs; promotion and widening only in expressions that contain one | WID-02 to WID-04 | additive: WID-04 keeps existing expressions |
+| TYP-01 to TYP-05, NUL-01, GEN-01 to GEN-03 | separate shape kind, structural view conversions, overload ranking and opt-in shape-kind generics | SHP-06 to SHP-13 | additive for new shape code if existing `Object?` bounds and nominal conversions are preserved; see MA-19 |
 | NUM-03 | 128-bit integer semantics | WID-05, WID-06 | additive |
 | NUM-04 | the NaN rule, binary128 and per-lane semantics | WID-07, SIMD-04, GPU-09 | see MA-01 |
 | NUL-03 | narrowed field reads | THR §4.2 | see MA-02 |
@@ -540,18 +582,21 @@ builds on the choice.
 |---|---|---|---|
 | BC-02 | a header flag for experimental modules | HR-06 | additive: BC-20 rejects unknown flags |
 | BC-03 | signature codes `I128`, `U128`, `F128`, `V128`, `M128` | WID-10 | additive in a new formatMinor (§6.5) |
+| BC-03, BC-04, BC-07, BC-11, BC-19 | shape definitions/requirements, value signatures, witness operations, shape-kind constraints and verification states | SHP-16, SHP-17 | additive in a versioned critical format extension; no numeric allocations yet |
 | BC-04 | wide, vector and transaction-boundary instructions | WID-11, SIMD-07, TXN-05 | additive in a new formatMinor |
 | BC-11 | contract rows, role and kernel metadata, a `volatile` field flag, device entries | IC-12, ECS-19, ECS-15, THR-08, GPU-17 | additive in a new formatMinor; the semantics are critical content (BC-20), and only source locations go to DEBUG (IC-12) |
 | BC-18 | transaction regions | TXN-04 | additive: a new region kind |
 | BC-19 | verification types for 16-byte values | WID-11, SIMD-07 | additive |
 | BC-07 | checks for checked subsets, leases, monitors, `volatile`, 16-byte values and transaction boundaries | ECS-20, THR-16, WID-11, GPU-10, TXN-05 | additive; the verifier exists from v0.7 |
 | BC-09 | compatibility of contracts, declared subsets and component layouts | IC, ECS, MA-04 | written when each is adopted |
+| BC-09 | shape requirements and provider conformance | SHP-19 | changing a shape requirement may break providers; new candidate members may change structural test results |
 
 ### 5.4 Runtime and backend
 
 | Rule | Change | Needed by | After v1.0 |
 |---|---|---|---|
 | VM-02 | concurrent updates of the header word (identity hash, destroy bits) | THR-15 | VM-private (HR-18) |
+| VM-04, VM-13, VM-15, VM-19, REFL-07 | checked structural witnesses, access-aware matching caches, reload/unloading invalidation | SHP-17, SHP-18 | new shape execution paths; existing box-mutability classification is unchanged |
 | VM-07 | other threads wait for a running initialiser | THR-15 | designed for it: the running thread is recorded |
 | VM-16, VM-19 | atomic publication of quickened code | THR-15, GPU-12 | see MA-08 |
 | GC-02 | one path for every store; barriers for atomic updates | TXN-06 to TXN-08, THR-14 | see MA-05 |
@@ -572,6 +617,7 @@ builds on the choice.
 | ARC-10 | VM-known `Atomic<T>`, wide scalars, vectors and masks | THR-02, WID-02, SIMD-01 | additive |
 | LIB-01 | modules `reflect.concurrent`, `reflect.gpu`, `reflect.platform`, `reflect.render.*`, `reflect.ui.*` and one for ECS | THR-02, GPU-03, RND-02, ECS §2.2 | additive; `reflect.core` requires none of them |
 | LIB-05 | conversions with new numeric types | WID-02 | see MA-03 |
+| REFL-02, REFL-13, GEN-03 | `ShapeType`/requirement mirrors and a checked recovery helper in `reflect.meta` | SHP-09, SHP-15 | new opt-in API; shape-valued invocation transport needs MA-19, not implicit `Object?` erasure |
 | LIB-08 | Unicode segmentation and width tables | RND-08 | additive |
 | LIB-09, VM-08, VM-22 | waits for readiness, terminal modes, signals delivered as events | RND-04, RND §7.1 | additive; blocking IO stays (HR-19) |
 | META-07, BOOT-08 | one checker for checked subsets | IC-06, ECS-15, GPU-08, TXN-12 | see MA-04 |
@@ -618,8 +664,9 @@ one home.
 | `DeviceBuffer<T>` | defined, reference-free transfer layouts | GPU-04 |
 | ECS kernel components | reference-free components | ECS-15 |
 | pointer element types | unmanaged types (baseline) | UNS-01 |
+| shape-kind parameters | non-null shape types, not structurally matching nominal receiver types | SHP-13 |
 
-Recommendation: one mechanism for all five. A VM-known type in `reflect.core` serves as a bound in
+Recommendation: one mechanism for the first five. A VM-known type in `reflect.core` serves as a bound in
 a `GenericConstraint` row (BC-11). For a sealed interface such as `Lane`, the ordinary bound check
 is enough (`T extends struct & Lane`). For a set that no bound expresses, such as the admissible
 types of `Atomic<T>` or an `Unmanaged` bound, the VM defines the test, and `rflc` and the verifier
@@ -629,23 +676,28 @@ instantiation. The format needs no change. UNS-01's "unmanaged" (primitives, poi
 without references) is the one definition of reference-free; GPU-04 adds layout rules on top of
 it.
 
+Shape-kind parameters are a separate case: shapes are neither classes nor structs and cannot
+use an existing nominal interface as a substitute for their kind. SHP-13 therefore needs the
+new kind bound and critical metadata of SHP-16, with the same GEN-10 error reporting. This does
+not generalize the existing implicit `Object?` bound (MA-19).
+
 ### 6.5 Free space in the module format
 
 A proposal that takes from this space records it here.
 
 | Space | Free today | Needed by |
 |---|---|---|
-| one-byte opcodes | inside families: `0B`–`0F`, `16`–`17`, `42`–`47`, `65`–`67`, `81`–`87`, `B1`–`B7`, `C4`–`C7`, `CF`, `E5`–`E7`, `EE`–`EF`, `F2`–`F3`; in no family: `F4`–`FD` | WID-11, SIMD-07, TXN-05 |
-| opcodes after `FE` | inside families: `10`–`1F`, `34`–`3F`, `52`–`5F`, `66`–`6F`; in no family: `70`–`FF` | WID-11, SIMD-07, TXN-05 |
-| signature codes | `0E`, `0F`, `1B`–`1F`, `24` and up | WID-10 |
-| verification types | `0D` and up | WID-11, SIMD-07 |
-| table IDs | `18` and up | IC-12, GPU-17 |
+| one-byte opcodes | inside families: `0B`–`0F`, `16`–`17`, `42`–`47`, `65`–`67`, `81`–`87`, `B1`–`B7`, `C4`–`C7`, `CF`, `E5`–`E7`, `EE`–`EF`, `F2`–`F3`; in no family: `F4`–`FD` | WID-11, SIMD-07, TXN-05; SHP-16 allocations open |
+| opcodes after `FE` | inside families: `10`–`1F`, `34`–`3F`, `52`–`5F`, `66`–`6F`; in no family: `70`–`FF` | WID-11, SIMD-07, TXN-05; SHP-16 allocations open |
+| signature codes | `0E`, `0F`, `1B`–`1F`, `24` and up | WID-10; SHP-16 allocations open |
+| verification types | `0D` and up | WID-11, SIMD-07; SHP-16 allocations open |
+| table IDs | `18` and up | IC-12, GPU-17; SHP-16 allocations open |
 | header flags | bit 2 and up (HR-06 proposes bit 2) | HR-06 |
-| `TypeDef` flags | `80` and up | ECS-19 |
+| `TypeDef` flags | `80` and up | ECS-19; SHP-16 allocations open |
 | `Field` flags | `80` and up | THR-08 |
 | `Method` flags | `8000` and up | IC-12, ECS-15, GPU-17 |
 | region kinds | `02` and up | TXN-04 |
-| `GenericParam` kinds | `03` and up | none, if §6.4 is adopted |
+| `GenericParam` kinds | `03` and up | SHP-13, SHP-16; other admissibility checks use §6.4 |
 
 Source: the opcode table of BC-04 (bytecode.md §5.1), BC-02, BC-03, BC-11, BC-18 and BC-19.
 
@@ -662,13 +714,13 @@ Reversing one of these before v1.0 would block the proposals named.
 | pointers only to unmanaged data; `fixed` for pinning | UNS-01, UNS-06 | TXN-12 through MA-05 |
 | layout private to the VM | HR-18 | GPU-18, THR §2 |
 | finals stay final | BC-23 | THR-06, TXN-13 |
-| boxes without identity | DAT-09 | THR-10 |
-| rejection of unknown critical content | BC-20 | IC-12, IC §5, THR-16, GPU-17, WID-10 |
+| boxes without identity | DAT-09 | THR-10, SHP-10, SHP-11 |
+| rejection of unknown critical content | BC-20 | IC-12, IC §5, THR-16, GPU-17, WID-10, SHP-16 |
 | calls through descriptors or patchable stubs | VM-10 | MA-15 |
 | strict IEEE arithmetic and equal results in every tier | NUM-04, JIT-07 | WID-07, SIMD-04, GPU-09, ECS-18 |
-| reified generics | VM-03, GEN-02 | THR-09, SIMD-01, GPU-08, ECS §2.1 |
+| reified generics | VM-03, GEN-02 | THR-09, SIMD-01, GPU-08, ECS §2.1, SHP-13 |
 | mixed-mode AOT keeps the interpreter and the JIT | JIT-04 | ECS-17 |
-| layers that can be unloaded | VM-15, MOD-10 | GPU-17, ECS §8 |
+| layers that can be unloaded | VM-15, MOD-10 | GPU-17, ECS §8, SHP-18 |
 | deterministic compile-time code | META-09, REFL-10 | GPU §9, THR §8.2 |
 | VM-known types in `reflect.core` | ARC-10 | THR-02, WID-02, SIMD-01 |
 
@@ -723,7 +775,7 @@ An arrow points from what must exist first to what needs it. A wave also reflect
 ```mermaid
 flowchart LR
     subgraph W0["before v1.0"]
-        D["MA-01 to MA-10"]
+        D["MA-01 to MA-10; MA-17"]
     end
     subgraph W1["wave 1"]
         CS["checked subsets (MA-04)"]
@@ -736,6 +788,7 @@ flowchart LR
         EC["ECS library, tables, kernels"]
         RT["RHI, terminal, software raster"]
         GA["GPU access contracts, CPU reference"]
+        SH["reified structural shapes"]
     end
     subgraph W3["wave 3"]
         TH["threads (THR)"]
@@ -757,6 +810,7 @@ flowchart LR
         GO["GPU object profiles"]
     end
     D --> CS & WI & SI & TH & TX & GI
+    D --> SH
     CS --> IC & EC & TX & GI
     MM --> TH
     TH --> EX & TW & TT
@@ -777,12 +831,12 @@ Waves 2 to 5 can overlap wherever §7.1 has no arrow between two items.
 
 | Wave | Content | Needs | Unblocks |
 |---|---|---|---|
-| 0, before v1.0 | MA-01 to MA-10; the headroom entries of §6.8; no proposal code | the stages named in §4 | every wave |
+| 0, before v1.0 | MA-01 to MA-10 and MA-17; the headroom entries of §6.8; no proposal code | the stages named in §4 | every wave |
 | 1 | the checker of MA-04 for new subsets; wide integers, then SIMD with SSE2 (WID-15 steps 1 to 4); IC with run-time checks; the text of the memory model and its proof plan (THR §10 step 2) | v1.0 | ECS kernels, Reflect-G, THR |
-| 2 | ECS stages 1 to 3 (ECS §10); RND-12 steps 1 to 3, with waits for readiness and Unicode tables in the library; GPU access contracts and the CPU reference backend (GPU-20 step 1), designed together with the RHI | ECS: the subsets of wave 1; RND: the packaging decision of RND §10 | the GUI, GPU hardware, ECS extensions |
+| 2 | ECS stages 1 to 3 (ECS §10); RND-12 steps 1 to 3, with waits for readiness and Unicode tables in the library; GPU access contracts and the CPU reference backend (GPU-20 step 1), designed together with the RHI; first SHP subset | ECS: the subsets of wave 1; RND: the packaging decision of RND §10; SHP: its witness proof and MA-18/MA-19 integration gates | the GUI, GPU hardware, ECS extensions, shape composition |
 | 3 | THR's first subset (THR §10 step 3); TXN's first subset, with TXN-13 to TXN-15 settled; the GUI frontend over software raster targets (RND-12 step 5), with a Linux window provider that presents through shared memory (§6.7) | MA-02, MA-05, MA-06, MA-08; the memory model proven; for TXN, MA-04 | parallel ECS, TXN with threads |
 | 4 | the backend decision of GPU-02 and, for a user-space driver, the C-library gate (UNS-04, RND-05); GPU hardware access (GPU-20 steps 2 and 3); GPU raster and GPU presentation (the rest of RND-12 step 4); the GPU interpreter (GPU-20 step 4) | MA-06, MA-07 | ECS on the GPU |
-| 5 | `Float128` and optional acceleration (WID-15 steps 5 and 6); ECS SIMD and parallel scheduling (ECS §10 stage 4; a parallel scheduler needs its own proposal); ECS on the GPU (GPU-20 step 5; ECS §10 asks for a separate proposal); weaker orders and certified lock-free types (THR §10 step 4); static race checking and lightweight threads (THR §10 step 5); IC proofs with the optimising JIT tier (JIT-15); TXN with threads (TXN-15); GPU object profiles (GPU-20 step 5) | the items named | - |
+| 5 | `Float128` and optional acceleration (WID-15 steps 5 and 6); ECS SIMD and parallel scheduling (ECS §10 stage 4; a parallel scheduler needs its own proposal); ECS on the GPU (GPU-20 step 5; ECS §10 asks for a separate proposal); weaker orders and certified lock-free types (THR §10 step 4); static race checking and lightweight threads (THR §10 step 5); IC proofs with the optimising JIT tier (JIT-15); TXN with threads (TXN-15); GPU object profiles (GPU-20 step 5); optional SHP composition, variance and borrowed views | the items named | - |
 
 ### 7.3 Reasons for the order
 
@@ -804,6 +858,9 @@ Waves 2 to 5 can overlap wherever §7.1 has no arrow between two items.
 6. **Long work starts before its wave.** The memory model and its proof (wave 3; CON-02 asks for
    the model before threads ship), the binary128 helpers and their oracle (wave 5, WID-15 step 5)
    and the device proof layer (wave 4, GPU-19) can run in parallel with earlier waves.
+7. **Shapes do not wait for intersections.** The initial SHP subset uses exact member matching
+   and named aggregation. Its witness semantics need a separate proof, but no GPU, thread or
+   intersection extension. Broader composition cannot delay or silently expand that subset.
 
 ## 8. Conflicts and gaps in the proposals
 
@@ -884,6 +941,24 @@ Waves 2 to 5 can overlap wherever §7.1 has no arrow between two items.
     the method documents, such as a held monitor; an analyser warns about unprotected shared reads
     in contracts.
   - *Owner:* IC, with THR.
+- **MA-18 [Open]** Shape projection of Intent Contracts.
+  - *Finding:* SHP-04 projects interface member requirements without nominal implementation.
+    IC-11 instead attaches inherited contracts to nominal implementation slots. A structurally
+    matching method need not have the source interface's entry/exit guards.
+  - *Resolution:* reject projection of contract-bearing sources until a checked binding/thunk
+    enforces the projected contract, or specify an explicit signature-only projection that
+    cannot be mistaken for a contract guarantee. Existing target-method guards always remain.
+  - *Owner:* SHP-04, IC-08 and IC-11, before enabling the combined features.
+- **MA-19 [Open]** Shape transport without nominal erasure.
+  - *Finding:* SHP-07 requires helper-only receiver recovery, whereas ordinary unconstrained
+    generics use an implicit `Object?` bound (NUL-06) and `Method.invoke` transports arguments
+    and results as `Object?` (REFL-02). Treating a shape as its receiver would bypass that
+    boundary; treating it as an ordinary class/struct changes the promised type kind.
+  - *Resolution:* SHP-13 initially admits shapes only through explicit shape-kind parameters
+    and leaves existing bounds unchanged. Full library/reflection integration needs a
+    kind-polymorphic bound, typed invocation or a genuinely opaque carrier, never automatic
+    receiver unwrapping. Reject unsupported reflective invocation before target execution.
+  - *Owner:* SHP-13 and SHP-15, before full generic/reflection integration.
 
 Document issues:
 
@@ -901,3 +976,4 @@ Document issues:
 |---|---|
 | 2026-10-21 | Created. The six proposals moved from `docs/` to `docs/proposals/`, with their links. Entries MA-01 to MA-16. Roadmap entry for the WID and SIMD proposal. Revised the same day after an adversarial review of every citation, quotation and count. |
 | 2026-10-23 | MA-01 closed by Q92 of [v0.0.x/sketchpad.md](../v0.0.x/sketchpad.md): NUM-04 gives the canonical NaN of `float` and `double`, and DAT-09 and BC-04 cite it. |
+| 2026-11-10 | Added SHP: structural interface aggregation, reified narrowing-only views, checked helper recovery and unchanged struct-box classification. Recorded source compatibility as MA-17 and contract/transport integration as MA-18/MA-19; updated the change register, shared mechanisms and recommended waves. |

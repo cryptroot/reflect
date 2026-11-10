@@ -12,6 +12,10 @@ yet part of the baseline language below.
 as structs, systems as classes, checked batch access and an optimizable kernel subset. Those roles
 are not yet part of the baseline type rules below.
 
+[Reified Structural Shapes](proposals/shapes.md) separately proposes structural aggregates of
+interface/member requirements, narrowing-only views and explicit checked receiver recovery.
+Shapes are not nominal interfaces and are not yet part of the baseline type rules below.
+
 ## 1. Modules, namespaces, visibility (MOD)
 
 - **MOD-01 [Decided]** A module is one `.rflc` file: the unit of compilation, versioning, access

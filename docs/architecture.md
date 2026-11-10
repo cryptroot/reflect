@@ -40,6 +40,7 @@ the decision log in sketchpad.md.
 | `GPU` | proposed GPU access, Reflect-G and device interpretation | [proposals/gpu.md](proposals/gpu.md) |
 | `RND` | proposed platform-agnostic rendering, GUI and terminal UI | [proposals/rendering.md](proposals/rendering.md) |
 | `WID`, `SIMD` | proposed 128-bit arithmetic and explicit SIMD | [proposals/wide-arithmetic-and-simd.md](proposals/wide-arithmetic-and-simd.md) |
+| `SHP` | proposed reified structural shapes | [proposals/shapes.md](proposals/shapes.md) |
 
 ## 1. Components
 

@@ -93,3 +93,10 @@ and `Float128` as VM-known primitive structs, and explicit fixed-width `Vector12
 changes performance, never results. It needs a versioned format and verifier extension and an
 explicit extension of JIT-09; binary128 is a separate, later step. It is unscheduled and is not an
 addition to R0 or a requirement for the self-hosting fixpoint.
+
+[Reified Structural Shapes](proposals/shapes.md) proposes a VM-known `shape` kind that accepts
+matching classes or boxed structs without nominal interface implementation. Views expose only
+their structural requirements; concrete recovery requires an explicit checked helper. It preserves
+existing box-mutability rules, leaves intersection composition speculative and needs shape-specific
+metadata, verifier rules and proofs. It is unscheduled and changes no baseline or bootstrap
+requirements.
