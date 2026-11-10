@@ -267,6 +267,22 @@ final class Parser {
         return value.bits();
     }
 
+    /** An Int in the range of a primitive integer type or a char, which a signed type sign-extends (Q98). */
+    long integral(int code, String what) throws AssemblyException {
+        if (code == SigCode.U64) {
+            return u64(what);
+        }
+        boolean signed = code == SigCode.I8 || code == SigCode.I16 || code == SigCode.I32 || code == SigCode.I64;
+        int bits = code <= SigCode.U8 ? 8 : code <= SigCode.CHAR ? 16 : code <= SigCode.U32 ? 32 : 64;
+        long largest = (1L << (signed ? bits - 1 : bits)) - 1;
+        Token token = number(what);
+        Magnitude value = integer(token, what);
+        if (!value.fits(signed, largest)) {
+            throw outside(token, what, signed ? String.valueOf(-largest - 1) : "0", String.valueOf(largest));
+        }
+        return value.bits();
+    }
+
     /** An Int from 0 to 2^64 - 1, as its bits. */
     long u64(String what) throws AssemblyException {
         Token token = number(what);

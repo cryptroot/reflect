@@ -321,6 +321,65 @@ public final class AssembleTypesTest {
     }
 
     @Test
+    public static void constantsTakeTheFormThatTheTypeOfTheirFieldGives() throws Exception {
+        // The module of ConstantTableTest.constants, whose values lie at the ends of their ranges, some in
+        // hexadecimal and one float as its bits (Q98).
+        String text = ".module a 0.0.0\n"
+                + ".requires reflect.core\n"
+                + ".class public a.K {\n"
+                + "    .field public static const boolean z = true\n"
+                + "    .field public static const byte b = -0x80\n"
+                + "    .field public static const ubyte ub = 0xFF\n"
+                + "    .field public static const short s = 32767\n"
+                + "    .field public static const ushort us = 65535\n"
+                + "    .field public static const char c = 9786\n"
+                + "    .field public static const int i = -2147483648\n"
+                + "    .field public static const uint ui = 4294967295\n"
+                + "    .field public static const long l = -9223372036854775808\n"
+                + "    .field public static const ulong ul = 0xFFFFFFFFFFFFFFFF\n"
+                + "    .field public static const float f = bits 0xBFC00000\n"
+                + "    .field public static const double d = -0.0\n"
+                + "    .field public static const reflect.core.String text = \"b\"\n"
+                + "    .field public static int n\n"
+                + "    .method static void f() {\n"
+                + "        ldstr \"a\"\n"
+                + "        ldstr \"b\"\n"
+                + "        pop\n"
+                + "        pop\n"
+                + "        ret\n"
+                + "    }\n"
+                + "}\n"
+                + ".typeref reflect.core.Object\n";
+        assertEquals(Leb128Test.hex(ModuleWriter.write(ConstantTableTest.constants())), Leb128Test.hex(assemble(text)));
+        String field = M + ".requires reflect.core\n.class a.A {\n.field static const ";
+        String range = "RFA0103: %s is outside the range of the Constant of a reflect.core.%s, from %s to %s";
+        unassemblable(field + "byte x = 128\n}", "4:30: " + range.formatted("128", "Int8", "-128", "127"));
+        unassemblable(field + "short x = -32769\n}", "4:31: " + range.formatted("-32769", "Int16", "-32768", "32767"));
+        unassemblable(field + "int x = 2147483648\n}",
+                "4:29: " + range.formatted("2147483648", "Int32", "-2147483648", "2147483647"));
+        unassemblable(field + "long x = 9223372036854775808\n}",
+                "4:30: " + range.formatted("9223372036854775808", "Int64", "-9223372036854775808", "9223372036854775807"));
+        unassemblable(field + "ubyte x = -1\n}", "4:31: " + range.formatted("-1", "UInt8", "0", "255"));
+        unassemblable(field + "char x = 65536\n}", "4:30: " + range.formatted("65536", "Char", "0", "65535"));
+        unassemblable(field + "ushort x = 65536\n}", "4:32: " + range.formatted("65536", "UInt16", "0", "65535"));
+        unassemblable(field + "uint x = 4294967296\n}", "4:30: " + range.formatted("4294967296", "UInt32", "0", "4294967295"));
+        unassemblable(field + "ulong x = -1\n}", "4:31: " + range.formatted("-1", "UInt64", "0", "18446744073709551615"));
+        unassemblable(field + "boolean x = 1\n}", "4:33: RFA0101: expected true or false, found 1");
+        unassemblable(field + "boolean x = @true\n}", "4:33: RFA0101: expected true or false, found @true");
+        unassemblable(field + "int x = \"1\"\n}", "4:29: RFA0101: expected the Constant of a reflect.core.Int32, found a string");
+        unassemblable(field + "int x = 1.5\n}", "4:29: RFA0101: expected the Constant of a reflect.core.Int32, found 1.5");
+        unassemblable(field + "double x = true\n}",
+                "4:32: RFA0101: expected the Constant of a reflect.core.Float64, found true");
+        unassemblable(field + "reflect.core.String x = 1\n}",
+                "4:45: RFA0101: expected the Constant of a reflect.core.String, found 1");
+        unassemblable(field + "reflect.core.Object x = 1\n}", "4:43: RFA0301: field a.A::x: a Constant holds a primitive"
+                + " or a reflect.core.String until later stages, not reflect.core.Object (Q98)");
+        unassemblable(field + "int x\n}", "4:25: RFA0301: field a.A::x is const, so it has a Constant row (Q98)");
+        unassemblable(M + ".class a.A {\n.field static int x = 1\n}",
+                "3:21: RFA0301: field a.A::x has a Constant row, but is not const (Q98)");
+    }
+
+    @Test
     public static void eachClassAndFieldHasItsDiagnostics() {
         unassemblable(M + ".class public public a.A {\n}", "2:15: RFA0104: public appears twice");
         unassemblable(M + ".class public private a.A {\n}", "2:23: RFA0301: type A has more than one visibility flag (BC-11)");
@@ -352,7 +411,7 @@ public final class AssembleTypesTest {
         unassemblable(M + ".class a.A {\n", "3:1: RFA0101: expected .field, .method, .class or }, found the end of the file");
         unassemblable(M + ".main a.B\n.class a.A {\n}", "2:7: RFA0201: the module defines no type a.B");
         String field = M + ".class a.A {\n.field ";
-        unassemblable(field + "int x = 1\n}", "3:14: RFA0303: the Constant table arrives in v0.0.6");
+        unassemblable(field + "int x = 1\n}", "3:14: RFA0301: field a.A::x has a Constant row, but is not const (Q98)");
         unassemblable(field + "static static int x\n}", "3:15: RFA0104: static appears twice");
         unassemblable(field + "const int x\n}",
                 "3:18: RFA0301: field a.A::x is const but not static; a const field is also STATIC (BC-11)");

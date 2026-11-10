@@ -353,13 +353,34 @@ public final class Assembler {
         TypeSig fieldType = definition(parser.type("the type of the field"), Signatures.OTHER);
         Token name = parser.identifier("the name of the field");
         identifier(name, name.text());
-        if (parser.at("=")) {
-            throw Parser.error(Diagnostic.LATER, parser.peek(), "the Constant table arrives in v0.0.6");
-        }
         var field = new FieldDef(flags, name.text(), fieldType);
-        check(name, ModuleWriter.fieldProblem(field, "field " + type.qualifiedName() + "::" + name.text(), module.name()));
+        String owner = "field " + type.qualifiedName() + "::" + name.text();
+        check(name, ModuleWriter.fieldProblem(field, owner, module.name()));
         check(name, ModuleWriter.fieldRepeats(type, type.fields().size(), field));
+        if (parser.at("=")) {
+            check(parser.next(), Constants.rowProblem(field, owner, module.name()));
+            field.setConstant(constant(fieldType));
+        }
+        check(name, Constants.problem(field, owner, module.name()));
         type.fields().add(field);
+    }
+
+    // Constant of §8.1 in the form that the type of the field gives (Q98): true or false for a boolean, an Int in
+    // the range of an integer type or a char, a Real for a float or a double, and a String for a reflect.core.String.
+    private Constant constant(TypeSig type) throws AssemblyException {
+        String what = "the Constant of a " + Signatures.name(type);
+        if (!(type instanceof TypeSig.Primitive primitive)) {
+            return new Constant.Text(parser.string(what));
+        }
+        int code = primitive.code();
+        if (code == SigCode.BOOLEAN) {
+            if (!parser.at("true") && !parser.at("false")) {
+                throw parser.unexpected("true or false");
+            }
+            return new Constant.Bits(parser.next().text().equals("true") ? 1 : 0);
+        }
+        return new Constant.Bits(code == SigCode.F32 ? parser.r4(what) & 0xFFFF_FFFFL
+                : code == SigCode.F64 ? parser.r8(what) : parser.integral(code, what));
     }
 
     // A method named new or static is a constructor or a static initializer (§3.1), and ... after

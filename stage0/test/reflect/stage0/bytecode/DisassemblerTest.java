@@ -532,6 +532,56 @@ public final class DisassemblerTest {
         assertEquals(text, roundTrip(text));
     }
 
+    @Test
+    public static void constantsTakeTheFormsOfTheirTypes() throws Exception {
+        byte[] file = ModuleWriter.write(ConstantTableTest.constants());
+        String canonical = Disassembler.text(ModuleReader.read(file));
+        // A signed type takes a signed decimal, an unsigned type and a char an unsigned one, and a float and a
+        // string the forms of their operands (Q98).
+        assertEquals(".module a 0.0.0\n"
+                + ".requires reflect.core\n"
+                + "\n"
+                + ".class public a.K {\n"
+                + "    .field public static const reflect.core.Boolean z = true\n"
+                + "    .field public static const reflect.core.Int8 b = -128\n"
+                + "    .field public static const reflect.core.UInt8 ub = 255\n"
+                + "    .field public static const reflect.core.Int16 s = 32767\n"
+                + "    .field public static const reflect.core.UInt16 us = 65535\n"
+                + "    .field public static const reflect.core.Char c = 9786\n"
+                + "    .field public static const reflect.core.Int32 i = -2147483648\n"
+                + "    .field public static const reflect.core.UInt32 ui = 4294967295\n"
+                + "    .field public static const reflect.core.Int64 l = -9223372036854775808\n"
+                + "    .field public static const reflect.core.UInt64 ul = 18446744073709551615\n"
+                + "    .field public static const reflect.core.Float32 f = -1.5\n"
+                + "    .field public static const reflect.core.Float64 d = -0.0\n"
+                + "    .field public static const reflect.core.String text = \"b\"\n"
+                + "    .field public static reflect.core.Int32 n\n"
+                + "    .method static void f() {\n"
+                + "        .maxstack 2\n"
+                + "        ldstr \"a\"\n"
+                + "        ldstr \"b\"\n"
+                + "        pop\n"
+                + "        pop\n"
+                + "        ret\n"
+                + "    }\n"
+                + "}\n"
+                + "\n"
+                + ".typeref reflect.core.Object\n", canonical);
+        assertEquals(Leb128Test.hex(file), Leb128Test.hex(assemble(canonical)));
+        String text = ".module m 0.0.0\n"
+                + ".requires reflect.core\n"
+                + "\n"
+                + ".class a.A {\n"
+                + "    .field static const reflect.core.Boolean no = false\n"
+                + "    .field static const reflect.core.Int8 small = 127\n"
+                + "    .field static const reflect.core.Float32 nan = bits 0x7FC00001\n"
+                + "    .field static const reflect.core.Float64 low = -inf\n"
+                + "    .field static const reflect.core.Float64 tiny = 4.9E-324\n"
+                + "    .field static const reflect.core.String escaped = \"\\u00E9\\\"\\\\\\n\"\n"
+                + "}\n";
+        assertEquals(text, roundTrip(text));
+    }
+
     // The canonical text of the module that the text gives, which assembles to the same bytes (BC-08).
     static String roundTrip(String text) throws Exception {
         byte[] module = assemble(text);

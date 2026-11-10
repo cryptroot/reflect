@@ -260,7 +260,9 @@ public final class Disassembler {
         }
         line(depth, head.append(" {").toString());
         for (FieldDef field : type.fields()) {
-            line(depth + 1, ".field " + words(field.flags(), FIELD_WORDS) + type(field.type()) + " " + field.name());
+            Constant value = field.constant();
+            line(depth + 1, ".field " + words(field.flags(), FIELD_WORDS) + type(field.type()) + " " + field.name()
+                    + (value == null ? "" : " = " + constant(field.type(), value)));
         }
         for (MethodDef method : type.methods()) {
             method(method, depth + 1);
@@ -455,6 +457,22 @@ public final class Disassembler {
                     .append(named == null ? "" : " " + typeName(named));
         }
         return text.append(')').toString();
+    }
+
+    // Constant of §8.1 (Q98): true or false, a signed decimal for a signed type, an unsigned one for an unsigned type
+    // and a char, a float as an operand, and a string with its escapes.
+    private static String constant(TypeSig type, Constant value) {
+        if (value instanceof Constant.Text text) {
+            return string(text.text());
+        }
+        long bits = ((Constant.Bits) value).bits();
+        return switch (((TypeSig.Primitive) type).code()) {
+            case SigCode.BOOLEAN -> bits == 0 ? "false" : "true";
+            case SigCode.I8, SigCode.I16, SigCode.I32, SigCode.I64 -> String.valueOf(bits);
+            case SigCode.F32 -> real32((int) bits);
+            case SigCode.F64 -> real64(bits);
+            default -> Long.toUnsignedString(bits);
+        };
     }
 
     // Real of §8.1: the shortest decimal that reads back to the same float, an infinity, or the bits of a NaN.

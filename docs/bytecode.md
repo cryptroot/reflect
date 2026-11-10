@@ -1085,8 +1085,10 @@ HexDigits    = HexDigit+ ;
   file; without one, it continues the file of the method's previous `.line`. A `.line` and a
   `.stackmap` describe the instruction that follows them.
 - `.section` holds an unknown ancillary section, with its ID in hexadecimal (BC-20).
-- The type of a field decides how its `Constant` is read; the operand kind of an instruction
-  decides how an operand is read.
+- A `Field` has `=` and a `Constant` exactly when it is `const`, and its type decides how the
+  `Constant` is read (Q98): `true` or `false` for a `boolean`, an `Int` in the range of an integer
+  type or a `char`, a `Real` for a `float` or a `double`, and a `String` for a
+  `reflect.core.String`. The operand kind of an instruction decides how an operand is read.
 - `Real` gives a decimal value rounded to the nearest float, `inf`, `-inf`, or with `bits` the
   exact IEEE 754 bit pattern, which covers NaN payloads.
 - `String` holds UTF-16 code units; `\u` gives one code unit, so an unpaired surrogate can be
@@ -1142,9 +1144,9 @@ module are `RFA0301`, and the message names the rule.
 
 ### 8.3 Canonical text
 
-- **BC-25 [Decided, Q86, Q97, Q99]** `rfld` prints the canonical text of a module: the text that
-  `rfla` assembles back to the same bytes (BC-08), and that `rfld` then prints again unchanged. Lines
-  end in LF, each level of nesting indents by four spaces, and `rfld` prints no comments.
+- **BC-25 [Decided, Q86, Q97, Q98, Q99]** `rfld` prints the canonical text of a module: the text
+  that `rfla` assembles back to the same bytes (BC-08), and that `rfld` then prints again unchanged.
+  Lines end in LF, each level of nesting indents by four spaces, and `rfld` prints no comments.
   1. The text follows the order of the binary. `.module` comes first, then `.unsafe`, `.main`,
      `.requires` per `ModuleRef` row and `.exports` or `.opens` per `Export` row. Each top-level
      type follows in `TypeDef` row order after one blank line, with its `.field` and `.method` rows in
@@ -1184,7 +1186,10 @@ module are `RFA0301`, and the message names the rule.
      float is the shortest decimal that reads back to the same value, `inf`, `-inf`, or `bits` and
      its bit pattern when it is a NaN. A string writes printable ASCII as it is, escapes `"`, `\`,
      tab, LF, CR and NUL by §8.1, and writes each other code unit as `\u` with four uppercase
-     hexadecimal digits.
+     hexadecimal digits. The `.field` of a `const` field ends with `=` and the value of its
+     `Constant` row (Q98): `true` or `false` for a `boolean`, a signed decimal number for a signed
+     type, an unsigned decimal number for an unsigned type and a `char`, and a float or a string in
+     the form of an operand.
 
 ## 9. Binary compatibility
 

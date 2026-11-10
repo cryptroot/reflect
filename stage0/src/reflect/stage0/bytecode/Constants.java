@@ -18,14 +18,23 @@ final class Constants {
     /** The first rule that the field breaks with its Constant, or null; the owner names the field. */
     static @Nullable String problem(FieldDef field, String owner, String module) {
         @Nullable Constant value = field.constant();
-        boolean isConst = (field.flags() & Flags.FIELD_CONST) != 0;
         if (value == null) {
-            return isConst ? owner + " is const, so it has a Constant row (Q98)" : null;
+            return (field.flags() & Flags.FIELD_CONST) != 0 ? owner + " is const, so it has a Constant row (Q98)" : null;
         }
-        if (!isConst) {
+        String problem = rowProblem(field, owner, module);
+        if (problem != null) {
+            return problem;
+        }
+        problem = valueProblem(field.type(), value, module);
+        return problem == null ? null : owner + ": " + problem;
+    }
+
+    /** The first rule that a Constant row of the field breaks whatever its value, or null. */
+    static @Nullable String rowProblem(FieldDef field, String owner, String module) {
+        if ((field.flags() & Flags.FIELD_CONST) == 0) {
             return owner + " has a Constant row, but is not const (Q98)";
         }
-        String problem = valueProblem(field.type(), value, module);
+        String problem = typeProblem(field.type(), module);
         return problem == null ? null : owner + ": " + problem;
     }
 
