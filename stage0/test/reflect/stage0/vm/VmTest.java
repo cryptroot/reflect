@@ -419,8 +419,56 @@ public final class VmTest {
         assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run value types yet, such as"
                 + " m.P\n"), run(program("        ldnull\n        instanceof m.P\n        pop\n        ret\n", "")
                 + ".class public struct m.P {\n}\n"));
-        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run arrays yet\n"),
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run the arguments of main yet\n"),
                 run(program("        ldarg 0\n        instanceof reflect.core.Object\n        pop\n        ret\n", "")));
+    }
+
+    @Test
+    public static void anArrayInstructionChecksItsArray() throws Exception {
+        // Every dereference checks null (BC-14); until v0.0.8, a fault.
+        String none = "        .locals (int[]? a)\n        ldloc a\n";
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": ldlen: the array is null\n"),
+                run(program(none + "        ldlen\n        pop\n        ret\n", "")));
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": ldelem.i32: the array is null\n"),
+                run(program(none + "        ldc.i4 0\n        ldelem.i32\n        pop\n        ret\n", "")));
+        assertEquals(new Run(1, NULL_POINTER_EXCEPTION, "", NULL_POINTER_EXCEPTION + ": stelem.f64: the array is null\n"),
+                run(program(none + "        ldc.i4 0\n        ldc.r8 1\n        stelem.f64\n        ret\n", "")));
+        // An element instruction names the storage kind of the elements (Q106); another kind, and a value that is no
+        // array, are code that a verifier would reject (Q101).
+        String invalid = "vm0: m.App::main: instruction %d: the code is invalid: %s\n";
+        assertEquals(new Run(2, null, "", invalid.formatted(3, "ldelem.i32 does not take a reflect.core.Int64[]")),
+                run(program("        ldc.i4 1\n        newarr long\n        ldc.i4 0\n        ldelem.i32\n        pop\n"
+                + "        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(4, "stelem.i16 does not take a reflect.core.Boolean[]")),
+                run(program("        ldc.i4 1\n        newarr boolean\n        ldc.i4 0\n        ldc.i4 1\n        stelem.i16\n"
+                + "        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(3, "ldelem.u16 does not take a reflect.core.UInt8[]")),
+                run(program("        ldc.i4 1\n        newarr ubyte\n        ldc.i4 0\n        ldelem.u16\n        pop\n"
+                + "        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(4, "stelem.f32 does not take a reflect.core.Float64[]")),
+                run(program("        ldc.i4 1\n        newarr double\n        ldc.i4 0\n        ldc.r4 1\n        stelem.f32\n"
+                + "        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(1, "ldlen takes an array, not a reflect.core.String")),
+                run(program("        ldstr \"x\"\n        ldlen\n        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", invalid.formatted(1, "ldlen takes an array, not a number")),
+                run(program("        ldc.i4 1\n        ldlen\n        pop\n        ret\n", "")));
+        // Until main receives a reflect.core.String[] (Q111), VM0 does not run its arguments, and until reference
+        // arrays, no other element type.
+        assertEquals(new Run(2, null, "", "vm0: m.App::main: instruction 1: VM0 does not run the arguments of main yet\n"),
+                run(program("        ldarg 0\n        ldlen\n        pop\n        ret\n", "")));
+        assertEquals(new Run(2, null, "", "vm0: VM0 does not run arrays of reflect.core.String yet\n"),
+                run(program("        ldc.i4 1\n        newarr reflect.core.String\n        pop\n        ret\n", "")));
+    }
+
+    @Test
+    public static void anArrayTypeNeedsReflectCoreArray() throws Exception {
+        // Every array type extends reflect.core.Array (NUL-07, Q106), which loads when newarr first runs.
+        String core = Files.readString(Path.of("tests/bytecode/lib/reflect.core.rfla")).replace(
+                ".class public abstract reflect.core.Array", ".class public abstract reflect.core.Arrays");
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "before\n", TYPE_LOAD_ERROR + ": reflect.core.Int32[] needs"
+                + " reflect.core.Array, which the module graph does not hold\n"), run(program("        ldstr \"before\"\n"
+                + PRINTLN + "        ldc.i4 1\n        newarr int\n        pop\n        ret\n", ""), null,
+                Map.of("reflect.core", core)));
     }
 
     @Test

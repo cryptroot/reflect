@@ -10,6 +10,7 @@ import reflect.stage0.bytecode.FieldDef;
 import reflect.stage0.bytecode.Flags;
 import reflect.stage0.bytecode.MethodDef;
 import reflect.stage0.bytecode.MethodHandle;
+import reflect.stage0.bytecode.SigCode;
 import reflect.stage0.bytecode.TypeDef;
 import reflect.stage0.bytecode.TypeHandle;
 import reflect.stage0.bytecode.TypeSig;
@@ -19,11 +20,14 @@ import reflect.stage0.lib.Nullable;
  * A run-time type (VM-03): a type of a module that VM0 has loaded at its first use (VM-13), with its
  * base class (Q96) and its interfaces, the slots of its instance fields, those of the base class first
  * (VM-02), its vtable and interface table (VM-04), the storage of its static fields, whether its
- * initialization has started (VM-07), and the methods and fields that VM0 has linked.
+ * initialization has started (VM-07), and the methods and fields that VM0 has linked. An array type is
+ * one too, by its element type, with the base class reflect.core.Array (Q106).
  */
 final class RuntimeType {
     private final RuntimeModule module;
-    private final TypeDef definition;
+    private final @Nullable TypeDef definition;
+    private final @Nullable Element element;
+    private final String name;
     private final @Nullable RuntimeType base;
     private final List<RuntimeType> interfaces = new ArrayList<>();
     private final Map<MethodDef, RuntimeMethod> methods = new IdentityHashMap<>();
@@ -39,6 +43,8 @@ final class RuntimeType {
     RuntimeType(RuntimeModule module, TypeDef definition, @Nullable RuntimeType base) {
         this.module = module;
         this.definition = definition;
+        element = null;
+        name = definition.qualifiedName();
         this.base = base;
         int inherited = base == null ? 0 : base.zeros.length;
         int own = 0;
@@ -79,16 +85,35 @@ final class RuntimeType {
         initializer = found;
     }
 
+    /**
+     * The run-time type of the arrays of an element type (VM-03, Q106), which extends reflect.core.Array: it
+     * has the vtable of that class, and no fields, interfaces or initializer of its own.
+     */
+    RuntimeType(RuntimeType array, Element element) {
+        module = array.module;
+        definition = null;
+        this.element = element;
+        name = element.name() + "[]";
+        base = array;
+        zeros = new Object[0];
+        statics = new Object[0];
+        initializer = null;
+        vtable = array.vtable;
+        started = true;
+    }
+
     RuntimeModule module() {
         return module;
     }
 
-    TypeDef definition() {
+    /** The TypeDef row of the type, or null for an array type. */
+    @Nullable TypeDef definition() {
         return definition;
     }
 
+    /** The name of the type as GEN-12 spells it, such as demo.zoo.Dog or reflect.core.Int32[]. */
     String name() {
-        return definition.qualifiedName();
+        return name;
     }
 
     /** The base class, or null for reflect.core.Object, an interface and a value type (Q96). */
@@ -98,6 +123,9 @@ final class RuntimeType {
 
     /** Whether the type is a struct, a ref struct, a record struct or an enum (TYP-01). */
     boolean isValueType() {
+        if (definition == null) {
+            return false;
+        }
         int kind = definition.kind();
         return kind == Flags.KIND_STRUCT || kind == Flags.KIND_REF_STRUCT || kind == Flags.KIND_RECORD_STRUCT
                 || kind == Flags.KIND_ENUM;
@@ -105,12 +133,14 @@ final class RuntimeType {
 
     /** Whether the type is an interface or an annotation type, which has no instances of its own. */
     boolean isInterface() {
-        return definition.kind() == Flags.KIND_INTERFACE || definition.kind() == Flags.KIND_ANNOTATION;
+        return definition != null && (definition.kind() == Flags.KIND_INTERFACE
+                || definition.kind() == Flags.KIND_ANNOTATION);
     }
 
     /**
      * Whether the type is this one, a class of its base chain, or an interface that one of them implements,
-     * directly or through the interfaces that an interface extends (TYP-02, Q96).
+     * directly or through the interfaces that an interface extends (TYP-02, Q96). An array type is a subtype
+     * only of itself and of its base classes, since arrays are invariant (NUL-07).
      */
     boolean isSubtypeOf(RuntimeType other) {
         for (RuntimeType type = this; type != null; type = type.base) {
@@ -129,6 +159,11 @@ final class RuntimeType {
     /** A new object of the type, with every field at its zero value (BC-17). */
     Instance allocate() {
         return new Instance(this, zeros.clone());
+    }
+
+    /** A new array of the array type with this length, with every element at its zero value (Q106). */
+    ArrayInstance allocate(int length) {
+        return new ArrayInstance(this, element.elements(length));
     }
 
     /** The values of the static fields, one storage per class (MEM-05), each at zero until its first store. */
@@ -324,6 +359,9 @@ final class RuntimeType {
 
     private @Nullable RuntimeMethod classImplementation(Vm vm, RuntimeMethod method) {
         for (RuntimeType type = this; type != null; type = type.base) {
+            if (type.definition == null) {
+                continue;
+            }
             for (MethodDef definition : type.definition.methods()) {
                 RuntimeMethod candidate = type.method(definition);
                 if (candidate.slot() < 0) {
@@ -397,5 +435,30 @@ final class RuntimeType {
     /** The run-time field of a field that the type lists, with its slot among the instance or the static fields. */
     RuntimeField field(FieldDef field) {
         return fields.get(field);
+    }
+
+    /**
+     * The element type of an array type (Q106): a primitive by its signature code, or else a run-time type and
+     * whether the element type is its nullable form (NUL-01). Element types are equal when they are one
+     * primitive, or one run-time type with one nullability, so each array type has one run-time type.
+     */
+    record Element(int primitive, @Nullable RuntimeType type, boolean nullable) {
+        /** The element type as GEN-12 spells it. */
+        String name() {
+            return type == null ? Spelling.struct(primitive) : type.name() + (nullable ? "?" : "");
+        }
+
+        /** A Java array of the storage kind of the element type (BC-04), with each element at zero. */
+        Object elements(int length) {
+            return switch (type == null ? primitive : 0) {
+                case SigCode.BOOLEAN, SigCode.I8, SigCode.U8 -> new byte[length];
+                case SigCode.I16, SigCode.U16, SigCode.CHAR -> new short[length];
+                case SigCode.I32, SigCode.U32 -> new int[length];
+                case SigCode.I64, SigCode.U64 -> new long[length];
+                case SigCode.F32 -> new float[length];
+                case SigCode.F64 -> new double[length];
+                default -> new Object[length];
+            };
+        }
     }
 }

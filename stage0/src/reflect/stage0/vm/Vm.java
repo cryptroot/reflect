@@ -52,6 +52,7 @@ public final class Vm {
     private final PrintStream out;
     private final PrintStream err;
     private final Map<TypeDef, RuntimeType> types = new IdentityHashMap<>();
+    private final Map<RuntimeType.Element, RuntimeType> arrays = new HashMap<>();
     private final Map<String, String> literals = new HashMap<>();
     // One slot for each one-byte opcode, then one for each two-byte opcode.
     private final long[] counts = new long[0x200];
@@ -209,14 +210,41 @@ public final class Vm {
     }
 
     /**
-     * The run-time type of a value on the stack: the type of an Instance, reflect.core.String for a string,
-     * or null for any other value.
+     * The run-time type of a value on the stack: the type of an Instance or an array, reflect.core.String for a
+     * string, or null for any other value.
      */
     @Nullable RuntimeType typeOf(@Nullable Object value) {
         if (value instanceof String) {
             return core("String", "a string");
         }
+        if (value instanceof ArrayInstance array) {
+            return array.type();
+        }
         return value instanceof Instance object ? object.type() : null;
+    }
+
+    /**
+     * The run-time type of the arrays of an element type (VM-03, Q106): one per element type, its nullability
+     * included, which extends reflect.core.Array.
+     */
+    RuntimeType array(RuntimeType.Element element) {
+        RuntimeType type = arrays.get(element);
+        if (type == null) {
+            type = new RuntimeType(core("Array", element.name() + "[]"), element);
+            arrays.put(element, type);
+        }
+        return type;
+    }
+
+    /**
+     * The element type that the token of a newarr of the module names (Q106): until reference arrays arrive, a
+     * primitive.
+     */
+    RuntimeType.Element element(RuntimeModule from, TypeHandle handle) {
+        if (handle instanceof TypeSpec spec && spec.type() instanceof TypeSig.Primitive primitive) {
+            return new RuntimeType.Element(primitive.code(), null, false);
+        }
+        throw new Stop("VM0 does not run arrays of " + handle.qualifiedName() + " yet");
     }
 
     /** The text of an object: what the toString() in the slot of its run-time type gives (Q103). */

@@ -18,7 +18,8 @@ import reflect.stage0.lib.Nullable;
 /**
  * The interpreter of VM0 (BOOT-04): one Java call per Reflect call, and a switch over the opcodes
  * of the stack bytecode. Locals and the operand stack hold Java values: Integer for i32, Long for
- * i64, Float for f32, Double for f64, and an Instance, a String or null for a reference.
+ * i64, Float for f32, Double for f64, and an Instance, an ArrayInstance, a String or null for a
+ * reference.
  */
 final class Interpreter {
     // The canonical NaN of each format (NUM-04, MA-01, Q92): the positive quiet NaN with payload 0. Java's
@@ -494,6 +495,73 @@ final class Interpreter {
                                     + tested.name());
                         }
                     }
+                    // newarr makes an array of the element type that it names, each element at its zero value (Q106).
+                    case Opcode.NEWARR -> {
+                        if (links[pc] == null) {
+                            links[pc] = vm.array(vm.element(method.type().module(), ((Instruction.Type) instruction).type()));
+                        }
+                        stack[sp - 1] = ((RuntimeType) links[pc]).allocate(i32(stack[sp - 1]));
+                    }
+                    case Opcode.LDLEN -> stack[sp - 1] = array(vm, stack[sp - 1], instruction, method, pc).length();
+                    // An element instruction names the storage kind of the elements (BC-04, Q106), and a load widens a
+                    // small element by its suffix.
+                    case Opcode.LDELEM_I8, Opcode.LDELEM_U8 -> {
+                        int index = i32(stack[--sp]);
+                        byte value = elements(vm, stack[sp - 1], byte[].class, instruction, method, pc)[index];
+                        stack[sp - 1] = instruction.opcode() == Opcode.LDELEM_I8 ? value : value & 0xFF;
+                    }
+                    case Opcode.LDELEM_I16, Opcode.LDELEM_U16 -> {
+                        int index = i32(stack[--sp]);
+                        short value = elements(vm, stack[sp - 1], short[].class, instruction, method, pc)[index];
+                        stack[sp - 1] = instruction.opcode() == Opcode.LDELEM_I16 ? value : value & 0xFFFF;
+                    }
+                    case Opcode.LDELEM_I32 -> {
+                        int index = i32(stack[--sp]);
+                        stack[sp - 1] = elements(vm, stack[sp - 1], int[].class, instruction, method, pc)[index];
+                    }
+                    case Opcode.LDELEM_I64 -> {
+                        int index = i32(stack[--sp]);
+                        stack[sp - 1] = elements(vm, stack[sp - 1], long[].class, instruction, method, pc)[index];
+                    }
+                    case Opcode.LDELEM_F32 -> {
+                        int index = i32(stack[--sp]);
+                        stack[sp - 1] = elements(vm, stack[sp - 1], float[].class, instruction, method, pc)[index];
+                    }
+                    case Opcode.LDELEM_F64 -> {
+                        int index = i32(stack[--sp]);
+                        stack[sp - 1] = elements(vm, stack[sp - 1], double[].class, instruction, method, pc)[index];
+                    }
+                    // A store keeps the low 8 or 16 bits of an i32 in a small element, as a field does (Q104).
+                    case Opcode.STELEM_I8 -> {
+                        int value = i32(stack[--sp]);
+                        int index = i32(stack[--sp]);
+                        elements(vm, stack[--sp], byte[].class, instruction, method, pc)[index] = (byte) value;
+                    }
+                    case Opcode.STELEM_I16 -> {
+                        int value = i32(stack[--sp]);
+                        int index = i32(stack[--sp]);
+                        elements(vm, stack[--sp], short[].class, instruction, method, pc)[index] = (short) value;
+                    }
+                    case Opcode.STELEM_I32 -> {
+                        int value = i32(stack[--sp]);
+                        int index = i32(stack[--sp]);
+                        elements(vm, stack[--sp], int[].class, instruction, method, pc)[index] = value;
+                    }
+                    case Opcode.STELEM_I64 -> {
+                        long value = i64(stack[--sp]);
+                        int index = i32(stack[--sp]);
+                        elements(vm, stack[--sp], long[].class, instruction, method, pc)[index] = value;
+                    }
+                    case Opcode.STELEM_F32 -> {
+                        float value = f32(stack[--sp]);
+                        int index = i32(stack[--sp]);
+                        elements(vm, stack[--sp], float[].class, instruction, method, pc)[index] = value;
+                    }
+                    case Opcode.STELEM_F64 -> {
+                        double value = f64(stack[--sp]);
+                        int index = i32(stack[--sp]);
+                        elements(vm, stack[--sp], double[].class, instruction, method, pc)[index] = value;
+                    }
                     case Opcode.RET -> {
                         return method.returnsValue() ? stack[--sp] : null;
                     }
@@ -575,13 +643,44 @@ final class Interpreter {
     }
 
     // Whether a value that is not null is an instance of the type: its run-time type is the type or a subtype
-    // of it (TYP-02). Until arrays arrive (v0.0.7), the arguments of main are the only other value.
+    // of it (TYP-02). Until main receives a reflect.core.String[] (Q111), its arguments are the only other value.
     private static boolean instance(Vm vm, Object value, RuntimeType type, RuntimeMethod method, int pc) {
         RuntimeType actual = vm.typeOf(value);
         if (actual == null) {
-            throw new Stop(where(method, pc) + ": VM0 does not run arrays yet");
+            throw new Stop(where(method, pc) + ": VM0 does not run the arguments of main yet");
         }
         return actual.isSubtypeOf(type);
+    }
+
+    // The array of an array instruction. null is a NullPointerException (BC-14); a value that is no array is code
+    // that a verifier would reject (Q101).
+    private static ArrayInstance array(Vm vm, @Nullable Object value, Instruction instruction, RuntimeMethod method,
+            int pc) {
+        String mnemonic = Opcode.mnemonic(instruction.opcode());
+        if (value == null) {
+            throw new Fault(Fault.NULL_POINTER_EXCEPTION, mnemonic + ": the array is null");
+        }
+        if (value instanceof ArrayInstance array) {
+            return array;
+        }
+        RuntimeType type = vm.typeOf(value);
+        if (type == null && !(value instanceof Number)) {
+            throw new Stop(where(method, pc) + ": VM0 does not run the arguments of main yet");
+        }
+        throw new Stop(where(method, pc) + ": the code is invalid: " + mnemonic + " takes an array, not "
+                + (type == null ? "a number" : "a " + type.name()));
+    }
+
+    // The elements of the array of an element instruction, in the Java array of the storage kind that it names
+    // (BC-04, Q106); an array of another kind is code that a verifier would reject (Q101).
+    private static <T> T elements(Vm vm, @Nullable Object value, Class<T> kind, Instruction instruction,
+            RuntimeMethod method, int pc) {
+        ArrayInstance array = array(vm, value, instruction, method, pc);
+        if (!kind.isInstance(array.elements())) {
+            throw new Stop(where(method, pc) + ": the code is invalid: " + Opcode.mnemonic(instruction.opcode())
+                    + " does not take a " + array.type().name());
+        }
+        return kind.cast(array.elements());
     }
 
     // The receiver of an instruction that names a member of the owner. null is a NullPointerException

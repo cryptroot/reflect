@@ -58,6 +58,11 @@ public final class NanTest {
         // ldconst loads the bits of a Constant (Q98).
         assertEquals("7ff0000000000001", f64("ldconst double m.N::SIGNAL64"));
         assertEquals("7f800001", f32("ldconst float m.N::SIGNAL32"));
+        // An array element keeps them too (Q106).
+        assertEquals("7ff0000000000001", f64("ldc.i4 1\nnewarr double\ndup\nldc.i4 0\nldc.r8 bits 0x7FF0000000000001\n"
+                + "stelem.f64\nldc.i4 0\nldelem.f64"));
+        assertEquals("7f800001", f32("ldc.i4 1\nnewarr float\ndup\nldc.i4 0\nldc.r4 bits 0x7F800001\nstelem.f32\n"
+                + "ldc.i4 0\nldelem.f32"));
     }
 
     // The bits of the double that a static method with this body returns.

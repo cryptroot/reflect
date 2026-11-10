@@ -36,3 +36,7 @@
     .method public static native void exit(int code) {
     }
 }
+
+// Every array type extends it (NUL-07, Q106).
+.class public abstract reflect.core.Array extends reflect.core.Object {
+}

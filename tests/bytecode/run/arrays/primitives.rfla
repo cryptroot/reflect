@@ -1,0 +1,407 @@
+// expect-output: boolean: 1 0 2
+// expect-output: byte: 0 44 -1 3
+// expect-output: ubyte: 200 -56 255
+// expect-output: short: 4464 -2 65534
+// expect-output: ushort: 65535 -1
+// expect-output: char: 9786 0
+// expect-output: int: 0 1 4 9
+// expect-output: uint: -1
+// expect-output: long: 0 9000000000
+// expect-output: ulong: -1
+// expect-output: float: 0.0 1.5
+// expect-output: double: 0.0 0.1
+// expect-output: empty: 0
+.module primitives 0.0.0
+.main primitives.App
+.requires reflect.core
+.requires reflect.io
+
+// newarr makes an array of the element type that it names, each element at its zero value, and ldlen gives its
+// length (BC-04, Q106). ldelem and stelem name the storage kind of the elements: a store keeps the low 8 or 16
+// bits of an i32 in a small element, and a load widens them by its suffix, as fields do (Q104).
+.class public final primitives.App {
+    .method public static void main(reflect.core.String[] args) {
+        call     static void primitives.App::booleans()
+        call     static void primitives.App::bytes()
+        call     static void primitives.App::ubytes()
+        call     static void primitives.App::shorts()
+        call     static void primitives.App::ushorts()
+        call     static void primitives.App::chars()
+        call     static void primitives.App::ints()
+        call     static void primitives.App::uints()
+        call     static void primitives.App::longs()
+        call     static void primitives.App::ulongs()
+        call     static void primitives.App::floats()
+        call     static void primitives.App::doubles()
+        ldstr    "empty:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   0
+        newarr   int
+        ldlen
+        call     static void primitives.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void booleans() {
+        .locals (boolean[] a)
+        ldstr    "boolean:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   2
+        newarr   boolean
+        stloc    a
+        ldloc    a
+        ldc.i4   0
+        ldc.i4   1
+        stelem.i8
+        ldloc    a
+        ldc.i4   0
+        ldelem.u8
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   1
+        ldelem.u8
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldlen
+        call     static void primitives.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // 300 keeps its low 8 bits, 44.
+    .method static void bytes() {
+        .locals (byte[] a)
+        ldstr    "byte:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   3
+        newarr   byte
+        stloc    a
+        ldloc    a
+        ldc.i4   1
+        ldc.i4   300
+        stelem.i8
+        ldloc    a
+        ldc.i4   2
+        ldc.i4   -1
+        stelem.i8
+        ldloc    a
+        ldc.i4   0
+        ldelem.i8
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   1
+        ldelem.i8
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   2
+        ldelem.i8
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldlen
+        call     static void primitives.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // stelem.i8 serves ubyte (BC-04), and the load decides how the bits widen.
+    .method static void ubytes() {
+        .locals (ubyte[] a)
+        ldstr    "ubyte:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   1
+        newarr   ubyte
+        stloc    a
+        ldloc    a
+        ldc.i4   0
+        ldc.i4   200
+        stelem.i8
+        ldloc    a
+        ldc.i4   0
+        ldelem.u8
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   0
+        ldelem.i8
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   0
+        ldc.i4   -1
+        stelem.i8
+        ldloc    a
+        ldc.i4   0
+        ldelem.u8
+        call     static void primitives.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // 70000 keeps its low 16 bits, 4464.
+    .method static void shorts() {
+        .locals (short[] a)
+        ldstr    "short:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   2
+        newarr   short
+        stloc    a
+        ldloc    a
+        ldc.i4   0
+        ldc.i4   70000
+        stelem.i16
+        ldloc    a
+        ldc.i4   1
+        ldc.i4   -2
+        stelem.i16
+        ldloc    a
+        ldc.i4   0
+        ldelem.i16
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   1
+        ldelem.i16
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   1
+        ldelem.u16
+        call     static void primitives.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void ushorts() {
+        .locals (ushort[] a)
+        ldstr    "ushort:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   1
+        newarr   ushort
+        stloc    a
+        ldloc    a
+        ldc.i4   0
+        ldc.i4   65535
+        stelem.i16
+        ldloc    a
+        ldc.i4   0
+        ldelem.u16
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   0
+        ldelem.i16
+        call     static void primitives.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void chars() {
+        .locals (char[] a)
+        ldstr    "char:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   2
+        newarr   char
+        stloc    a
+        ldloc    a
+        ldc.i4   0
+        ldc.i4   9786
+        stelem.i16
+        ldloc    a
+        ldc.i4   0
+        ldelem.u16
+        call     static void primitives.App::show(int)
+        ldloc    a
+        ldc.i4   1
+        ldelem.u16
+        call     static void primitives.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // Fills a[i] with i * i while i < a.length, then prints the elements.
+    .method static void ints() {
+        .locals (int[] a, int i)
+        ldstr    "int:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   4
+        newarr   int
+        stloc    a
+    FILL:
+        ldloc    i
+        ldloc    a
+        ldlen
+        bge.i32  PRINT
+        ldloc    a
+        ldloc    i
+        ldloc    i
+        ldloc    i
+        mul.i32
+        stelem.i32
+        ldloc    i
+        ldc.i4   1
+        add.i32
+        stloc    i
+        br       FILL
+    PRINT:
+        ldc.i4   0
+        stloc    i
+    NEXT:
+        ldloc    i
+        ldloc    a
+        ldlen
+        bge.i32  END
+        ldloc    a
+        ldloc    i
+        ldelem.i32
+        call     static void primitives.App::show(int)
+        ldloc    i
+        ldc.i4   1
+        add.i32
+        stloc    i
+        br       NEXT
+    END:
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // stelem.i32 serves uint, and valueOf(int) prints the bits of 4294967295 as a signed int.
+    .method static void uints() {
+        .locals (uint[] a)
+        ldstr    "uint:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   1
+        newarr   uint
+        stloc    a
+        ldloc    a
+        ldc.i4   0
+        ldc.i4   -1
+        stelem.i32
+        ldloc    a
+        ldc.i4   0
+        ldelem.i32
+        call     static void primitives.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void longs() {
+        .locals (long[] a)
+        ldstr    "long:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   2
+        newarr   long
+        stloc    a
+        ldloc    a
+        ldc.i4   1
+        ldc.i8   9000000000
+        stelem.i64
+        ldloc    a
+        ldc.i4   0
+        ldelem.i64
+        call     static void primitives.App::show(long)
+        ldloc    a
+        ldc.i4   1
+        ldelem.i64
+        call     static void primitives.App::show(long)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void ulongs() {
+        .locals (ulong[] a)
+        ldstr    "ulong:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   1
+        newarr   ulong
+        stloc    a
+        ldloc    a
+        ldc.i4   0
+        ldc.i8   -1
+        stelem.i64
+        ldloc    a
+        ldc.i4   0
+        ldelem.i64
+        call     static void primitives.App::show(long)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void floats() {
+        .locals (float[] a)
+        ldstr    "float:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   2
+        newarr   float
+        stloc    a
+        ldloc    a
+        ldc.i4   1
+        ldc.r4   1.5
+        stelem.f32
+        ldloc    a
+        ldc.i4   0
+        ldelem.f32
+        call     static void primitives.App::show(float)
+        ldloc    a
+        ldc.i4   1
+        ldelem.f32
+        call     static void primitives.App::show(float)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    .method static void doubles() {
+        .locals (double[] a)
+        ldstr    "double:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldc.i4   2
+        newarr   double
+        stloc    a
+        ldloc    a
+        ldc.i4   1
+        ldc.r8   0.1
+        stelem.f64
+        ldloc    a
+        ldc.i4   0
+        ldelem.f64
+        call     static void primitives.App::show(double)
+        ldloc    a
+        ldc.i4   1
+        ldelem.f64
+        call     static void primitives.App::show(double)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // Each show prints a space and the text of its value (NUM-05).
+    .method static void show(int value) {
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+
+    .method static void show(long value) {
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(long)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+
+    .method static void show(float value) {
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(float)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+
+    .method static void show(double value) {
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(double)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+}

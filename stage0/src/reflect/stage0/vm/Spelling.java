@@ -10,6 +10,7 @@ import reflect.stage0.bytecode.TypeDef;
 import reflect.stage0.bytecode.TypeHandle;
 import reflect.stage0.bytecode.TypeRef;
 import reflect.stage0.bytecode.TypeSig;
+import reflect.stage0.bytecode.TypeSpec;
 
 /**
  * The text of a signature, in the full form of a .rfla MethodRef with primitive keywords (Q52,
@@ -80,6 +81,11 @@ final class Spelling {
             ref = outer;
         }
         return ((ModuleRef) ref.scope()).name();
+    }
+
+    /** The struct of a primitive as GEN-12 spells it, such as reflect.core.Int32 for int (NUM-01). */
+    static String struct(int code) {
+        return new TypeSpec(new TypeSig.Primitive(code)).qualifiedName();
     }
 
     private static List<String> types(reflect.stage0.lib.List<TypeSig> types, String module, boolean scoped) {

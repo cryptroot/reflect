@@ -428,13 +428,17 @@ package-private (MOD-08). `TypeDef` flags hold at most one of `FINAL`, `SEALED` 
 ## 5. Instruction set
 
 - **BC-04 [Proposed; encoding Decided, Q67, Q68; shift counts and NaN Decided, Q91, Q92; small
-  fields Decided, Q104; `ldconst` Decided, Q98]** Opcodes are one byte; `0xFE` prefixes a second
-  byte. Arithmetic is typed like the JVM's, so the interpreter never inspects stack types;
-  `boolean`, `byte`, `short` and `char` values widen to `i32` on the stack and narrow with `conv`
+  fields Decided, Q104; `ldconst` Decided, Q98; arrays Decided, Q106]** Opcodes are one byte; `0xFE`
+  prefixes a second byte. Arithmetic is typed like the JVM's, so the interpreter never inspects stack
+  types; `boolean`, `byte`, `short` and `char` values widen to `i32` on the stack and narrow with `conv`
   on store, and unsigned values share the slots of their signed widths. A field of type `boolean`,
   `byte`, `ubyte`, `short`, `ushort` or `char` keeps the low 8 or 16 bits of the `i32` that `stfld`
   or `stsfld` stores, and `ldfld` and `ldsfld` widen them by the field's type: `byte` and `short`
-  sign-extend, the others zero-extend (Q104). An
+  sign-extend, the others zero-extend (Q104). An array keeps its elements in the storage kind of its
+  element type, which `ldelem.k` and `stelem.k` name: `i8` for `boolean`, `byte` and `ubyte`, `i16`
+  for `short`, `ushort` and `char`, the width of the other primitives, and `ref` for references. A
+  store keeps the low 8 or 16 bits of an `i32`, as a field does, and `ldelem.i8`, `ldelem.u8`,
+  `ldelem.i16` and `ldelem.u16` widen them by their suffix (Q106). An
   instruction exists only where it changes the result: equality and stores ignore signedness
   (`ceq.i32` serves `u32`, `stelem.i8` serves `u8`), and conversions exist only where bits change.
   Other pairs compose: a `double` narrows to `byte` through `conv.f64.i32` then
@@ -465,7 +469,7 @@ package-private (MOD-08). `TypeDef` flags hold at most one of `FINAL`, `SEALED` 
   | control | `88`-`B7` | `br <off>`; `brtrue`, `brfalse`, `brnull`, `brnonnull` `<off>`; fused `beq.t bne.t`, and `blt ble bgt bge` over `t` and `u`, `<off>`; `switch <count> <off>...`; `leave <off>`; `endfinally`; `ret` |
   | objects | `B8`-`C7` | `newobj <tok>` (args → object); `newobj.svirt <tok>` (class, args → object, virtual constructor of the class); `ldfld <tok>`; `stfld <tok>`; `ldflda <tok>`; `ldsfld`, `stsfld`, `ldsflda <tok>` (a static field that is not `const`, Q98); `getclass` (object → `Class<?>`); `instanceof <tok>` (false for null); `castclass <tok>`; `checkalive` (object → object, DAT-08) |
   | value types | `C8`-`CF` | `box <tok>`; `unbox <tok>` (pushes a copy, never a reference into the box, DAT-09); `ldobj`, `stobj`, `cpobj`, `initobj <tok>`; `sizeof <tok>` → `i32` |
-  | arrays | `D0`-`E7` | `newarr <tok>` (length → array); `ldlen`; `ldelem.k`, or `ldelem <tok>` for structs and type parameters; `stelem.k`, `stelem <tok>`; `ldelema <tok>` |
+  | arrays | `D0`-`E7` | `newarr <tok>` (length → array of the element type that `<tok>` names, each element at its zero value, of an array type that extends `reflect.core.Array`, NUL-07, Q106); `ldlen` → `i32`; `ldelem.k`, or `ldelem <tok>` for structs and type parameters; `stelem.k`, `stelem <tok>`; `ldelema <tok>` |
   | calls | `E8`-`EF` | `call <tok>`; `call.recv <tok>`; `callvirt <tok>`; `call.svirt <tok>`; `call.constrained <tok> <tok>`; `ldrecv` → `Class<?>` |
   | exceptions | `F0`-`F3` | `throw`; `rethrow` |
   | checked arithmetic | `FE 00`-`FE 1F` | `add.ovf sub.ovf mul.ovf` over `i32 i64 u32 u64`; `div.ovf` and `neg.ovf` over `i32 i64`; overflow throws `ArithmeticException` (NUM-03) |

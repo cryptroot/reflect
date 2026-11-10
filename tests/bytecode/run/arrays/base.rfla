@@ -1,0 +1,64 @@
+// expect-output: reflect.core.Int32[]
+// expect-output: reflect.core.Char[]
+// expect-output: reflect.core.Float64[]
+// expect-output: types: 1 1 0
+// expect-output: same: 1 0
+.module base 0.0.0
+.main base.App
+.requires reflect.core
+.requires reflect.io
+
+// Every array type extends reflect.core.Array (NUL-07, Q106), so an array is an Object, whose toString() gives the
+// name of its array type (Q103). ceq.ref compares two arrays by identity (OPR-04).
+.class public final base.App {
+    .method public static void main(reflect.core.String[] args) {
+        .locals (int[] a)
+        ldc.i4   2
+        newarr   int
+        stloc    a
+        ldloc    a
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   0
+        newarr   char
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldc.i4   1
+        newarr   double
+        callvirt reflect.core.String reflect.core.Object::toString()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ldstr    "types:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldloc    a
+        instanceof reflect.core.Array
+        call     static void base.App::show(int)
+        ldloc    a
+        instanceof reflect.core.Object
+        call     static void base.App::show(int)
+        ldloc    a
+        instanceof reflect.core.String
+        call     static void base.App::show(int)
+        call     static void reflect.io.Console::println()
+        ldstr    "same:"
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldloc    a
+        ldloc    a
+        ceq.ref
+        call     static void base.App::show(int)
+        ldloc    a
+        ldc.i4   2
+        newarr   int
+        ceq.ref
+        call     static void base.App::show(int)
+        call     static void reflect.io.Console::println()
+        ret
+    }
+
+    // Prints a space and the value.
+    .method static void show(int value) {
+        ldstr    " "
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ldarg    value
+        call     static reflect.core.String reflect.core.String::valueOf(int)
+        call     static void reflect.io.Console::print(reflect.core.Object?)
+        ret
+    }
+}
