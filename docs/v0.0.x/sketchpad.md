@@ -20,7 +20,7 @@ log is [../sketchpad.md](../sketchpad.md).
 | v0.0.3 | assembler; suite runner for rejected files | done; `all` passes with 170 tests, 0 failures, and the `bytecode` job with 8 files, 0 failures; tag `v0.0.3`, 2026-10-22 |
 | v0.0.4 | disassembler, round trip | done; `all` passes on Windows with 190 tests, 0 failures, and the `bytecode` job with 8 files, 0 failures, each file of `format/` round-tripped; the Linux run of Q53 is pending (D.5); tag `v0.0.4` on `0de78e4`, 2026-10-23 |
 | v0.0.5 | VM0 loader and core interpreter | done; `all` passes on Windows with 221 tests, 0 failures, and the `bytecode` job with 29 files, 0 failures, the 19 programs of `run/core/` and `hello.rfla` among them; the opcode report lists 44 of the 159 R0 opcodes, all of later stages; the Linux run of Q53 is pending (D.6); tag `v0.0.5` on `6ea5055`, 2026-10-24 |
-| v0.0.6 | VM0 objects and dispatch | not started |
+| v0.0.6 | VM0 objects and dispatch | done; `all` passes on Windows with 262 tests, 0 failures, and the `bytecode` job with 49 files, 0 failures, the 20 programs of `run/objects/` among them; the opcode report lists 31 of the 159 R0 opcodes, all of later stages; the Linux run of Q53 is pending (D.7); tag `v0.0.6` on `7c5cb72`, 2026-11-10 |
 | v0.0.7 | VM0 arrays, strings and boxing | not started |
 | v0.0.8 | VM0 exceptions | not started |
 | v0.0.9 | VM0 reified types and generics; exit test | not started |
@@ -58,11 +58,11 @@ These follow from the plan. Each is made in the stage named, or when its questio
 | [bytecode.md](../bytecode.md) BC-04, BC-17 | the `i32` count of a 64-bit shift, and locals that start at zero (Q91) | done in v0.0.5 |
 | [type-system.md](../type-system.md) NUM-04, DAT-09; [bytecode.md](../bytecode.md) BC-04; [proposals/meta-analysis.md](../proposals/meta-analysis.md) MA-01 | the canonical NaN, and *Went to* in MA-01 (Q92) | done in v0.0.5 |
 | [testing.md](../testing.md) TST-01 | how `test` compares the output, the exit code and an uncaught exception (Q90) | done in v0.0.5 |
-| [bytecode.md](../bytecode.md) BC-11, §3.1 | the flags `FINAL`, `SEALED` and `UNSEALED` (Q95), base types (Q96), and the rows of `Override`, `TypeSpec` and `Constant` (Q97 to Q99) | in v0.0.6 |
-| [bytecode.md](../bytecode.md) BC-04, BC-12, BC-14 | the slots that overrides fill (Q97), the null check of `call` (Q100), and stores to small fields (Q104) | in v0.0.6 |
-| [bytecode.md](../bytecode.md) BC-08, §8.1, BC-25 | `.typespec`, and the text of `.override`, of constants and of `TypeSpec` tokens (Q97 to Q99) | in v0.0.6 |
-| [type-system.md](../type-system.md) DAT-06, EXC-05, MEM-06, MEM-07 | `permits` at load (Q95), `AbstractMemberError` for instance members (Q101), errors in static initializers (Q102), and the default text of an object (Q103) | in v0.0.6 |
-| [vm.md](../vm.md) VM-04, VM-07, VM-13 | interface calls and defaults (Q97), errors in static initializers (Q102), and the load checks (Q95, Q96) | in v0.0.6 |
+| [bytecode.md](../bytecode.md) BC-11, §3.1 | the flags `FINAL`, `SEALED` and `UNSEALED` (Q95), base types (Q96), and the rows of `Override`, `TypeSpec` and `Constant` (Q97 to Q99) | done in v0.0.6 |
+| [bytecode.md](../bytecode.md) BC-04, BC-12, BC-14 | the slots that overrides fill (Q97), the null check of `call` (Q100), and stores to small fields (Q104) | done in v0.0.6 |
+| [bytecode.md](../bytecode.md) BC-08, §8.1, BC-25 | `.typespec`, and the text of `.override`, of constants and of `TypeSpec` tokens (Q97 to Q99) | done in v0.0.6 |
+| [type-system.md](../type-system.md) DAT-06, EXC-05, MEM-06, MEM-07 | `permits` at load (Q95), `AbstractMemberError` for instance members (Q101), errors in static initializers (Q102), and the default text of an object (Q103) | done in v0.0.6 |
+| [vm.md](../vm.md) VM-04, VM-07, VM-13 | interface calls and defaults (Q97), errors in static initializers (Q102), and the load checks (Q95, Q96) | done in v0.0.6 |
 
 ### A.2 Inconsistencies found while planning
 
@@ -144,6 +144,12 @@ These follow from the plan. Each is made in the stage named, or when its questio
 26. README §7.7 makes frames record the receiver class `R` of static calls in v0.0.6, but no
     instruction reads `R` before v0.0.9, so no test can check it. Found 2026-10-27 while v0.0.6 was
     planned. Settled 2026-10-27 with Q105.
+27. No rule rejects a cycle of base types, such as `a.A extends a.B` and `a.B extends a.A`: the
+    writer and the reader check the kind and the flags of a base of the module (Q96), but not the
+    chain, and VM0 loads each base before its class, so it recurses until its stack overflows, and
+    reports `reflect.core.StackOverflowError`. The JVM throws `ClassCircularityError`. Settle before
+    v0.1, where `rflc0` writes modules: a rule of BC-11 for bases of the module, and a
+    `TypeLoadError` for a cycle through another module. Found 2026-11-10 in v0.0.6.
 
 ## B. Questions and answers
 
@@ -1040,3 +1046,27 @@ before v0.0.0:
 - Linux exit check: pending, as for v0.0.4 (D.5). The WSL distributions still have no Docker
   Desktop integration on 2026-10-24. By a decision in chat on 2026-10-24, the tag `v0.0.5` came
   after the Windows check alone, unlike Q53. The Linux result goes here.
+
+### D.7 v0.0.6 implementation (2026-11-09 to 2026-11-10)
+
+- Windows exit check, 2026-11-10: in a fresh clone of `7c5cb72`, in a path with spaces,
+  `docker/dev.ps1 all` passes in 66.7 s with Windows PowerShell 5.1.26100.9711 and Docker 29.9.2.
+  The `unit` job runs 262 tests with 0 failures. The `bytecode` job passes 49 files, the 20
+  programs of `run/objects/` among them. `lake build` succeeds with the two known `sorry` warnings.
+- The opcode report of that run lists 31 of the 159 R0 opcodes. Each belongs to a later stage:
+  arrays, `box` and `unbox` (v0.0.7); `throw`, `rethrow`, `leave` and `endfinally` (v0.0.8);
+  `ldtype`, `getclass`, `ldarga`, `ldloca` and `call.constrained` (v0.0.9). Every instruction of
+  v0.0.6 runs in a program of `run/objects/`.
+- The commits of the stage were checked by mutation: a copy of the checkout outside the working
+  tree took one change at a time, marked as a mutation, and the unit tests and the suite ran on it
+  with the host JDK. Each commit message lists the mutations that made its tests fail.
+- VM0 checks the return types of `Override` rows after the vtable of the class stands, since the
+  check may load other types, and a type that loads while its base is linking would copy an empty
+  vtable. It loads a type only when the two return types differ.
+- VM0 decides without a bridge only what v0.0.6 can run: the same type, a reference subtype, the
+  nullable form of a supertype, and `reflect.core.Object` for a class, an interface, an
+  instantiation, an array or an intersection. Subtyping of instantiations waits for v0.0.9.
+- A gap found while the base types were checked: A.2 item 27, a cycle of base types.
+- Linux exit check: pending, as for v0.0.5 (D.6); no Linux host here reaches Docker. By a decision
+  in chat on 2026-11-10, the tag `v0.0.6` came after the Windows check alone, unlike Q53. The Linux
+  result goes here.
