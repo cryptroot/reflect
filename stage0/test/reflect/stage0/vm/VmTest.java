@@ -559,6 +559,79 @@ public final class VmTest {
     }
 
     @Test
+    public static void loadingChecksTheOverrideRows() throws Exception {
+        // A row names an existing method of a supertype that has a slot, is not final and takes the parameter
+        // types of the override; a class method fills one slot of its base classes; and the override's return
+        // type converts, without a bridge, to that of the method that the slot held, or of the interface method
+        // (BC-12, MEM-02, Q97). A violation is a TypeLoadError when the type loads.
+        String load = "        ldnull\n        instanceof m.B\n        pop\n        ret\n";
+        String a = type("m.A", "    .method public virtual void f() {\n        ret\n    }\n"
+                + "    .method public virtual void e() {\n        ret\n    }\n"
+                + "    .method public virtual final void g() {\n        ret\n    }\n"
+                + "    .method public void h() {\n        ret\n    }\n"
+                + "    .method public virtual void p(int x) {\n        ret\n    }\n"
+                + "    .method public virtual m.A make() {\n        ldnull\n        ret\n    }\n"
+                + "    .method public virtual reflect.core.Object any() {\n        ldnull\n        ret\n    }\n");
+        String body = "        ret\n    }\n";
+        String none = "        ldnull\n" + body;
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": the module reflect.core defines no method void"
+                + " reflect.core.Object::gone()\n"), run(program(load, "") + a + overriding("void f()",
+                "void reflect.core.Object::gone()", body)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": void m.B::f() overrides void m.C::f(), but m.C is"
+                + " no supertype of m.B (BC-12)\n"), run(program(load, "") + a + type("m.C", "    .method public virtual"
+                + " void f() {\n" + body) + overriding("void f()", "void m.C::f()", body)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": void m.B::h() overrides void m.A::h(), which is"
+                + " not a virtual or abstract instance method (BC-12)\n"), run(program(load, "") + a
+                + overriding("void h()", "void m.A::h()", body)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": void m.B::g() overrides void m.A::g(), which is"
+                + " final (MEM-02)\n"), run(program(load, "") + a + overriding("void g()", "void m.A::g()", body)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": void m.B::p(long) overrides void m.A::p(int),"
+                + " whose parameter types differ (MEM-02)\n"), run(program(load, "") + a + overriding("void p(long x)",
+                "void m.A::p(int)", body)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", TYPE_LOAD_ERROR + ": void m.B::f() fills a second slot, that of void"
+                + " m.A::e() (Q97)\n"), run(program(load, "") + a + overriding("void f()", "void m.A::f()\n"
+                + "        .override void m.A::e()", body)));
+        // An override never widens its return type, its nullability included, and a value that needs a box needs
+        // a bridge too.
+        String widens = "%s: the return type of %s does not convert to that of %s (BC-12)\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", widens.formatted(TYPE_LOAD_ERROR, "reflect.core.Object m.B::make()",
+                "m.A m.A::make()")), run(program(load, "") + a + overriding("reflect.core.Object make()",
+                "m.A m.A::make()", none)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", widens.formatted(TYPE_LOAD_ERROR, "m.A? m.B::make()",
+                "m.A m.A::make()")), run(program(load, "") + a + overriding("m.A? make()", "m.A m.A::make()", none)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", widens.formatted(TYPE_LOAD_ERROR, "reflect.core.Object? m.B::any()",
+                "reflect.core.Object m.A::any()")), run(program(load, "") + a + overriding("reflect.core.Object? any()",
+                "reflect.core.Object m.A::any()", none)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", widens.formatted(TYPE_LOAD_ERROR, "int m.B::any()",
+                "reflect.core.Object m.A::any()")), run(program(load, "") + a + overriding("int any()",
+                "reflect.core.Object m.A::any()", "        ldc.i4 0\n" + body)));
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", widens.formatted(TYPE_LOAD_ERROR, "valuetype m.S m.B::any()",
+                "reflect.core.Object m.A::any()")), run(program(load, "") + a + ".class public struct m.S {\n}\n"
+                + overriding("m.S any()", "reflect.core.Object m.A::any()", none)));
+        // An instantiation is a reference type too; the run never loads reflect.core.Box, which stands for one.
+        assertEquals(new Run(0, null, "", ""), run(program(load, "") + a + overriding("reflect.core.Box<int> any()",
+                "reflect.core.Object m.A::any()", none)));
+        // The method that the slot holds is the nearest one in the base classes, so m.C, which names A::any, cannot
+        // widen what m.B narrowed.
+        String c = type("m.C extends m.B", "    .method public virtual reflect.core.Object any() {\n"
+                + "        .override reflect.core.Object m.A::any()\n" + none);
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", widens.formatted(TYPE_LOAD_ERROR, "reflect.core.Object m.C::any()",
+                "reflect.core.String m.B::any()")), run(program(load.replace("m.B", "m.C"), "") + a
+                + overriding("reflect.core.String any()", "reflect.core.Object m.A::any()", none) + c));
+        String face = ".class public interface m.I {\n    .method public abstract m.I self() {\n    }\n}\n";
+        assertEquals(new Run(1, TYPE_LOAD_ERROR, "", widens.formatted(TYPE_LOAD_ERROR, "reflect.core.Object m.B::self()",
+                "m.I m.I::self()")), run(program(load, "") + face + type("m.B implements m.I", "    .method public virtual"
+                + " reflect.core.Object self() {\n        .override m.I m.I::self()\n" + none)));
+    }
+
+    // The class m.B, which extends m.A, with a public virtual method of this head that overrides the method
+    // that the MethodRef names, and this body.
+    private static String overriding(String head, String overridden, String body) {
+        return type("m.B extends m.A", "    .method public virtual " + head + " {\n        .override " + overridden + "\n"
+                + body);
+    }
+
+    @Test
     public static void aClassWithoutABaseNeedsReflectCoreObject() throws Exception {
         // A class with base 0 extends reflect.core.Object (Q96), which loads before it; here no module holds it.
         String main = ".module m 0.0.0\n.main m.App\n.requires static reflect.core\n\n.class public final m.App {\n"

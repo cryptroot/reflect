@@ -162,15 +162,19 @@ emit and the VM (ARC-11). Conventions: [architecture.md](architecture.md) §0.
   fills at most one such slot. A class has one row per interface method that one of its methods
   implements (MEM-03), and an interface method that overrides a method of a superinterface has one
   too. A row names the method that source overrides, an override included, as BC-09 assumes, and
-  `callvirt` of a class method takes the slot from the vtable of the receiver's class (Q97). A row
-  whose overridden method no longer exists is a link error (`TypeLoadError`).
+  `callvirt` of a class method takes the slot from the vtable of the receiver's class (Q97). Loading
+  checks each row: the method that it names exists in a supertype, is a `VIRTUAL` or `ABSTRACT`
+  instance method that is not `FINAL`, and has the parameter types of the override (MEM-02). A
+  violation, such as a row whose overridden method no longer exists, is a link error
+  (`TypeLoadError`).
   Return types are covariant (MEM-02). An override that returns a reference subtype of the base's
   return type fills the base slot itself, so explicit rows need no bridge for it. When the return
   type needs boxing or nullable wrapping, the row names the synthesized bridge that converts the
   result, and that bridge fills the base slot; the override keeps a slot of its own, which a
-  subclass may override with the same type. Loading checks that an override's return type
-  converts to the return type of the method it replaces in the slot, the nearest one in its base
-  classes, so a module compiled against an older base cannot widen it; otherwise `TypeLoadError`.
+  subclass may override with the same type. Loading checks that an override's return type converts
+  without a bridge to the return type of the method it replaces in the slot, the nearest one in its
+  base classes, so a module compiled against an older base cannot widen it, and an implementation's
+  to that of the interface method that its row names; otherwise `TypeLoadError`.
 - **BC-13 [Proposed]** Annotations with retention `SOURCE` are not written; `CLASS` ones are
   written but invisible to run-time reflection; `RUNTIME` ones are visible (META-01).
 

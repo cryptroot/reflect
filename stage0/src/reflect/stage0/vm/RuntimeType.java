@@ -12,6 +12,7 @@ import reflect.stage0.bytecode.MethodDef;
 import reflect.stage0.bytecode.MethodHandle;
 import reflect.stage0.bytecode.TypeDef;
 import reflect.stage0.bytecode.TypeHandle;
+import reflect.stage0.bytecode.TypeSig;
 import reflect.stage0.lib.Nullable;
 
 /**
@@ -174,7 +175,8 @@ final class RuntimeType {
      * sealed supertypes (Q95), then, for a class, its vtable (VM-04, BC-12, Q97): the slots of the base class,
      * then for each VIRTUAL or ABSTRACT instance method, in row order, the slot of each method of a base class
      * that an Override row of the method names, or else a new slot. A row may name an override, whose slot is
-     * the one that it fills. Value types (v0.0.7) and the load checks of the rows come later (README §7.7).
+     * the one that it fills. Loading checks each row of the type's methods (BC-12), the return types once the
+     * vtable stands, since they may load other types. Value types arrive in v0.0.7.
      */
     void link(Vm vm) {
         for (TypeHandle implemented : definition.interfaces()) {
@@ -187,28 +189,83 @@ final class RuntimeType {
             interfaces.add(type);
         }
         checkSealing();
-        if (isInterface() || isValueType()) {
-            return;
-        }
-        List<RuntimeMethod> slots = new ArrayList<>(base == null ? List.of() : Arrays.asList(base.vtable));
+        boolean isClass = !isInterface() && !isValueType();
+        List<RuntimeMethod> slots = new ArrayList<>(base == null || !isClass ? List.of() : Arrays.asList(base.vtable));
+        // Each row with the method whose return type it keeps or narrows: the one that the slot held, or the
+        // interface method that it names.
+        var rows = new ArrayList<RuntimeMethod[]>();
         for (MethodDef definition : definition.methods()) {
             RuntimeMethod method = method(definition);
-            if (!method.hasSlot()) {
-                continue;
-            }
             for (MethodHandle overridden : definition.overrides()) {
-                RuntimeMethod replaced = vm.method(module, overridden);
-                if (replaced.slot() >= 0 && isSubtypeOf(replaced.type())) {
-                    slots.set(replaced.slot(), method);
-                    method.setSlot(replaced.slot());
+                RuntimeMethod replaced = overridable(method, vm.method(module, overridden));
+                int slot = replaced.slot();
+                if (!isClass || slot < 0) {
+                    rows.add(new RuntimeMethod[] {method, replaced});
+                } else if (method.slot() < 0) {
+                    rows.add(new RuntimeMethod[] {method, slots.get(slot)});
+                    slots.set(slot, method);
+                    method.setSlot(slot);
+                } else if (method.slot() != slot) {
+                    throw new Fault(Fault.TYPE_LOAD_ERROR, method.signature() + " fills a second slot, that of "
+                            + replaced.signature() + " (Q97)");
                 }
             }
-            if (method.slot() < 0) {
+            if (isClass && method.hasSlot() && method.slot() < 0) {
                 method.setSlot(slots.size());
                 slots.add(method);
             }
         }
         vtable = slots.toArray(new RuntimeMethod[0]);
+        for (RuntimeMethod[] row : rows) {
+            if (!converts(vm, row[0].definition().signature().returnType(), module,
+                    row[1].definition().signature().returnType(), row[1].type().module())) {
+                throw new Fault(Fault.TYPE_LOAD_ERROR, "the return type of " + row[0].signature() + " does not convert"
+                        + " to that of " + row[1].signature() + " (BC-12)");
+            }
+        }
+    }
+
+    // The method that an Override row of the method names (BC-12, Q97): a method of a supertype with a slot, a
+    // VIRTUAL or ABSTRACT instance method, which is not FINAL and takes the parameter types of the override
+    // (MEM-02). Another one is a TypeLoadError at the load.
+    private RuntimeMethod overridable(RuntimeMethod method, RuntimeMethod replaced) {
+        String problem = !isSubtypeOf(replaced.type()) ? ", but " + replaced.type().name() + " is no supertype of "
+                + name() + " (BC-12)"
+                : !replaced.hasSlot() ? ", which is not a virtual or abstract instance method (BC-12)"
+                : (replaced.definition().flags() & Flags.METHOD_FINAL) != 0 ? ", which is final (MEM-02)"
+                : !method.parameters().equals(replaced.parameters()) ? ", whose parameter types differ (MEM-02)" : null;
+        if (problem != null) {
+            throw new Fault(Fault.TYPE_LOAD_ERROR, method.signature() + " overrides " + replaced.signature() + problem);
+        }
+        return replaced;
+    }
+
+    // Whether a value of the type from, which a signature of the module source holds, converts without a bridge to
+    // the type to of the module target (BC-12, MEM-02): it is that type, or a reference subtype of it (TYP-02), where
+    // a type converts to the nullable form of its supertypes, and every reference type to reflect.core.Object.
+    private static boolean converts(Vm vm, TypeSig from, RuntimeModule source, TypeSig to, RuntimeModule target) {
+        if (Spelling.type(from, source.name(), true).equals(Spelling.type(to, target.name(), true))) {
+            return true;
+        }
+        if (to instanceof TypeSig.NullableRef nullable) {
+            TypeSig inner = from instanceof TypeSig.NullableRef wrapped ? wrapped.type() : from;
+            return converts(vm, inner, source, nullable.type(), target);
+        }
+        if (!reference(from) || !(to instanceof TypeSig.Named named) || named.valueType()) {
+            return false;
+        }
+        if (Spelling.type(to, target.name(), true).equals("[reflect.core]reflect.core.Object")) {
+            return true;
+        }
+        return from instanceof TypeSig.Named type && vm.type(source, type.type()).isSubtypeOf(vm.type(target, named.type()));
+    }
+
+    // Whether the type is a reference type that is not nullable: a class or an interface, an instantiation of one, an
+    // array or an intersection (TYP-01).
+    private static boolean reference(TypeSig type) {
+        return type instanceof TypeSig.Named named && !named.valueType()
+                || type instanceof TypeSig.GenericInst instance && !instance.type().valueType()
+                || type instanceof TypeSig.ArrayOf || type instanceof TypeSig.Intersection;
     }
 
     // A direct supertype that is SEALED, the base type or an interface, belongs to the module of the type, which is

@@ -1,0 +1,112 @@
+// expect-output: null
+// expect-output: null
+// expect-output: null
+// expect-output: overrides.Dog
+// expect-output: Rex
+.module overrides 0.0.0
+.main overrides.App
+.requires reflect.core
+.requires reflect.io
+
+// An override keeps the parameter types of the method that it overrides, and may narrow the return type to a
+// reference subtype, which fills the slot itself (MEM-02, BC-12): an interface, an array or an intersection
+// where the base returns reflect.core.Object, and a type that is not nullable where it returns the nullable
+// form of a supertype. Loading checks each row (VM-13).
+.class public overrides.Base {
+    .method public void new() {
+        ldarg    0
+        call     void reflect.core.Object::new()
+        ret
+    }
+    .method public virtual reflect.core.Object any() {
+        ldnull
+        ret
+    }
+    .method public virtual void name(reflect.core.String text) {
+        ret
+    }
+}
+
+.class public interface overrides.Named {
+    .method public abstract overrides.Named? self() {
+    }
+}
+
+.class public overrides.Face extends overrides.Base {
+    .method public void new() {
+        ldarg    0
+        call     void overrides.Base::new()
+        ret
+    }
+    .method public virtual overrides.Named any() {
+        .override reflect.core.Object overrides.Base::any()
+        ldnull
+        ret
+    }
+}
+
+.class public overrides.Rows extends overrides.Base {
+    .method public void new() {
+        ldarg    0
+        call     void overrides.Base::new()
+        ret
+    }
+    .method public virtual reflect.core.String[] any() {
+        .override reflect.core.Object overrides.Base::any()
+        ldnull
+        ret
+    }
+}
+
+.class public overrides.Both extends overrides.Base {
+    .method public void new() {
+        ldarg    0
+        call     void overrides.Base::new()
+        ret
+    }
+    .method public virtual (overrides.Base & overrides.Named) any() {
+        .override reflect.core.Object overrides.Base::any()
+        ldnull
+        ret
+    }
+}
+
+.class public overrides.Dog extends overrides.Base implements overrides.Named {
+    .method public void new() {
+        ldarg    0
+        call     void overrides.Base::new()
+        ret
+    }
+    .method public virtual overrides.Dog self() {
+        .override overrides.Named? overrides.Named::self()
+        ldarg    0
+        ret
+    }
+    .method public virtual void name(reflect.core.String text) {
+        .override void overrides.Base::name(reflect.core.String)
+        ldarg    text
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        ret
+    }
+}
+
+.class public final overrides.App {
+    .method public static void main(reflect.core.String[] args) {
+        newobj   void overrides.Face::new()
+        callvirt reflect.core.Object overrides.Base::any()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void overrides.Rows::new()
+        callvirt reflect.core.Object overrides.Base::any()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void overrides.Both::new()
+        callvirt reflect.core.Object overrides.Base::any()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void overrides.Dog::new()
+        callvirt overrides.Named? overrides.Named::self()
+        call     static void reflect.io.Console::println(reflect.core.Object?)
+        newobj   void overrides.Dog::new()
+        ldstr    "Rex"
+        callvirt void overrides.Base::name(reflect.core.String)
+        ret
+    }
+}

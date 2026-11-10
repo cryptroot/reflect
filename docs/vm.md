@@ -28,10 +28,10 @@ VM guarantees.
   since rows have fixed widths (BC-11); a type is loaded when first named by executing code,
   reflection or another type's layout. Loading a type checks its constraints: a base class that is
   neither `final` nor a record and interfaces that are interfaces (Q96), and `sealed` and `permits`
-  (DAT-06, Q95); it computes its layout (§3) and builds its dispatch tables (§5), checking that
-  each override's return type converts to that of the method it replaces (BC-12). A value type
-  whose `mutating` method fills the slot of a `mutating` interface member is marked box-mutable
-  (DAT-09). A failure throws `TypeLoadError` at the use.
+  (DAT-06, Q95); it computes its layout (§3) and builds its dispatch tables (§5), checking each
+  `Override` row and that each override's return type converts to that of the method it replaces
+  (BC-12). A value type whose `mutating` method fills the slot of a `mutating` interface member is
+  marked box-mutable (DAT-09). A failure throws `TypeLoadError` at the use.
 - **VM-14 [Proposed]** Verification (bytecode.md §7) runs per method before its first execution,
   for modules outside the trusted release.
 - **VM-15 [Decided, Q35]** Layers (ARC-12): every run-time type, method body, compiled code

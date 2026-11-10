@@ -31,15 +31,16 @@ final class Spelling {
         if ((signature.flags() & SigCode.METHOD_GENERIC) != 0) {
             text.append('<').append(signature.typeParams()).append('>');
         }
+        return text.append(parameters(signature, module, scoped)).toString();
+    }
+
+    /** The parameter types in parentheses, with ... after the last one of a variadic method. */
+    static String parameters(MethodSig signature, String module, boolean scoped) {
         var params = new ArrayList<String>();
         for (TypeSig param : signature.params()) {
             params.add(type(param, module, scoped));
         }
-        text.append('(').append(String.join(", ", params));
-        if ((signature.flags() & SigCode.METHOD_VARIADIC) != 0) {
-            text.append("...");
-        }
-        return text.append(')').toString();
+        return "(" + String.join(", ", params) + ((signature.flags() & SigCode.METHOD_VARIADIC) != 0 ? "..." : "") + ")";
     }
 
     /** A field of a type: its type, the type and the name, as a FieldRef in full form states it (Q69). */

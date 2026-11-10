@@ -150,4 +150,9 @@ final class RuntimeMethod {
     String signature() {
         return Spelling.method(type.name(), definition.name(), definition.signature(), type.module().name(), false);
     }
+
+    /** The parameter types, each named type with its module, which an override keeps (MEM-02). */
+    String parameters() {
+        return Spelling.parameters(definition.signature(), type.module().name(), true);
+    }
 }
